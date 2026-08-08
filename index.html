@@ -1,0 +1,3243 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AURA-AgriNet 1.0 — Autonomous Remote-Sensing Agent for Agricultural Micro-Logistics</title>
+<meta name="description" content="Mission console simulating NASA/ESA telemetry ingestion, autonomous hazard detection, and multi-stakeholder micro-logistics dispatch.">
+
+<!-- PWA. Locally built Tailwind (9.5 KB) replaces the CDN so the app renders with
+     no network at all -- an installed app that needs a CDN to lay itself out is not
+     actually offline-capable. -->
+<link rel="stylesheet" href="app.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0e13">
+<meta name="color-scheme" content="dark">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AURA-AgriNet">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+/* ==========================================================================
+   AURA-AgriNet design tokens.
+   Dark, single-mode mission console. Every colour is painted explicitly so a
+   Tailwind CDN failure degrades layout only, never legibility.
+
+   Categorical series palette validated against the #12161c surface:
+     validate_palette.js "#3987e5,#d95926,#199e70,#c98500" --mode dark
+     -> ALL PASS  (worst adjacent CVD dE 8.4, normal-vision dE 19.8, all >= 3:1)
+
+   Status hues clear 3:1 on this surface but are NOT a categorical palette --
+   critical vs good measure dE 4.1 under deuteranopia. Hence the hard rule
+   enforced throughout this file: every status ships an icon AND a text label.
+   ========================================================================== */
+:root{
+  color-scheme: dark;
+
+  --plane:        #0b0e13;
+  --surface-1:    #12161c;
+  --surface-2:    #171c24;
+  --surface-3:    #1e242e;
+
+  --text-primary:   #f4f6f8;
+  --text-secondary: #a8b2c0;
+  --text-muted:     #6c7889;
+
+  --grid:      #1f2630;
+  --axis:      #2b3441;
+  --hairline:  rgba(255,255,255,0.08);
+  --hairline-2:rgba(255,255,255,0.14);
+
+  /* categorical -- identity only, never state */
+  --series-1: #3987e5;  /* blue    - AURA bot / primary trend */
+  --series-2: #d95926;  /* orange  - buyer */
+  --series-3: #199e70;  /* aqua    - farmer */
+  --series-4: #c98500;  /* yellow  - driver */
+
+  /* status -- state only, never identity. always with icon + label */
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+
+  --good-wash:     rgba(12,163,12,0.12);
+  --warning-wash:  rgba(250,178,25,0.12);
+  --serious-wash:  rgba(236,131,90,0.12);
+  --critical-wash: rgba(208,59,59,0.14);
+  --series1-wash:  rgba(57,135,229,0.12);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background:var(--plane);
+  color:var(--text-primary);
+  font-family:var(--font-sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+.sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+/* ---------- structure ---------- */
+.panel{
+  background:var(--surface-1);
+  border:1px solid var(--hairline);
+  border-radius:12px;
+}
+.panel-head{
+  display:flex; align-items:center; gap:10px;
+  padding:12px 16px;
+  border-bottom:1px solid var(--hairline);
+}
+.panel-title{
+  font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--text-secondary);
+}
+.panel-sub{ font-size:11px; color:var(--text-muted); letter-spacing:.04em; }
+
+.mono{ font-family:var(--font-mono); }
+.tnum{ font-variant-numeric:tabular-nums; }
+
+/* ---------- status chip: icon + label, never colour alone ---------- */
+.chip{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:2px 8px; border-radius:999px;
+  font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  border:1px solid transparent; white-space:nowrap;
+}
+.chip-icon{ font-size:10px; line-height:1; }
+.chip.good    { color:#5fd35f; background:var(--good-wash);     border-color:rgba(12,163,12,.4); }
+.chip.warning { color:#ffc44d; background:var(--warning-wash);  border-color:rgba(250,178,25,.4); }
+.chip.serious { color:#f5a882; background:var(--serious-wash);  border-color:rgba(236,131,90,.4); }
+.chip.critical{ color:#ff6b6b; background:var(--critical-wash); border-color:rgba(208,59,59,.45); }
+.chip.idle    { color:var(--text-muted); background:rgba(255,255,255,.04); border-color:var(--hairline); }
+
+/* ---------- link chips (header) ---------- */
+.link-chip{
+  display:flex; align-items:center; gap:7px;
+  padding:5px 10px; border-radius:8px;
+  background:var(--surface-2); border:1px solid var(--hairline);
+  font-size:10px; letter-spacing:.08em; text-transform:uppercase; font-weight:600;
+  color:var(--text-secondary); white-space:nowrap;
+}
+.link-dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+.link-dot.nominal   { background:var(--good); }
+.link-dot.degraded  { background:var(--warning); }
+.link-dot.reacquire { background:var(--critical); animation:pulse 1.1s ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+.link-chip.rx{ border-color:rgba(57,135,229,.5); }
+.link-lat{ color:var(--text-muted); font-family:var(--font-mono); letter-spacing:0; }
+
+/* ---------- hero ---------- */
+.hero-value{
+  font-size:60px; font-weight:650; line-height:.95;
+  letter-spacing:-.025em;
+  font-variant-numeric:proportional-nums; /* never tabular on a display number */
+}
+.hero-unit{ font-size:20px; font-weight:500; color:var(--text-muted); margin-left:2px; }
+
+/* ---------- stat tiles ---------- */
+.tile{
+  background:var(--surface-2);
+  border:1px solid var(--hairline);
+  border-radius:10px;
+  padding:12px 13px 10px;
+  transition:border-color .35s ease, background .35s ease;
+}
+.tile.is-alert{ border-color:rgba(208,59,59,.45); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 55%); }
+.tile.is-warn { border-color:rgba(250,178,25,.4);  background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 55%); }
+.tile-label{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:600; }
+.tile-value{ font-size:27px; font-weight:600; letter-spacing:-.02em; line-height:1.1; }
+.tile-unit{ font-size:13px; color:var(--text-muted); font-weight:500; }
+.tile-delta{ font-size:11px; font-weight:600; font-family:var(--font-mono); }
+.tile-src{ font-size:9px; letter-spacing:.08em; color:var(--text-muted); text-transform:uppercase; }
+
+/* held at reduced opacity during refetch -- no skeleton flash, no layout jump */
+.stale{ opacity:.45; transition:opacity .25s ease; }
+
+/* ---------- meter ---------- */
+.meter-track{ height:5px; border-radius:3px; background:rgba(57,135,229,.16); overflow:hidden; }
+.meter-fill { height:100%; border-radius:3px; transition:width .5s cubic-bezier(.4,0,.2,1), background-color .35s ease; }
+
+/* ---------- buttons ---------- */
+.btn{
+  display:flex; align-items:center; gap:8px;
+  width:100%; text-align:left;
+  padding:9px 11px; border-radius:9px;
+  background:var(--surface-2); border:1px solid var(--hairline);
+  color:var(--text-primary); font-size:12px; font-weight:600;
+  cursor:pointer; transition:all .16s ease;
+}
+.btn:hover{ background:var(--surface-3); border-color:var(--hairline-2); transform:translateY(-1px); }
+.btn:active{ transform:translateY(0); }
+.btn:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+.btn-glyph{ font-size:13px; width:16px; text-align:center; flex:none; }
+.btn.armed{ border-color:currentColor; }
+.btn.c-crit  { color:#ff6b6b; } .btn.c-crit:hover  { background:var(--critical-wash); }
+.btn.c-warn  { color:#ffc44d; } .btn.c-warn:hover  { background:var(--warning-wash); }
+.btn.c-ser   { color:#f5a882; } .btn.c-ser:hover   { background:var(--serious-wash); }
+.btn.c-good  { color:#5fd35f; } .btn.c-good:hover  { background:var(--good-wash); }
+.btn.c-info  { color:#6fa9ee; } .btn.c-info:hover  { background:var(--series1-wash); }
+
+.toggle{
+  padding:4px 9px; border-radius:7px; font-size:10px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; cursor:pointer;
+  background:transparent; border:1px solid var(--hairline); color:var(--text-muted);
+  transition:all .16s ease;
+}
+.toggle:hover{ color:var(--text-secondary); border-color:var(--hairline-2); }
+.toggle[aria-pressed="true"]{ background:var(--series1-wash); border-color:rgba(57,135,229,.5); color:#6fa9ee; }
+.toggle:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+
+/* ---------- charts ---------- */
+.chart-wrap{ position:relative; }
+.gridline{ stroke:var(--grid); stroke-width:1; }        /* solid hairline, never dashed */
+.axisline{ stroke:var(--axis); stroke-width:1; }
+.axis-text{ fill:var(--text-muted); font-size:9px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.thresh-line{ stroke:var(--critical); stroke-width:1; opacity:.8; }
+.thresh-text{ fill:#ff6b6b; font-size:9px; font-weight:700; letter-spacing:.09em; }
+.series-line{ fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.crosshair{ stroke:var(--text-muted); stroke-width:1; opacity:.55; }
+
+.tooltip{
+  position:absolute; pointer-events:none; z-index:30;
+  background:var(--surface-3); border:1px solid var(--hairline-2);
+  border-radius:8px; padding:7px 10px;
+  font-size:11px; box-shadow:0 8px 24px rgba(0,0,0,.55);
+  opacity:0; transition:opacity .12s ease; white-space:nowrap;
+}
+.tooltip.on{ opacity:1; }
+
+/* ---------- data table (the WCAG-clean twin of every chart) ---------- */
+.dtable{ width:100%; border-collapse:collapse; font-size:11px; font-variant-numeric:tabular-nums; }
+.dtable th{
+  text-align:right; padding:6px 9px; font-size:9px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--text-muted); font-weight:700;
+  border-bottom:1px solid var(--hairline); position:sticky; top:0; background:var(--surface-1);
+}
+.dtable th:first-child, .dtable td:first-child{ text-align:left; }
+.dtable td{ padding:5px 9px; text-align:right; border-bottom:1px solid rgba(255,255,255,.04); color:var(--text-secondary); }
+.dtable tr:hover td{ background:var(--surface-2); }
+
+/* ---------- map ---------- */
+.road       { stroke-linecap:round; fill:none; transition:stroke .5s ease, opacity .5s ease; }
+.road-label { fill:var(--text-muted); font-size:8.5px; font-family:var(--font-mono); letter-spacing:.02em; }
+.route-line { fill:none; stroke:var(--series-1); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+.route-ghost{ fill:none; stroke:var(--text-muted); stroke-width:3; stroke-linecap:round; opacity:.3; animation:ghostout 2.6s ease forwards; }
+@keyframes ghostout{ from{opacity:.38} to{opacity:0} }
+.node-label { fill:var(--text-secondary); font-size:9px; font-weight:600; letter-spacing:.03em; }
+.node-sub   { fill:var(--text-muted); font-size:8px; font-family:var(--font-mono); }
+.blocked-tag{ fill:#ff6b6b; font-size:8.5px; font-weight:700; letter-spacing:.05em; }
+
+/* ---------- chat ---------- */
+.chat-scroll{ overflow-y:auto; scroll-behavior:smooth; }
+.chat-scroll::-webkit-scrollbar{ width:8px; }
+.chat-scroll::-webkit-scrollbar-track{ background:transparent; }
+.chat-scroll::-webkit-scrollbar-thumb{ background:var(--surface-3); border-radius:4px; }
+.chat-scroll::-webkit-scrollbar-thumb:hover{ background:#2b3441; }
+
+.msg{ display:flex; gap:9px; margin-bottom:12px; animation:msgin .28s cubic-bezier(.2,.7,.3,1); }
+@keyframes msgin{ from{ opacity:0; transform:translateY(7px);} to{ opacity:1; transform:none; } }
+.msg.mine{ flex-direction:row-reverse; }
+.avatar{
+  width:28px; height:28px; border-radius:50%; flex:none;
+  display:grid; place-items:center;
+  font-size:10px; font-weight:700; color:#080b0f; letter-spacing:.02em;
+}
+.bubble{
+  max-width:78%; padding:8px 11px; border-radius:12px;
+  background:var(--surface-2); border:1px solid var(--hairline);
+  font-size:12.5px; line-height:1.5; word-break:break-word;
+}
+.msg.mine .bubble{ background:#1b3a2c; border-color:rgba(25,158,112,.35); }
+.msg-from{ font-size:10px; font-weight:700; letter-spacing:.06em; margin-bottom:3px; }
+.msg-time{ font-size:9px; color:var(--text-muted); font-family:var(--font-mono); margin-top:4px; }
+.bubble.sys{
+  background:transparent; border:1px dashed var(--hairline-2);
+  color:var(--text-muted); font-size:11px; text-align:center; max-width:100%;
+}
+.bubble .kv{ display:block; font-family:var(--font-mono); font-size:11px; color:var(--text-secondary); margin-top:5px; }
+
+.typing{ display:flex; gap:3px; align-items:center; padding:3px 0; }
+.typing i{ width:5px; height:5px; border-radius:50%; background:var(--text-muted); animation:blip 1.15s ease-in-out infinite; }
+.typing i:nth-child(2){ animation-delay:.16s; } .typing i:nth-child(3){ animation-delay:.32s; }
+@keyframes blip{ 0%,60%,100%{ opacity:.25; transform:translateY(0);} 30%{ opacity:1; transform:translateY(-3px);} }
+
+.newpill{
+  position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+  background:var(--series-1); color:#fff; border:none;
+  padding:6px 13px; border-radius:999px; font-size:11px; font-weight:700;
+  cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.5); z-index:20;
+  animation:msgin .22s ease;
+}
+
+.tab{
+  padding:5px 10px; border-radius:7px; font-size:11px; font-weight:600;
+  background:transparent; border:1px solid transparent; color:var(--text-muted);
+  cursor:pointer; transition:all .15s ease; white-space:nowrap;
+}
+.tab:hover{ color:var(--text-secondary); background:var(--surface-2); }
+.tab[aria-selected="true"]{ background:var(--surface-3); border-color:var(--hairline-2); color:var(--text-primary); }
+.tab:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+
+.field{
+  background:var(--surface-2); border:1px solid var(--hairline);
+  border-radius:9px; color:var(--text-primary); font-size:12.5px;
+  padding:9px 11px; font-family:var(--font-sans); width:100%;
+}
+.field::placeholder{ color:var(--text-muted); }
+.field:focus{ outline:none; border-color:rgba(57,135,229,.6); }
+
+/* ---------- event log ---------- */
+.logrow{
+  display:flex; gap:9px; align-items:flex-start;
+  padding:7px 10px; border-radius:7px; font-size:11.5px;
+  border-left:2px solid transparent; background:var(--surface-2);
+  animation:msgin .28s ease;
+}
+.logrow.critical{ border-left-color:var(--critical); }
+.logrow.warning { border-left-color:var(--warning); }
+.logrow.serious { border-left-color:var(--serious); }
+.logrow.good    { border-left-color:var(--good); }
+.logrow.info    { border-left-color:var(--series-1); }
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  .chat-scroll{ scroll-behavior:auto; }
+}
+
+/* ==========================================================================
+   MOBILE / PWA
+   A farmer holding a phone at dawn needs three taps, not a mission console.
+   Below 1024px the app becomes a role-first, one-thumb interface; above it the
+   full Ops console stays.
+   ========================================================================== */
+body{
+  -webkit-tap-highlight-color:rgba(57,135,229,.18);
+  overscroll-behavior-y:none;               /* kill rubber-band under the tab bar */
+  -webkit-text-size-adjust:100%;
+}
+/* Every interactive element clears Apple HIG 44px / Material 48dp. */
+.btn, .tab, .toggle, .field, select, .rolebtn{ min-height:44px; }
+.toggle{ min-height:32px; }                 /* inline chips stay compact on desktop */
+@media (max-width:1023px){
+  .toggle{ min-height:44px; padding:8px 12px; }
+}
+
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  display:none; grid-template-columns:repeat(4,1fr);
+  background:rgba(11,14,19,.96); backdrop-filter:blur(14px);
+  border-top:1px solid var(--hairline);
+  /* clear the iPhone home indicator */
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+.rolebtn{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:3px; padding:7px 4px 6px; border:none; background:transparent;
+  color:var(--text-muted); font-size:10px; font-weight:600; letter-spacing:.04em;
+  cursor:pointer; transition:color .15s ease; position:relative;
+}
+.rolebtn .rb-glyph{ font-size:17px; line-height:1; }
+.rolebtn[aria-selected="true"]{ color:var(--series-1); }
+.rolebtn[aria-selected="true"]::before{
+  content:""; position:absolute; top:0; left:22%; right:22%; height:2px;
+  background:var(--series-1); border-radius:0 0 2px 2px;
+}
+.rolebtn .rb-badge{
+  position:absolute; top:4px; right:calc(50% - 20px);
+  min-width:15px; height:15px; padding:0 4px; border-radius:8px;
+  background:var(--critical); color:#fff; font-size:9px; font-weight:800;
+  display:grid; place-items:center;
+}
+
+/* Role panes: hidden on desktop, where Ops shows everything. */
+.rolepane{ display:none; }
+
+@media (max-width:1023px){
+  .tabbar{ display:grid; }
+  main{ padding-bottom:150px !important; }   /* clear the fixed bar + FAB */
+  /* Ops is the desktop console; on mobile only the active role pane shows. */
+  body[data-role="FARMER"] .rolepane[data-pane="FARMER"],
+  body[data-role="BUYER"]  .rolepane[data-pane="BUYER"],
+  body[data-role="DRIVER"] .rolepane[data-pane="DRIVER"]{ display:block; }
+  body:not([data-role="OPS"]) #opsColumn{ display:none; }
+  /* The chat is the product's headline interaction, so it stays available in
+     EVERY role -- stacked under the role cards rather than hidden. Reusing the
+     one chat panel keeps input, persona, quick replies and typing indicators
+     working with no duplicated DOM. */
+  #chatColumn{ position:static !important; }
+  #chatColumn > div{ height:62vh !important; min-height:380px !important; }
+  .fab{ display:flex; }
+}
+
+/* Mobile role-view cards */
+.mcard{
+  background:var(--surface-1); border:1px solid var(--hairline);
+  border-radius:14px; padding:14px; margin-bottom:12px;
+}
+.mcard-head{
+  display:flex; align-items:center; gap:8px; margin-bottom:10px;
+}
+.mcard-title{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-secondary); }
+.mbig{ font-size:40px; font-weight:650; line-height:1; letter-spacing:-.02em; font-variant-numeric:proportional-nums; }
+.mrow{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05);
+}
+.mrow:last-child{ border-bottom:none; }
+.mlabel{ font-size:12px; color:var(--text-secondary); }
+.mval{ font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+.plotcard{
+  border:1px solid var(--hairline); border-radius:11px; padding:11px 12px;
+  background:var(--surface-2); margin-bottom:9px;
+}
+.plotcard.alert{ border-color:rgba(208,59,59,.45); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 60%); }
+.plotcard.warn { border-color:rgba(250,178,25,.40); background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 60%); }
+.prov{ font-size:9.5px; color:var(--text-muted); letter-spacing:.02em; }
+
+/* ---- Floating simulation control (mobile) ----
+   The trigger panel lives in the Ops column, which is hidden in role views. Without
+   this, a phone user cannot fire a single event -- so the controls get their own
+   sheet reachable from every role. */
+.fab{
+  position:fixed; right:16px; z-index:55;
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  width:56px; height:56px; border-radius:50%;
+  display:none; align-items:center; justify-content:center;
+  background:var(--series-1); color:#fff; border:none;
+  font-size:22px; cursor:pointer;
+  box-shadow:0 6px 22px rgba(0,0,0,.55);
+}
+.fab:active{ transform:scale(.94); }
+
+.sheet{
+  position:fixed; inset:0; z-index:60;
+  background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+  display:flex; align-items:flex-end;
+}
+.sheet[hidden]{ display:none; }
+.sheet-panel{
+  width:100%; max-height:82vh; overflow-y:auto;
+  background:var(--surface-1);
+  border-top:1px solid var(--hairline-2);
+  border-radius:18px 18px 0 0;
+  padding:8px 14px calc(20px + env(safe-area-inset-bottom, 0px));
+  animation:sheetup .22s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes sheetup{ from{ transform:translateY(14%); opacity:.6 } to{ transform:none; opacity:1 } }
+.sheet-grab{
+  width:38px; height:4px; border-radius:2px; background:var(--hairline-2);
+  margin:6px auto 12px;
+}
+
+/* Big primary action for the driver view */
+.bigaction{
+  display:block; width:100%; text-align:center;
+  padding:15px; border-radius:12px; border:1px solid rgba(57,135,229,.45);
+  background:var(--series1-wash); color:#6fa9ee;
+  font-size:14px; font-weight:700; letter-spacing:.03em; cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ HEADER ══════════════════════ -->
+<header class="sticky top-0 z-40" style="background:rgba(11,14,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline)">
+  <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+
+    <div class="flex items-center gap-2.5 flex-none">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="14" fill="none" stroke="var(--series-1)" stroke-width="1.4" opacity=".45"/>
+        <circle cx="16" cy="16" r="8.5" fill="none" stroke="var(--series-3)" stroke-width="1.4" opacity=".75"/>
+        <circle cx="16" cy="16" r="3.1" fill="var(--series-1)"/>
+        <circle cx="16" cy="2" r="2.1" fill="var(--series-4)"/>
+      </svg>
+      <div class="leading-tight">
+        <div class="font-bold text-[15px] tracking-tight">AURA-AgriNet <span style="color:var(--text-muted)" class="font-medium">1.0</span></div>
+        <div class="text-[9px] tracking-[.13em] uppercase" style="color:var(--text-muted)">Autonomous Remote-Sensing Agent</div>
+      </div>
+    </div>
+
+    <div class="hidden md:block h-8 w-px" style="background:var(--hairline)"></div>
+
+    <div class="flex items-center gap-2 flex-none">
+      <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)">Mission Clock</span>
+      <span id="missionClock" class="mono tnum text-[13px] font-semibold">--:--:--</span>
+      <span class="text-[9px]" style="color:var(--text-muted)">UTC</span>
+    </div>
+
+    <div id="posturePill" class="chip good flex-none"><span class="chip-icon">✓</span><span>All Systems Nominal</span></div>
+
+    <div class="flex items-center gap-2 flex-none">
+      <label for="regionSel" class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)">Region</label>
+      <select id="regionSel" class="field" style="width:auto;padding:4px 8px;font-size:11px"></select>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite" aria-label="Satellite downlink status"></div>
+  </div>
+</header>
+
+<!-- ══════════════════════ MAIN GRID ══════════════════════ -->
+<main class="max-w-[1800px] mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+  <!-- ─────────── MOBILE ROLE PANES (hidden ≥1024px) ─────────── -->
+  <section class="rolepane lg:col-span-12" data-pane="FARMER" id="paneFarmer"></section>
+  <section class="rolepane lg:col-span-12" data-pane="BUYER"  id="paneBuyer"></section>
+  <section class="rolepane lg:col-span-12" data-pane="DRIVER" id="paneDriver"></section>
+
+  <!-- ─────────── LEFT: TELEMETRY + CONTROLS ─────────── -->
+  <section id="opsColumn" class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
+
+    <!-- HERO + KPI ROW -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Field Readiness</span>
+        <span class="panel-sub">Composite index · 4 orbital sources</span>
+        <div class="flex-1"></div>
+        <button id="btnTable" class="toggle" aria-pressed="false" aria-controls="tableView">Table view</button>
+      </div>
+
+      <div class="p-4 flex flex-wrap items-end gap-x-8 gap-y-3" style="border-bottom:1px solid var(--hairline)">
+        <div>
+          <div class="text-[10px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)">Operational Readiness</div>
+          <div class="flex items-baseline">
+            <span id="heroValue" class="hero-value">—</span><span class="hero-unit">/100</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2 pb-1.5">
+          <div id="heroPosture" class="chip good"><span class="chip-icon">✓</span><span>Nominal</span></div>
+          <div id="heroNote" class="text-[11px] max-w-[340px]" style="color:var(--text-secondary)">Awaiting first downlink…</div>
+        </div>
+        <div class="flex-1 min-w-[130px] pb-1">
+          <div class="text-[9px] tracking-[.1em] uppercase mb-1.5" style="color:var(--text-muted)">Active advisories</div>
+          <div id="alertCount" class="text-[22px] font-semibold tnum">0</div>
+        </div>
+      </div>
+
+      <div id="tileGrid" class="p-3 grid grid-cols-2 xl:grid-cols-4 gap-3"></div>
+
+      <div id="tableView" class="hidden px-3 pb-3">
+        <div class="max-h-[260px] overflow-auto rounded-lg" style="border:1px solid var(--hairline)">
+          <table class="dtable">
+            <caption class="sr-only">Raw telemetry readings, most recent first</caption>
+            <thead><tr>
+              <th scope="col">Time (UTC)</th><th scope="col">Soil moisture %</th><th scope="col">Root stress</th>
+              <th scope="col">NDVI</th><th scope="col">Surface °C</th><th scope="col">Trafficability %</th>
+            </tr></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <p class="text-[10px] mt-2" style="color:var(--text-muted)">Every plotted value is present here — no reading is reachable only by hovering a chart.</p>
+      </div>
+    </div>
+
+    <!-- THERMAL CHART -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Thermal Infrared</span>
+        <span class="panel-sub">Surface temperature · frost &amp; heatwave forecasting</span>
+        <div class="flex-1"></div>
+        <span id="thermalChip" class="chip good"><span class="chip-icon">✓</span><span>Above frost floor</span></span>
+      </div>
+      <div class="chart-wrap p-3">
+        <svg id="thermalChart" viewBox="0 0 620 210" width="100%" style="display:block;overflow:visible" role="img"
+             aria-label="Surface temperature over the last 24 readings against the 0 degree Celsius frost floor"></svg>
+        <div id="thermalTip" class="tooltip"></div>
+      </div>
+    </div>
+
+    <!-- MICRO-LOGISTICS MAP
+         Wrapped so the panel can be relocated into the Driver pane on mobile and
+         returned here afterwards. -->
+    <div id="mapHome">
+    <div class="panel" id="mapPanel">
+      <div class="panel-head">
+        <span class="panel-title">Micro-Logistics Grid</span>
+        <span class="panel-sub">Sentinel-1 SAR trafficability · live routing</span>
+        <div class="flex-1"></div>
+        <span id="routeChip" class="chip good"><span class="chip-icon">✓</span><span>Primary route clear</span></span>
+      </div>
+
+      <div class="p-3">
+        <svg id="fieldMap" viewBox="0 0 600 340" width="100%" style="display:block" role="img"
+             aria-label="Field road network showing farm plots, depot, buyer hub and the active delivery route"></svg>
+      </div>
+
+      <div class="px-3 pb-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div class="rounded-lg p-2.5" style="background:var(--surface-2);border:1px solid var(--hairline)">
+          <div class="tile-src mb-1">Distance</div>
+          <div><span id="routeKm" class="text-[17px] font-semibold tnum">—</span><span class="tile-unit"> km</span></div>
+          <div id="routeKmDelta" class="tile-delta mt-0.5" style="color:var(--text-muted)">—</div>
+        </div>
+        <div class="rounded-lg p-2.5" style="background:var(--surface-2);border:1px solid var(--hairline)">
+          <div class="tile-src mb-1">Drive time</div>
+          <div><span id="routeEta" class="text-[17px] font-semibold tnum">—</span><span class="tile-unit"> min</span></div>
+          <div id="routeEtaDelta" class="tile-delta mt-0.5" style="color:var(--text-muted)">—</div>
+        </div>
+        <div class="rounded-lg p-2.5 col-span-2" style="background:var(--surface-2);border:1px solid var(--hairline)">
+          <div class="tile-src mb-1">Waypoints · Unit D-3</div>
+          <div id="routeWaypoints" class="text-[11.5px] mono leading-relaxed" style="color:var(--text-secondary)">—</div>
+        </div>
+      </div>
+    </div>
+    </div><!-- /mapHome -->
+
+    <!-- TRIGGER PANEL + EVENT LOG -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Event Simulation</span>
+          <div class="flex-1"></div>
+          <span class="panel-sub">Injects telemetry</span>
+        </div>
+        <div class="p-3 flex flex-col gap-2">
+          <div id="triggerButtons" class="flex flex-col gap-2"></div>
+          <div class="h-px my-1" style="background:var(--hairline)"></div>
+          <div class="flex gap-2">
+            <button id="btnPause" class="btn c-info" style="width:auto;flex:1"><span class="btn-glyph">❚❚</span><span>Pause feed</span></button>
+            <button id="btnSpeed" class="btn c-info" style="width:auto;flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
+          </div>
+          <p class="text-[10px] leading-relaxed mt-1" style="color:var(--text-muted)">
+            Triggers inject a telemetry excursion and let the normal rule path run — manual and
+            autonomous firings execute identical code.
+          </p>
+        </div>
+      </div>
+
+      <div class="panel flex flex-col">
+        <div class="panel-head">
+          <span class="panel-title">Event Log</span>
+          <div class="flex-1"></div>
+          <span id="logCount" class="panel-sub">0 entries</span>
+        </div>
+        <div id="eventLog" class="p-3 flex flex-col gap-2 overflow-y-auto chat-scroll" style="max-height:330px"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────── RIGHT: DISPATCH CONSOLE ─────────── -->
+  <section id="chatColumn" class="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-[68px]">
+    <div class="panel flex flex-col" style="height:calc(100vh - 88px);min-height:560px">
+
+      <div class="panel-head">
+        <div class="relative flex-none">
+          <div class="avatar" style="background:var(--series-1)">AA</div>
+          <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style="background:var(--good);border:2px solid var(--surface-1)"></span>
+        </div>
+        <div class="leading-tight min-w-0">
+          <div class="text-[13px] font-semibold truncate">AURA-AgriNet Dispatch</div>
+          <div class="text-[10px] truncate" style="color:var(--text-muted)">Amara · Kwesi · Tunde · +2 stakeholders</div>
+        </div>
+        <div class="flex-1"></div>
+        <span class="chip good"><span class="chip-icon">✓</span><span>Online</span></span>
+      </div>
+
+      <div class="px-2.5 py-2 flex gap-1.5 overflow-x-auto" style="border-bottom:1px solid var(--hairline)" role="tablist" aria-label="Conversation channels">
+        <button class="tab" role="tab" aria-selected="true"  data-channel="ALL">All</button>
+        <button class="tab" role="tab" aria-selected="false" data-channel="FARMER">Farmers</button>
+        <button class="tab" role="tab" aria-selected="false" data-channel="BUYER">Buyers</button>
+        <button class="tab" role="tab" aria-selected="false" data-channel="DRIVER">Drivers</button>
+      </div>
+
+      <div class="relative flex-1 min-h-0">
+        <div id="chatScroll" class="chat-scroll absolute inset-0 px-3 py-3" role="log" aria-live="polite" aria-label="Dispatch message stream">
+          <div id="chatStream"></div>
+          <div id="typingRow" class="msg hidden">
+            <div id="typingAvatar" class="avatar" style="background:var(--series-1)">AA</div>
+            <div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>
+          </div>
+        </div>
+        <button id="newPill" class="newpill hidden">↓ New messages</button>
+      </div>
+
+      <div class="p-2.5 flex flex-col gap-2" style="border-top:1px solid var(--hairline)">
+        <div class="flex items-center gap-2">
+          <label for="personaSel" class="text-[9px] tracking-[.1em] uppercase flex-none" style="color:var(--text-muted)">Send as</label>
+          <select id="personaSel" class="field" style="width:auto;padding:5px 8px;font-size:11px">
+            <option value="FARMER">Amara — Farmer, Plot F-2</option>
+            <option value="BUYER">Kwesi — Terrace Kitchen</option>
+            <option value="DRIVER">Tunde — Driver, Unit D-3</option>
+          </select>
+        </div>
+        <form id="chatForm" class="flex gap-2">
+          <label for="chatInput" class="sr-only">Message AURA-AgriNet</label>
+          <input id="chatInput" class="field" autocomplete="off" placeholder="Ask about moisture, frost, route, orders…">
+          <button type="submit" class="btn" style="width:auto;flex:none;padding:9px 14px" aria-label="Send message">
+            <span class="btn-glyph" style="color:var(--series-1)">➤</span>
+          </button>
+        </form>
+        <div id="quickReplies" class="flex gap-1.5 flex-wrap"></div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- ══════════════════════ MOBILE SIMULATION SHEET ══════════════════════ -->
+<button id="fabSim" class="fab" aria-label="Open simulation controls" aria-haspopup="dialog">⚡</button>
+
+<div id="simSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="simSheetTitle" hidden>
+  <div class="sheet-panel">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div class="flex items-center gap-2 mb-3">
+      <span id="simSheetTitle" class="panel-title">Event Simulation</span>
+      <div class="flex-1"></div>
+      <button id="simClose" class="toggle" aria-label="Close simulation controls">Close</button>
+    </div>
+
+    <div id="triggerButtonsMobile" class="flex flex-col gap-2"></div>
+
+    <div class="h-px my-3" style="background:var(--hairline)"></div>
+
+    <div class="flex gap-2 mb-3">
+      <button id="btnPauseM" class="btn c-info" style="flex:1"><span class="btn-glyph">❚❚</span><span>Pause feed</span></button>
+      <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
+    </div>
+
+    <div class="flex items-center gap-2 mb-3">
+      <label for="regionSelM" class="text-[9px] tracking-[.12em] uppercase flex-none" style="color:var(--text-muted)">Region</label>
+      <select id="regionSelM" class="field" style="flex:1"></select>
+    </div>
+
+    <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)">
+      Triggers inject a telemetry excursion and let the normal rule path run, so they
+      land on the next downlink — up to ~13 s for Sentinel-1. Raise the speed to
+      compress the wait.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════ MOBILE TAB BAR ══════════════════════ -->
+<nav class="tabbar" role="tablist" aria-label="Role">
+  <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="false">
+    <span class="rb-glyph" aria-hidden="true">🌱</span><span>Farmer</span>
+    <span class="rb-badge hidden" data-badge="FARMER"></span>
+  </button>
+  <button class="rolebtn" role="tab" data-role="BUYER" aria-selected="false">
+    <span class="rb-glyph" aria-hidden="true">📦</span><span>Buyer</span>
+    <span class="rb-badge hidden" data-badge="BUYER"></span>
+  </button>
+  <button class="rolebtn" role="tab" data-role="DRIVER" aria-selected="false">
+    <span class="rb-glyph" aria-hidden="true">🚚</span><span>Driver</span>
+    <span class="rb-badge hidden" data-badge="DRIVER"></span>
+  </button>
+  <button class="rolebtn" role="tab" data-role="OPS" aria-selected="true">
+    <span class="rb-glyph" aria-hidden="true">🛰</span><span>Ops</span>
+  </button>
+</nav>
+
+<footer class="max-w-[1800px] mx-auto px-4 pb-6 pt-1 text-[10px] leading-relaxed" style="color:var(--text-muted)">
+  <p><strong style="color:var(--text-secondary)">Simulation.</strong> Telemetry is synthetic and generated in-browser — it models the
+  cadence, latency and packet loss of NASA SMAP / CROP-CASMA, ESA Sentinel-1 SAR, Sentinel-2 MSI and thermal-IR downlinks, but
+  contacts no external service. Routing, order adjustment and readiness scoring run real arithmetic over that synthetic feed.</p>
+</footer>
+
+<script>
+"use strict";
+/* ============================================================================
+   AURA-AgriNet 1.0
+   Autonomous Unified Remote-sensing Agent for Agricultural Micro-Logistics
+
+   Module map
+     1 CONFIG        thresholds, sources, field topology, personas
+     2 STATE         single store + pub/sub; the only mutation path
+     3 TELEMETRY     mock space-API ingestion with latency and packet loss
+     4 EVENT ENGINE  declarative anomaly -> action rules with hysteresis
+     5 DISPATCH      Dijkstra routing, order book, backhaul
+     6 CONSOLE       intent matcher + multi-party conversation cascades
+     7 VIEWS         render functions bound to state events
+     8 BOOTSTRAP     wiring, loops, lifecycle
+
+   Rules the modules hold to:
+     - Views never mutate state. The engine never touches the DOM.
+     - Every module mutates only through State.commit() / State.push().
+     - Every status is rendered as icon + text, never colour alone.
+   ========================================================================== */
+
+
+/* ===================== MODULE 1: CONFIG ===================== */
+
+const CFG = {
+  THRESH: {
+    frostArm: 0.0,   frostClear: 2.5,
+    heatArm: 35.0,   heatClear: 32.0,
+    moistArm: 22.0,  moistClear: 26.0,  moistCrit: 14.0,
+    ndviArm: 0.45,   ndviClear: 0.52,
+    traffArm: 60.0,  traffClear: 68.0,  edgeImpassable: 35.0, edgeDegraded: 58.0
+  },
+  BUFFER: 48,
+  CHART_POINTS: 24,
+  MAX_CHAT: 200,
+  MAX_LOG: 40,
+  AVG_SPEED_KMH: 34,
+  SCROLL_STICK_PX: 90
+};
+
+// Orbital sources. Each carries its own cadence, one-way latency and loss rate
+// so the ingestion layer behaves like a real high-latency downlink.
+const SOURCES = {
+  SMAP: { id:'SMAP', short:'SMAP',       label:'NASA SMAP / CROP-CASMA', cadence:6000,  latency:2900, jitter:900,  loss:0.05, metrics:['moisture','stress'] },
+  S1:   { id:'S1',   short:'SENTINEL-1', label:'ESA Sentinel-1 SAR',     cadence:9000,  latency:4100, jitter:1300, loss:0.06, metrics:['traff'] },
+  S2:   { id:'S2',   short:'SENTINEL-2', label:'ESA Sentinel-2 MSI',     cadence:11000, latency:3500, jitter:1100, loss:0.06, metrics:['ndvi'] },
+  TIR:  { id:'TIR',  short:'THERMAL IR', label:'Thermal Infrared',       cadence:5000,  latency:1800, jitter:700,  loss:0.04, metrics:['temp'] }
+};
+
+/* Instrument granularity. This is the honest part of the model: these pixel
+   sizes are the real ones, and they differ by three orders of magnitude.
+     - Sentinel-2 MSI at 10 m genuinely resolves a 1-2 ha plot (90-210 pixels),
+       so NDVI is a per-plot MEASUREMENT.
+     - SMAP's finest routine product is ~9 km. All three plots sit inside ONE
+       pixel, ~5,800x the area of Plot F-2, so per-plot moisture is a DOWNSCALED
+       ESTIMATE, never a measurement. The UI must say so.
+   `downscaled` drives that distinction everywhere it is displayed. */
+const METRICS = {
+  moisture: { key:'moisture', label:'Soil moisture',    unit:'%',   src:'SMAP', decimals:1, min:5,    max:52,   seed:31.5,
+              pixelM:9000, perPlot:true,  downscaled:true,  confidence:0.55 },
+  stress:   { key:'stress',   label:'Root-zone stress', unit:'idx', src:'SMAP', decimals:2, min:0,    max:1,    seed:0.24,
+              pixelM:9000, perPlot:true,  downscaled:true,  confidence:0.55 },
+  ndvi:     { key:'ndvi',     label:'NDVI health',      unit:'',    src:'S2',   decimals:3, min:0.05, max:0.92, seed:0.63,
+              pixelM:10,   perPlot:true,  downscaled:false, confidence:0.95 },
+  temp:     { key:'temp',     label:'Surface temp',     unit:'°C',  src:'TIR',  decimals:1, min:-9,   max:44,   seed:17.4,
+              pixelM:1000, perPlot:true,  downscaled:true,  confidence:0.70 },
+  // Trafficability is a road property, not a plot property, so it stays field-level.
+  traff:    { key:'traff',    label:'Trafficability',   unit:'%',   src:'S1',   decimals:0, min:0,    max:100,  seed:88,
+              pixelM:10,   perPlot:false, downscaled:false, confidence:0.90 }
+};
+
+/* Crop frost sensitivity, 0..1, scaling how hard an early-harvest order cut bites.
+   Cassava is a root crop: a frost destroys the canopy but the tuber survives in the
+   ground, so the volume loss is far smaller than for a fruiting crop. */
+const CROPS = {
+  Tomato:  { frostSensitivity: 1.00, note:'fruiting · frost-intolerant' },
+  Pepper:  { frostSensitivity: 0.95, note:'fruiting · frost-intolerant' },
+  Cassava: { frostSensitivity: 0.35, note:'root · tuber survives canopy loss' }
+};
+
+/* ---- REGIONS ----------------------------------------------------------------
+   Location is data, not code. A region declares real WGS-84 coordinates; edge
+   distances are DERIVED (haversine x sinuosity) rather than typed, and the SVG
+   layout is projected from lat/lon at load.
+
+   `sources` records genuine coverage. CROP-CASMA is a NASA/USDA product covering
+   CONUS only, so it is false everywhere outside the United States and the header
+   greys that chip out rather than pretending to poll it.
+
+   `sinuosity` is road distance / straight-line distance -- the one hand-set value
+   left, and a defensible physical parameter (rural laterite runs 1.25-1.45).
+   `floodRisk` scales how hard a segment degrades as SAR trafficability falls;
+   R-14 is the river ford in every region, so it goes impassable first and is what
+   forces the reroute. -------------------------------------------------------- */
+const REGIONS = {
+  'ghana-eastern': {
+    id:'ghana-eastern', name:'Somanya · Eastern Region', country:'Ghana',
+    centre:{ lat:6.095, lon:0.042 },
+    sources:{ SMAP:true, CROP_CASMA:false, S1:true, S2:true },
+    climate:{ temp:27.5, moisture:31.5, ndvi:0.63, stress:0.24, traff:88 },
+    hubName:'Terrace Kitchen', depotName:'Somanya Depot',
+    nodes:{
+      F1: { lat:6.1210, lon:0.0120, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:2.1 },
+      F2: { lat:6.1085, lon:0.0360, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:1.4 },
+      F3: { lat:6.0790, lon:0.0075, name:'Plot F-3', kind:'farm', crop:'Pepper',  ha:0.9 },
+      J1: { lat:6.1040, lon:0.0265, name:'Jct N',    kind:'jct' },
+      XR: { lat:6.1005, lon:0.0590, name:'Ford X-1', kind:'jct', sub:'river crossing' },
+      J2: { lat:6.0730, lon:0.0375, name:'Jct S',    kind:'jct' },
+      DEP:{ lat:6.0925, lon:0.0805, name:'Depot',    kind:'depot', sub:'cold store' },
+      HUB:{ lat:6.0640, lon:0.0780, name:'Buyer Hub',kind:'hub' }
+    }
+  },
+  'nigeria-oyo': {
+    id:'nigeria-oyo', name:'Oyo State · Ibadan corridor', country:'Nigeria',
+    centre:{ lat:7.380, lon:3.900 },
+    sources:{ SMAP:true, CROP_CASMA:false, S1:true, S2:true },
+    climate:{ temp:28.4, moisture:29.0, ndvi:0.60, stress:0.28, traff:85 },
+    hubName:'Bodija Market', depotName:'Ojoo Depot',
+    nodes:{
+      F1: { lat:7.4090, lon:3.8700, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:2.6 },
+      F2: { lat:7.3960, lon:3.8950, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:1.7 },
+      F3: { lat:7.3560, lon:3.8650, name:'Plot F-3', kind:'farm', crop:'Pepper',  ha:1.1 },
+      J1: { lat:7.3900, lon:3.8850, name:'Jct N',    kind:'jct' },
+      XR: { lat:7.3860, lon:3.9270, name:'Ford X-1', kind:'jct', sub:'Ogunpa crossing' },
+      J2: { lat:7.3510, lon:3.9010, name:'Jct S',    kind:'jct' },
+      DEP:{ lat:7.3800, lon:3.9560, name:'Depot',    kind:'depot', sub:'cold store' },
+      HUB:{ lat:7.3430, lon:3.9490, name:'Buyer Hub',kind:'hub' }
+    }
+  },
+  'usa-fresno': {
+    id:'usa-fresno', name:'Fresno County · Central Valley', country:'United States',
+    centre:{ lat:36.750, lon:-119.770 },
+    // The only region where CROP-CASMA actually has coverage.
+    sources:{ SMAP:true, CROP_CASMA:true, S1:true, S2:true },
+    climate:{ temp:19.5, moisture:26.0, ndvi:0.68, stress:0.30, traff:94 },
+    hubName:'Fresno Food Hub', depotName:'Kerman Depot',
+    nodes:{
+      F1: { lat:36.7860, lon:-119.8180, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:3.4 },
+      F2: { lat:36.7720, lon:-119.7900, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:2.8 },
+      F3: { lat:36.7300, lon:-119.8220, name:'Plot F-3', kind:'farm', crop:'Pepper',  ha:1.9 },
+      J1: { lat:36.7670, lon:-119.8020, name:'Jct N',    kind:'jct' },
+      XR: { lat:36.7630, lon:-119.7500, name:'Ford X-1', kind:'jct', sub:'canal crossing' },
+      J2: { lat:36.7260, lon:-119.7830, name:'Jct S',    kind:'jct' },
+      DEP:{ lat:36.7540, lon:-119.7180, name:'Depot',    kind:'depot', sub:'cold store' },
+      HUB:{ lat:36.7180, lon:-119.7230, name:'Buyer Hub',kind:'hub' }
+    }
+  }
+};
+
+// Road network topology is shared across regions; only the endpoints move.
+const EDGE_SPEC = [
+  { id:'R-02', a:'F1',  b:'J1',  sinuosity:1.30, floodRisk:0.20 },
+  { id:'R-03', a:'F2',  b:'J1',  sinuosity:1.25, floodRisk:0.15 },
+  { id:'R-14', a:'J1',  b:'XR',  sinuosity:1.35, floodRisk:0.95 },
+  { id:'R-15', a:'XR',  b:'DEP', sinuosity:1.30, floodRisk:0.30 },
+  { id:'R-07', a:'J1',  b:'J2',  sinuosity:1.40, floodRisk:0.45 },
+  { id:'R-05', a:'F3',  b:'J2',  sinuosity:1.35, floodRisk:0.35 },
+  { id:'R-09', a:'J2',  b:'DEP', sinuosity:1.45, floodRisk:0.25 },
+  { id:'R-11', a:'J2',  b:'HUB', sinuosity:1.30, floodRisk:0.20 },
+  { id:'R-12', a:'DEP', b:'HUB', sinuosity:1.25, floodRisk:0.10 },
+  { id:'R-01', a:'F1',  b:'F3',  sinuosity:1.40, floodRisk:0.40 }
+];
+
+const DEFAULT_REGION = 'ghana-eastern';
+const PLOTS = ['F1','F2','F3'];
+const ROUTE_ORIGIN = 'F2';
+const ROUTE_DEST   = 'DEP';
+const MAP_VIEW = { w:600, h:340, pad:52 };
+
+// Live topology, rebuilt by Region.load(). Modules read these, never REGIONS.
+let NODES = {};
+let EDGES = [];
+let REGION = null;
+
+// Stakeholders. Simulated people are referred to with they/them throughout.
+const PEOPLE = {
+  BOT:    { id:'BOT',    name:'AURA-AgriNet', initials:'AA', colour:'var(--series-1)',   channel:'ALL' },
+  FARMER: { id:'FARMER', name:'Amara',        initials:'AM', colour:'var(--series-3)',   channel:'FARMER', role:'Farmer · Plot F-2' },
+  BUYER:  { id:'BUYER',  name:'Kwesi',        initials:'KW', colour:'var(--series-2)',   channel:'BUYER',  role:'Terrace Kitchen' },
+  DRIVER: { id:'DRIVER', name:'Tunde',        initials:'TU', colour:'var(--series-4)',   channel:'DRIVER', role:'Unit D-3' },
+  SYSTEM: { id:'SYSTEM', name:'System',       initials:'··', colour:'var(--text-muted)', channel:'ALL' }
+};
+
+const SEV = {
+  good:     { icon:'✓', word:'Nominal'  },
+  warning:  { icon:'▲', word:'Advisory' },
+  serious:  { icon:'◆', word:'Elevated' },
+  critical: { icon:'✕', word:'Critical' },
+  info:     { icon:'●', word:'Info'     },
+  idle:     { icon:'·', word:'No data'  }
+};
+
+
+/* ===================== MODULE 1b: GEOGRAPHY ===================== */
+
+const Geo = (() => {
+  const R_EARTH = 6371;                       // km
+  const rad = d => d * Math.PI / 180;
+
+  /** Great-circle distance in km between two {lat,lon}. */
+  function haversine(a, b){
+    const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+    const h = Math.sin(dLat/2)**2 +
+              Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon/2)**2;
+    return 2 * R_EARTH * Math.asin(Math.sqrt(h));
+  }
+
+  /** Equirectangular projection of a region's nodes into the map viewBox.
+      Longitude is scaled by cos(centreLat) so the plot is not stretched
+      east-west -- negligible at 6°N (0.994) but a 20% error at Fresno (0.80).
+      Aspect is preserved and the result centred, so a tall catchment
+      letterboxes rather than distorting. */
+  function project(region){
+    const ids = Object.keys(region.nodes);
+    const k = Math.cos(rad(region.centre.lat));
+    const xs = ids.map(id => region.nodes[id].lon * k);
+    const ys = ids.map(id => region.nodes[id].lat);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+    const availW = MAP_VIEW.w - MAP_VIEW.pad * 2;
+    const availH = MAP_VIEW.h - MAP_VIEW.pad * 2;
+    const spanX = (maxX - minX) || 1e-6;
+    const spanY = (maxY - minY) || 1e-6;
+    const scale = Math.min(availW / spanX, availH / spanY);
+
+    const offX = MAP_VIEW.pad + (availW - spanX * scale) / 2;
+    const offY = MAP_VIEW.pad + (availH - spanY * scale) / 2;
+
+    const out = {};
+    ids.forEach(id => {
+      const n = region.nodes[id];
+      out[id] = Object.assign({}, n, {
+        id,
+        x: offX + (n.lon * k - minX) * scale,
+        y: offY + (maxY - n.lat) * scale,          // screen y grows downward
+        sub: n.sub || (n.crop ? `${n.crop} · ${n.ha} ha` : '')
+      });
+    });
+    return out;
+  }
+
+  /** Edge distances are derived, never typed: great-circle x road sinuosity. */
+  function buildEdges(nodes){
+    return EDGE_SPEC.map(e => {
+      const straight = haversine(nodes[e.a], nodes[e.b]);
+      return Object.assign({}, e, {
+        straightKm: straight,
+        km: straight * e.sinuosity
+      });
+    });
+  }
+
+  return { haversine, project, buildEdges };
+})();
+
+
+const Region = (() => {
+  /** Rebuild the live topology for a region. Everything downstream reads the
+      module-level NODES/EDGES, so nothing else needs to know a region exists. */
+  function load(id){
+    const region = REGIONS[id] || REGIONS[DEFAULT_REGION];
+    REGION = region;
+    NODES = Geo.project(region);
+    EDGES = Geo.buildEdges(NODES);
+    // Node labels that carry region-specific naming
+    if(NODES.DEP) NODES.DEP.name = region.depotName || 'Depot';
+    if(NODES.HUB) NODES.HUB.sub  = region.hubName || '';
+    return region;
+  }
+  const current = () => REGION;
+  /** True when a named source genuinely covers the active region. */
+  const covers = srcId => {
+    if(!REGION) return true;
+    if(srcId === 'SMAP') return REGION.sources.SMAP;
+    if(srcId === 'S1')   return REGION.sources.S1;
+    if(srcId === 'S2')   return REGION.sources.S2;
+    return true;
+  };
+  const cropOf = plotId => (NODES[plotId] && NODES[plotId].crop) || null;
+  /** Plot ids growing a given crop in the active region. */
+  const plotsGrowing = crop => PLOTS.filter(p => Region.cropOf(p) === crop);
+
+  return { load, current, covers, cropOf, plotsGrowing };
+})();
+
+
+/* ===================== MODULE 2: STATE ===================== */
+
+const State = (() => {
+  const listeners = new Map();
+
+  const data = {
+    clock: Date.now(),
+    speed: 1,
+    paused: false,
+
+    regionId: DEFAULT_REGION,
+
+    // Field-level aggregate: ring buffers of {t, v}, newest last. These back the
+    // KPI tiles and the thermal chart -- the whole-catchment view.
+    series: { moisture:[], stress:[], ndvi:[], temp:[], traff:[] },
+    latest: { moisture:null, stress:null, ndvi:null, temp:null, traff:null },
+    prev:   { moisture:null, stress:null, ndvi:null, temp:null, traff:null },
+
+    // Per-plot readings. Populated by Telemetry for every metric with perPlot:true.
+    // Each reading carries its own provenance so the UI can distinguish a genuine
+    // 10 m Sentinel-2 measurement from a downscaled 9 km SMAP estimate.
+    //   plots[plotId][metric] = { v, pixelM, pixelId, confidence, downscaled, src, t }
+    plots: {},
+
+    links: {},               // sourceId -> {status, latency, lastRx, rx}
+    alerts: new Map(),       // ruleId -> {id,label,severity,since,detail}
+    log: [],
+    chat: [],
+    channel: 'ALL',
+    persona: 'FARMER',
+    role: 'OPS',             // FARMER | BUYER | DRIVER | OPS
+
+    edgeState: {},           // edgeId -> {traff, passable, degraded}
+    route: null,             // {path, edges, km, min, waypoints, segments}
+    baselineRoute: null,
+    prevRoutePoints: null,
+    // baseGrade is the order's contracted grade. restore() returns to THIS, not a
+    // hardcoded 'A' -- ORD-4421 is contracted at B and must stay B after a frost
+    // cycle rather than being silently upgraded.
+    orders: [
+      { id:'ORD-4417', buyer:'Terrace Kitchen', crop:'Tomato',  crates:48, baseCrates:48, grade:'A', baseGrade:'A', status:'confirmed' },
+      { id:'ORD-4418', buyer:'Mensah Grocers',  crop:'Pepper',  crates:22, baseCrates:22, grade:'A', baseGrade:'A', status:'confirmed' },
+      { id:'ORD-4421', buyer:'Adisa Foods',     crop:'Cassava', crates:65, baseCrates:65, grade:'B', baseGrade:'B', status:'confirmed' }
+    ],
+    orderAudit: [],
+    readiness: 100,
+    posture: 'good'
+  };
+
+  function on(evt, fn){
+    if(!listeners.has(evt)) listeners.set(evt, new Set());
+    listeners.get(evt).add(fn);
+  }
+  function emit(evt, payload){
+    const set = listeners.get(evt);
+    if(set) set.forEach(fn => { try{ fn(payload); }catch(e){ console.error('[listener]', evt, e); } });
+  }
+  /** The single mutation path. Shallow-merges patch, then emits. */
+  function commit(patch, evt, payload){
+    if(patch) Object.assign(data, patch);
+    if(evt) emit(evt, payload);
+  }
+
+  function push(metric, value, t){
+    const buf = data.series[metric];
+    buf.push({ t, v:value });
+    if(buf.length > CFG.BUFFER) buf.shift();
+    data.prev[metric] = data.latest[metric];
+    data.latest[metric] = value;
+  }
+
+  /** Per-plot reading with provenance attached. */
+  function pushPlot(plotId, metric, reading){
+    if(!data.plots[plotId]) data.plots[plotId] = {};
+    data.plots[plotId][metric] = reading;
+  }
+
+  function resetSeries(){
+    Object.keys(data.series).forEach(k => { data.series[k] = []; });
+    Object.keys(data.latest).forEach(k => { data.latest[k] = null; data.prev[k] = null; });
+    data.plots = {};
+  }
+
+  /* ---- persistence ----
+     An installed home-screen app that forgets everything on each launch reads as
+     broken. Only durable, small things are stored: not the telemetry ring buffers
+     (regenerated on boot) and not the derived route. */
+  const STORE_KEY = 'aura-agrinet:v1';
+
+  function snapshot(){
+    return {
+      v: 1,
+      savedAt: Date.now(),
+      regionId: data.regionId,
+      role: data.role,
+      persona: data.persona,
+      channel: data.channel,
+      speed: data.speed,
+      orders: data.orders,
+      orderAudit: data.orderAudit.slice(0, 20),
+      chat: data.chat.slice(-60),
+      log: data.log.slice(0, 20),
+      alerts: [...data.alerts.entries()]
+    };
+  }
+
+  function save(){
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify(snapshot()));
+      return true;
+    }catch(e){ return false; }   // private mode / quota — never fatal
+  }
+
+  function restore(){
+    let raw;
+    try{ raw = localStorage.getItem(STORE_KEY); }catch(e){ return null; }
+    if(!raw) return null;
+    try{
+      const s = JSON.parse(raw);
+      if(!s || s.v !== 1) return null;
+      if(s.regionId && REGIONS[s.regionId]) data.regionId = s.regionId;
+      if(s.role)    data.role    = s.role;
+      if(s.persona) data.persona = s.persona;
+      if(s.channel) data.channel = s.channel;
+      if(s.speed)   data.speed   = s.speed;
+      if(Array.isArray(s.orders) && s.orders.length) data.orders = s.orders;
+      if(Array.isArray(s.orderAudit)) data.orderAudit = s.orderAudit;
+      if(Array.isArray(s.chat))  data.chat = s.chat;
+      if(Array.isArray(s.log))   data.log  = s.log;
+      if(Array.isArray(s.alerts)) data.alerts = new Map(s.alerts);
+      return s;
+    }catch(e){ return null; }
+  }
+
+  function clearStore(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
+
+  return { data, on, emit, commit, push, pushPlot, resetSeries,
+           save, restore, clearStore, snapshot, STORE_KEY };
+})();
+
+
+/* ===================== HELPERS ===================== */
+
+function fmt(v, d){
+  if(v === null || v === undefined || Number.isNaN(v)) return '—';
+  return Number(v).toFixed(d === undefined ? 1 : d);
+}
+function clockStr(ms){
+  const d = new Date(ms);
+  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
+}
+function clockStrFull(ms){
+  const d = new Date(ms);
+  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0') + ':' + String(d.getUTCSeconds()).padStart(2,'0');
+}
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function el(id){ return document.getElementById(id); }
+
+/** Status band for a metric -> severity token. Drives icon + label, never colour alone. */
+function metricSeverity(key, v){
+  if(v === null || v === undefined) return 'idle';
+  const T = CFG.THRESH;
+  switch(key){
+    case 'temp':     return v <= T.frostArm ? 'critical' : v >= T.heatArm ? 'serious' : v <= 3 ? 'warning' : 'good';
+    case 'moisture': return v <= T.moistCrit ? 'critical' : v <= T.moistArm ? 'warning' : 'good';
+    case 'ndvi':     return v <= 0.32 ? 'critical' : v <= T.ndviArm ? 'warning' : 'good';
+    case 'traff':    return v <= 45 ? 'critical' : v <= T.traffArm ? 'warning' : 'good';
+    case 'stress':   return v >= 0.75 ? 'critical' : v >= 0.55 ? 'warning' : 'good';
+  }
+  return 'good';
+}
+function sevColour(sev){
+  return ({ good:'var(--good)', warning:'var(--warning)', serious:'var(--serious)',
+            critical:'var(--critical)', info:'var(--series-1)', idle:'var(--text-muted)' })[sev] || 'var(--text-muted)';
+}
+function statusWord(key, sev){
+  const words = {
+    temp:     { good:'Above frost floor', warning:'Near frost floor', serious:'Heat stress', critical:'Frost event' },
+    moisture: { good:'Within band',       warning:'Stress floor',     serious:'Depleting',   critical:'Wilting risk' },
+    ndvi:     { good:'Canopy healthy',    warning:'Vigour declining', serious:'Declining',   critical:'Canopy failing' },
+    traff:    { good:'Roads passable',    warning:'Roads degrading',  serious:'Degraded',    critical:'Impassable' },
+    stress:   { good:'Low',               warning:'Elevated',         serious:'High',        critical:'Severe' }
+  };
+  if(words[key] && words[key][sev]) return words[key][sev];
+  return SEV[sev] ? SEV[sev].word : '—';
+}
+
+
+/* ===================== MODULE 3: TELEMETRY INGESTION ===================== */
+
+const Telemetry = (() => {
+  const timers = new Set();
+  const excursions = new Map();   // metric -> {target, ticks, force}
+  let running = false;
+
+  const rnd   = (a,b) => a + Math.random()*(b-a);
+  const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+
+  /* Stable per-plot offsets standing in for soil type, slope and aspect. These are
+     FIXED per plot, not random walks -- a downscaled estimate must be a
+     deterministic function of the shared pixel, otherwise the three plots would
+     appear to be independently measured, which is exactly the false impression
+     this model exists to remove. */
+  const PLOT_OFFSET = {
+    F1: { moisture:+2.4, stress:-0.05, temp:-0.6, ndvi:+0.03 },
+    F2: { moisture:-1.8, stress:+0.07, temp:+0.9, ndvi:-0.02 },
+    F3: { moisture:-0.7, stress:+0.02, temp:+0.3, ndvi:+0.05 }
+  };
+
+  /** Which ground pixel a plot falls in, for the metric's instrument. At 9 km all
+      three plots share one SMAP pixel; at 10 m each has its own Sentinel-2 pixel. */
+  function pixelIdFor(plotId, m){
+    if(!m.perPlot) return null;
+    const n = NODES[plotId];
+    if(!n) return null;
+    const deg = m.pixelM / 111320;                       // metres -> degrees latitude
+    const gy = Math.floor(n.lat / deg), gx = Math.floor(n.lon / deg);
+    return `${m.src}:${gx}/${gy}`;
+  }
+
+  /** Derive each plot's value from the field reading. Genuinely-resolved metrics
+      (S2 NDVI at 10 m) get their own value at full confidence; coarse metrics get
+      the shared-pixel value plus a fixed offset, flagged as downscaled. */
+  function distributeToPlots(metricKey, fieldValue, t){
+    const m = METRICS[metricKey];
+    if(!m || !m.perPlot) return;
+    PLOTS.forEach(plotId => {
+      const off = (PLOT_OFFSET[plotId] || {})[metricKey] || 0;
+      const v = clamp(fieldValue + off, m.min, m.max);
+      State.pushPlot(plotId, metricKey, {
+        v, t,
+        src: m.src,
+        pixelM: m.pixelM,
+        pixelId: pixelIdFor(plotId, m),
+        confidence: m.confidence,
+        downscaled: m.downscaled
+      });
+    });
+  }
+
+  /** Plot ids sharing a ground pixel with the given plot for this metric. */
+  function pixelPeers(plotId, metricKey){
+    const mine = State.data.plots[plotId] && State.data.plots[plotId][metricKey];
+    if(!mine || !mine.pixelId) return [];
+    return PLOTS.filter(p => p !== plotId &&
+      State.data.plots[p] && State.data.plots[p][metricKey] &&
+      State.data.plots[p][metricKey].pixelId === mine.pixelId);
+  }
+
+  /** Baseline a metric reverts to. Comes from the active region's climate, so
+      Fresno sits ~8 degrees cooler and drier than the Ghana catchment. */
+  function seedFor(key){
+    const c = REGION && REGION.climate;
+    return (c && c[key] !== undefined) ? c[key] : METRICS[key].seed;
+  }
+
+  /** Bounded random walk, pulled toward an excursion target when one is armed. */
+  function nextValue(key){
+    const m = METRICS[key];
+    const seed = seedFor(key);
+    let cur = State.data.latest[key];
+    if(cur === null || cur === undefined) cur = seed;
+
+    const span = m.max - m.min;
+    let next;
+
+    const ex = excursions.get(key);
+    if(ex){
+      const pull = ex.force ? 0.62 : 0.34;
+      next = cur + (ex.target - cur) * pull + rnd(-span*0.006, span*0.006);
+      ex.ticks -= 1;
+      if(ex.ticks <= 0) excursions.delete(key);
+    } else {
+      // Mean-reverting walk around the seed, plus a diurnal term for temperature.
+      const drift = (seed - cur) * 0.045;
+      const noise = rnd(-span*0.022, span*0.022);
+      let diurnal = 0;
+      if(key === 'temp'){
+        const d = new Date(State.data.clock);
+        const hour = d.getUTCHours() + d.getUTCMinutes()/60;
+        diurnal = Math.sin((hour - 9) / 24 * Math.PI * 2) * 0.30;
+      }
+      next = cur + drift + noise + diurnal;
+    }
+    return clamp(next, m.min, m.max);
+  }
+
+  /** Models a high-latency downlink: resolves late, sometimes not at all. */
+  function fetchWithLatency(src){
+    return new Promise((resolve, reject) => {
+      const wait = (src.latency + rnd(-src.jitter, src.jitter)) / State.data.speed;
+      const id = setTimeout(() => {
+        timers.delete(id);
+        if(Math.random() < src.loss){ reject(new Error('packet loss')); return; }
+        const packet = {};
+        src.metrics.forEach(k => { packet[k] = nextValue(k); });
+        resolve({ packet, rtt: Math.round(wait * State.data.speed) });
+      }, Math.max(60, wait));
+      timers.add(id);
+    });
+  }
+
+  function setLink(srcId, status, latency){
+    const links = State.data.links;
+    const prev = links[srcId] || {};
+    links[srcId] = Object.assign({}, prev, {
+      status,
+      latency: latency !== undefined ? latency : prev.latency,
+      lastRx: status === 'nominal' ? State.data.clock : prev.lastRx
+    });
+    State.emit('links');
+  }
+
+  /** Chained setTimeout, never setInterval — slow responses can never stack up. */
+  function loop(src){
+    if(!running) return;
+    const schedule = (delay) => {
+      const id = setTimeout(() => { timers.delete(id); loop(src); }, Math.max(200, delay / State.data.speed));
+      timers.add(id);
+    };
+    if(State.data.paused){ schedule(700); return; }
+
+    const links = State.data.links;
+    links[src.id] = Object.assign({}, links[src.id], { rx:true });
+    State.emit('links');
+
+    fetchWithLatency(src).then(({ packet, rtt }) => {
+      links[src.id] = Object.assign({}, links[src.id], { rx:false });
+      setLink(src.id, 'nominal', rtt);
+      const t = State.data.clock;
+      Object.keys(packet).forEach(k => {
+        State.push(k, packet[k], t);          // field-level aggregate
+        distributeToPlots(k, packet[k], t);   // per-plot, with provenance
+      });
+      State.emit('telemetry', { source:src.id, packet, t });
+      EventEngine.evaluate();
+      schedule(src.cadence);
+    }).catch(() => {
+      const was = links[src.id] && links[src.id].status;
+      links[src.id] = Object.assign({}, links[src.id], { rx:false });
+      setLink(src.id, (was === 'degraded' || was === 'reacquire') ? 'reacquire' : 'degraded');
+      State.emit('telemetry:loss', { source:src.id });
+      schedule(src.cadence * 0.55);
+    });
+  }
+
+  /** Inject an excursion. This is how the manual trigger panel drives the engine. */
+  function inject(metric, target, ticks, force){
+    excursions.set(metric, { target, ticks: ticks || 6, force: !!force });
+  }
+  function clearInjections(){ excursions.clear(); }
+
+  function seedHistory(){
+    const now = Date.now();
+    State.resetSeries();
+    State.data.clock = now;
+    let last = {};
+    for(let i = CFG.CHART_POINTS; i >= 1; i--){
+      const t = now - i * 60000;
+      const restore = State.data.clock;
+      State.data.clock = t;
+      Object.keys(METRICS).forEach(k => { last[k] = nextValue(k); State.push(k, last[k], t); });
+      State.data.clock = restore;
+    }
+    Object.keys(METRICS).forEach(k => distributeToPlots(k, last[k], now));
+    Object.keys(SOURCES).forEach(id => {
+      State.data.links[id] = Region.covers(id)
+        ? { status:'nominal', latency:SOURCES[id].latency, lastRx:now, rx:false }
+        : { status:'unavailable', latency:null, lastRx:null, rx:false };
+    });
+  }
+
+  function start(){
+    if(running) return;
+    running = true;
+    Object.values(SOURCES).forEach((src, i) => {
+      const id = setTimeout(() => { timers.delete(id); loop(src); }, 400 + i * 260);
+      timers.add(id);
+    });
+  }
+  function stop(){
+    running = false;
+    timers.forEach(clearTimeout);
+    timers.clear();
+  }
+
+  return { start, stop, inject, clearInjections, seedHistory, setLink,
+           distributeToPlots, pixelPeers, seedFor };
+})();
+
+
+/* ===================== MODULE 5a: DISPATCH — ROUTING ===================== */
+/* Declared before the event engine because rules call into it. */
+
+const Dispatch = (() => {
+  let harvestWindow = 'NORMAL';
+  let coldChain = false;
+
+  /* Rebuilt per region rather than once at load: NODES/EDGES are empty until
+     Region.load() runs, and both change whenever the region does. Cached against
+     the region id so the common case is still a single object lookup. */
+  let adjCache = null, adjKey = null;
+  function adjacency(){
+    const key = (REGION && REGION.id) + ':' + EDGES.length;
+    if(adjKey === key && adjCache) return adjCache;
+    const adj = {};
+    Object.keys(NODES).forEach(id => { adj[id] = []; });
+    EDGES.forEach(e => {
+      if(!adj[e.a] || !adj[e.b]) return;      // edge referencing a node this region lacks
+      adj[e.a].push({ to:e.b, edge:e });
+      adj[e.b].push({ to:e.a, edge:e });
+    });
+    adjCache = adj; adjKey = key;
+    return adj;
+  }
+
+  /** Effective speed falls with trafficability — a degraded detour costs more
+      than its extra kilometres alone. */
+  function edgeSpeed(traff){
+    return CFG.AVG_SPEED_KMH * (0.45 + 0.55 * (Math.max(0, Math.min(100, traff)) / 100));
+  }
+
+  /** Derive per-segment trafficability from the mean SAR reading and the
+      segment's own flood susceptibility. */
+  function refreshEdges(){
+    const global = State.data.latest.traff;
+    if(global === null || global === undefined) return;
+    const deficit = 100 - global;
+    const next = {};
+    EDGES.forEach(e => {
+      const traff = Math.max(0, Math.min(100, global - e.floodRisk * deficit * 0.9));
+      next[e.id] = {
+        traff,
+        passable: traff > CFG.THRESH.edgeImpassable,
+        degraded: traff <= CFG.THRESH.edgeDegraded
+      };
+    });
+    State.data.edgeState = next;
+  }
+
+  function blockedEdges(){
+    return EDGES.filter(e => State.data.edgeState[e.id] && !State.data.edgeState[e.id].passable);
+  }
+
+  /** Dijkstra over passable edges, minimising drive time in minutes. */
+  function shortestPath(from, to, ignoreBlocked){
+    const adj = adjacency();
+    if(!adj[from] || !adj[to]) return null;
+    const dist = {}, prev = {}, prevEdge = {}, visited = {};
+    Object.keys(NODES).forEach(id => { dist[id] = Infinity; });
+    dist[from] = 0;
+
+    for(;;){
+      let u = null, best = Infinity;
+      Object.keys(dist).forEach(id => {
+        if(!visited[id] && dist[id] < best){ best = dist[id]; u = id; }
+      });
+      if(u === null || u === to) break;
+      visited[u] = true;
+
+      adj[u].forEach(({ to:v, edge }) => {
+        const st = State.data.edgeState[edge.id];
+        if(!ignoreBlocked && st && !st.passable) return;
+        const traff = st ? st.traff : 100;
+        const cost = edge.km / edgeSpeed(traff) * 60;
+        if(dist[u] + cost < dist[v]){
+          dist[v] = dist[u] + cost;
+          prev[v] = u;
+          prevEdge[v] = edge;
+        }
+      });
+    }
+
+    if(dist[to] === Infinity) return null;
+
+    const path = [to], edges = [];
+    let cur = to;
+    while(cur !== from){
+      edges.unshift(prevEdge[cur]);
+      cur = prev[cur];
+      path.unshift(cur);
+    }
+    const km = edges.reduce((s,e) => s + e.km, 0);
+    return { path, edges, km, min: dist[to] };
+  }
+
+  function buildRoute(){
+    refreshEdges();
+    let r = shortestPath(ROUTE_ORIGIN, ROUTE_DEST, false);
+    let fallback = false;
+    if(!r){
+      // Every path to the depot crosses an impassable segment. Routing over one
+      // anyway would be a lie, so the route is flagged and the UI says so
+      // rather than quietly sending the driver through a flooded ford.
+      r = shortestPath(ROUTE_ORIGIN, ROUTE_DEST, true);
+      fallback = true;
+    }
+    if(!r) return null;
+    r.fallback  = fallback;
+    r.waypoints = r.path.map(id => NODES[id].name);
+    r.segments  = r.edges.map(e => e.id);
+    return r;
+  }
+
+  function recomputeRoute(){
+    const before = State.data.route;
+    const next = buildRoute();
+    if(!next) return before;
+    const changed = !before || before.segments.join('>') !== next.segments.join('>');
+    State.commit({
+      route: next,
+      prevRoutePoints: (changed && before) ? before.path.slice() : null
+    }, 'route', { before, after: next, changed });
+    return next;
+  }
+
+  function setHarvestWindow(w){ harvestWindow = w; State.emit('dispatch'); }
+  function setColdChain(v){ coldChain = v; State.emit('dispatch'); }
+  function getHarvestWindow(){ return harvestWindow; }
+  function getColdChain(){ return coldChain; }
+
+  /** Pair the outbound leg with a return pickup rather than running empty. */
+  function backhaul(){
+    if(!State.data.route) return null;
+    const ret = shortestPath(ROUTE_DEST, 'F3', false) || shortestPath(ROUTE_DEST, 'F3', true);
+    if(!ret) return null;
+    return { path: ret.path.map(id => NODES[id].name), km: ret.km, min: ret.min };
+  }
+
+  return { refreshEdges, recomputeRoute, buildRoute, blockedEdges, shortestPath,
+           setHarvestWindow, setColdChain, getHarvestWindow, getColdChain, backhaul, edgeSpeed };
+})();
+
+
+/* ===================== MODULE 5b: DISPATCH — ORDER BOOK ===================== */
+
+const Orders = (() => {
+  /** Adjust only the orders a hazard can actually reach, scaled by how badly the
+      crop is affected.
+
+      Previously this cut every order by the same percentage, so a frost on the
+      tomato plot also cut the cassava order by 28%. Two things gate it now:
+        - `affectedPlots` -> the crops actually grown there. An order for a crop
+          grown on no affected plot is left alone entirely.
+        - each crop's own frost sensitivity. Cassava is a root crop, so its tuber
+          survives canopy loss and it takes ~1/3 the cut a fruiting crop does. */
+  function adjust(reason, pct, grade, affectedPlots){
+    const plots = affectedPlots && affectedPlots.length ? affectedPlots : PLOTS;
+    const affectedCrops = new Set(plots.map(p => Region.cropOf(p)).filter(Boolean));
+
+    let totalCut = 0, touched = 0, spared = 0;
+    State.data.orders.forEach(o => {
+      if(o.adjustedBy) return;
+      if(!affectedCrops.has(o.crop)){ spared++; return; }
+
+      const sens = (CROPS[o.crop] && CROPS[o.crop].frostSensitivity);
+      const scaled = pct * (sens === undefined ? 1 : sens);
+      const next = Math.max(0, Math.round(o.baseCrates * (1 + scaled)));
+      totalCut += o.crates - next;
+      o.crates = next;
+      if(grade) o.grade = grade;
+      o.status = 'revised';
+      o.adjustedBy = reason;
+      o.adjustedPct = scaled;
+      touched++;
+    });
+    if(spared > 0 && touched > 0){
+      Log.add('info', 'Orders spared',
+        `${spared} order${spared>1?'s':''} untouched — crop not grown on any affected plot.`);
+    }
+    if(totalCut > 0){
+      State.data.orderAudit.unshift({
+        t: State.data.clock, reason,
+        text: `${totalCut} crates withdrawn across ${touched} buyer orders; grade re-marked ${grade || 'unchanged'}.`
+      });
+      Log.add('warning', 'Buyer orders revised',
+        `Autonomous adjustment: −${totalCut} crates across ${touched} orders (${reason.replace(/_/g,' ').toLowerCase()}).`);
+    }
+    State.emit('orders');
+    return totalCut;
+  }
+
+  function restore(reason){
+    let restored = 0;
+    State.data.orders.forEach(o => {
+      if(o.adjustedBy !== reason) return;
+      restored += o.baseCrates - o.crates;
+      o.crates = o.baseCrates;
+      o.grade = o.baseGrade;      // contracted grade, not a hardcoded 'A'
+      o.status = 'confirmed';
+      delete o.adjustedBy;
+      delete o.adjustedPct;
+    });
+    if(restored > 0){
+      State.data.orderAudit.unshift({ t: State.data.clock, reason,
+        text: `${restored} crates reinstated after ${reason.replace(/_/g,' ').toLowerCase()} cleared.` });
+      Log.add('good', 'Buyer orders reinstated', `+${restored} crates returned to the order book.`);
+    }
+    State.emit('orders');
+    return restored;
+  }
+
+  const total     = () => State.data.orders.reduce((s,o) => s + o.crates, 0);
+  const baseTotal = () => State.data.orders.reduce((s,o) => s + o.baseCrates, 0);
+
+  return { adjust, restore, total, baseTotal };
+})();
+
+
+/* ===================== MODULE 5c: DISPATCH — SCORING & LOG ===================== */
+
+const Scoring = (() => {
+  /** Composite readiness: each metric contributes a 0..1 sub-score. */
+  function recompute(){
+    const s = State.data.latest;
+    if(s.moisture === null || s.temp === null || s.ndvi === null || s.traff === null) return;
+
+    const band = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+
+    const moistScore = band(s.moisture, 10, 26);
+    const ndviScore  = band(s.ndvi, 0.35, 0.62);
+    const traffScore = band(s.traff, 40, 78);
+
+    /* Temperature is penalised at BOTH ends, and the approach to each threshold is
+       gradual. An earlier version multiplied in `band(heatArm+2, temp, heatArm+2)`,
+       which expands to (37-temp)/(37-temp) -- always exactly 1, so it did nothing.
+       Readiness therefore sat at a full 1.00 up to 34.9 C and then cliffed to 0.15
+       at 35 C. Two independent ramps, taking the worse of the two: */
+    let tempScore;
+    if(s.temp <= CFG.THRESH.frostArm)     tempScore = 0;                 // frozen
+    else if(s.temp >= CFG.THRESH.heatArm) tempScore = 0.15;              // heat-stressed
+    else {
+      // Each ramp meets its branch value exactly, so the curve is continuous:
+      // coldScore -> 0 at frostArm, heatScore -> 0.15 at heatArm.
+      const coldScore = band(s.temp, CFG.THRESH.frostArm, CFG.THRESH.frostArm + 6);
+      const heatScore = 1 - 0.85 * band(s.temp, CFG.THRESH.heatArm - 6, CFG.THRESH.heatArm);
+      tempScore = Math.max(0, Math.min(coldScore, heatScore));
+    }
+    if(!isFinite(tempScore)) tempScore = 1;
+
+    const raw = moistScore*0.25 + tempScore*0.32 + ndviScore*0.18 + traffScore*0.25;
+    const readiness = Math.round(Math.max(0, Math.min(1, raw)) * 100);
+
+    let posture = 'good';
+    const sevs = [...State.data.alerts.values()].map(a => a.severity);
+    if(sevs.includes('critical'))     posture = 'critical';
+    else if(sevs.includes('serious')) posture = 'serious';
+    else if(sevs.includes('warning')) posture = 'warning';
+
+    State.commit({ readiness, posture }, 'score');
+  }
+  return { recompute };
+})();
+
+
+const Log = (() => {
+  function add(severity, title, detail){
+    State.data.log.unshift({ t: State.data.clock, severity, title, detail });
+    if(State.data.log.length > CFG.MAX_LOG) State.data.log.pop();
+    State.emit('log');
+  }
+  return { add };
+})();
+
+
+/* ===================== MODULE 6: AGENT COMMUNICATION CONSOLE ===================== */
+
+const Console = (() => {
+  let seq = 0;
+  const queue = [];
+  let draining = false;
+
+  function post(fromId, text, opts){
+    const p = PEOPLE[fromId] || PEOPLE.BOT;
+    const msg = Object.assign({
+      id: ++seq, from: fromId, text,
+      t: State.data.clock,
+      channel: p.channel,
+      severity: null, mine: false, kv: null
+    }, opts || {});
+    State.data.chat.push(msg);
+    if(State.data.chat.length > CFG.MAX_CHAT) State.data.chat.shift();
+    State.emit('chat', msg);
+    return msg;
+  }
+
+  /** Staggered multi-party thread with typing indicators. */
+  function play(steps){
+    steps.forEach(s => queue.push(s));
+    drain();
+  }
+  function drain(){
+    if(draining) return;
+    const step = queue.shift();
+    if(!step){ State.emit('typing', null); return; }
+    draining = true;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const think = reduced ? 60 : Math.max(240, (step.delay || 750) / State.data.speed);
+    State.emit('typing', step.from);
+
+    setTimeout(() => {
+      State.emit('typing', null);
+      post(step.from, step.text, { severity: step.severity, channel: step.channel, kv: step.kv });
+      draining = false;
+      drain();
+    }, think);
+  }
+
+  const kmS  = v => fmt(v, 1) + ' km';
+  const minS = v => Math.round(v) + ' min';
+
+  /** Event cascades. Every trigger produces a contextual multi-party thread
+      whose numbers are read from live state at send time. */
+  function cascade(kind, ctx){
+    const s = State.data.latest;
+    const steps = [];
+
+    switch(kind){
+      case 'FROST': {
+        steps.push({ from:'BOT', delay:500, severity:'critical', text:
+          `FROST EVENT — thermal IR shows ${fmt(s.temp,1)}°C at plot level, at or below the 0.0°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.` });
+        steps.push({ from:'BOT', delay:800, channel:'FARMER', text:
+          `Amara — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.`,
+          kv:`Plot F-2 · surface ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
+        steps.push({ from:'FARMER', delay:1200, text:
+          `Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.` });
+        steps.push({ from:'BOT', delay:900, channel:'BUYER', severity:'warning', text:
+          `Kwesi — frost-driven revision to your standing order. Volume reduced by ${ctx && ctx.cut ? ctx.cut : 0} crates and grade re-marked B. No price change applied; the revision is logged for review.`,
+          kv:`ORD-4417 · ${State.data.orders[0].crates} crates · grade ${State.data.orders[0].grade}` });
+        steps.push({ from:'BUYER', delay:1100, text:
+          `That works. Send whatever holds grade — I'll move the softer stock through the lunch menu rather than retail.` });
+        steps.push({ from:'BOT', delay:850, channel:'DRIVER', text:
+          `Tunde — pickup at Plot F-2 pulled forward to the early window. Route unchanged; load is lighter, so expect one collection stop instead of two.` });
+        break;
+      }
+      case 'FROST_CLEAR': {
+        steps.push({ from:'BOT', delay:500, severity:'good', text:
+          `Frost cleared — surface temperature recovered to ${fmt(s.temp,1)}°C. Harvest window returned to normal and withdrawn order volume reinstated.` });
+        steps.push({ from:'BUYER', delay:900, text: `Good news. Back to the usual crate count then.` });
+        break;
+      }
+      case 'FLOOD': {
+        const before = ctx && ctx.before, after = ctx && ctx.after;
+        const blocked = ((ctx && ctx.blocked) || []).map(e => e.id);
+        steps.push({ from:'BOT', delay:500, severity:'critical', text:
+          `ROAD SATURATION — Sentinel-1 SAR backscatter puts mean trafficability at ${fmt(s.traff,0)}%. ${blocked.length ? `Segment${blocked.length>1?'s':''} ${blocked.join(', ')} below the passability floor.` : 'Rural segments degrading.'}` });
+        if(after){
+          const dk = before ? after.km - before.km : 0;
+          const dm = before ? after.min - before.min : 0;
+          steps.push({ from:'BOT', delay:900, channel:'DRIVER', severity:'warning', text:
+            `Tunde — do not attempt ${blocked[0] || 'the ford'}. Rerouting you now. New waypoints pushed to your handset.`,
+            kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}${before ? `  (${dk>=0?'+':''}${fmt(dk,1)} km · ${dm>=0?'+':''}${Math.round(dm)} min)` : ''}` });
+          steps.push({ from:'DRIVER', delay:1200, text:
+            `Copy. I'm at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.` });
+          steps.push({ from:'BOT', delay:900, channel:'BUYER', text:
+            `Kwesi — your delivery is rerouted around a flooded crossing. Revised drive time is ${minS(after.min)} from pickup; contents and quantity unchanged.` });
+        }
+        break;
+      }
+      case 'FLOOD_CLEAR': {
+        const after = ctx && ctx.after;
+        steps.push({ from:'BOT', delay:500, severity:'good', text:
+          `Trafficability recovered to ${fmt(s.traff,0)}%. Primary crossing reopened; shortest-time path restored.` });
+        if(after) steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
+          `Tunde — R-14 is passable again. Standard route reinstated.`,
+          kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}` });
+        steps.push({ from:'DRIVER', delay:900, text: `Good, that saves me the long way round tomorrow.` });
+        break;
+      }
+      case 'HEAT': {
+        steps.push({ from:'BOT', delay:500, severity:'serious', text:
+          `HEATWAVE — surface temperature ${fmt(s.temp,1)}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.` });
+        steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
+          `Amara — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.` });
+        steps.push({ from:'FARMER', delay:1100, text: `Fine by me. We'll start again around five.` });
+        steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
+          `Tunde — refrigerated unit required for today's run. Depot has been notified to pre-chill.` });
+        break;
+      }
+      case 'HEAT_CLEAR': {
+        steps.push({ from:'BOT', delay:500, severity:'good', text:
+          `Heat advisory cleared at ${fmt(s.temp,1)}°C. Standard collection windows restored.` });
+        break;
+      }
+      case 'DROUGHT': {
+        steps.push({ from:'BOT', delay:500, severity:'warning', text:
+          `ROOT-ZONE STRESS — SMAP puts moisture at ${fmt(s.moisture,1)}%, below the ${CFG.THRESH.moistArm}% stress floor. Stress index ${fmt(s.stress,2)}.` });
+        steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
+          `Amara — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.`,
+          kv:`moisture ${fmt(s.moisture,1)}% · stress ${fmt(s.stress,2)} · NDVI ${fmt(s.ndvi,3)}` });
+        steps.push({ from:'FARMER', delay:1150, text:
+          `The pump is working. I'll run it tonight when the line pressure is better.` });
+        break;
+      }
+      case 'DROUGHT_CLEAR': {
+        steps.push({ from:'BOT', delay:500, severity:'good', text:
+          `Root-zone moisture recovered to ${fmt(s.moisture,1)}%. Irrigation advisory withdrawn.` });
+        break;
+      }
+      case 'NDVI': {
+        steps.push({ from:'BOT', delay:500, severity:'warning', text:
+          `CANOPY VIGOUR — Sentinel-2 NDVI at ${fmt(s.ndvi,3)}, below the ${CFG.THRESH.ndviArm} health floor. Yield forecast revised down for the affected plots.` });
+        steps.push({ from:'BOT', delay:850, channel:'BUYER', text:
+          `Kwesi — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I'll propose a volume revision.` });
+        break;
+      }
+      case 'NDVI_CLEAR': {
+        steps.push({ from:'BOT', delay:500, severity:'good', text:
+          `NDVI recovered to ${fmt(s.ndvi,3)}. Yield forecast restored.` });
+        break;
+      }
+      case 'SIGNAL_LOSS': {
+        steps.push({ from:'BOT', delay:450, severity:'warning', text:
+          `DOWNLINK DEGRADED — all four orbital sources dropped to reacquisition. Operating on last known values; no autonomous order changes will be issued while the feed is stale.` });
+        steps.push({ from:'DRIVER', delay:1000, text: `Do I keep going on the last route you sent?` });
+        steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
+          `Yes — hold the current waypoints. The last SAR pass is still within its validity window. I'll push an update the moment the link is reacquired.` });
+        break;
+      }
+      case 'RESTORE': {
+        steps.push({ from:'BOT', delay:450, severity:'good', text:
+          `Restore requested — all feeds reacquired and metrics converging on nominal. Advisories will clear individually as each metric crosses its release threshold.` });
+        break;
+      }
+    }
+    play(steps);
+  }
+
+  /* ---- deterministic intent matcher over live state ----
+     Order matters: the first pattern that hits wins, so specific intents are
+     listed above general ones. Two ordering constraints are load-bearing and
+     were each caught by a failing quick-reply button:
+       - 'order' precedes 'status', so "my order status" returns the order book
+         rather than a global sitrep. Bare "status" still lands on 'status'
+         because it carries no order keyword.
+       - 'help' carries no generic English word. It previously matched a bare
+         "options", which swallowed "backhaul options" (and would equally have
+         swallowed "route options", "delivery options"). */
+  const INTENTS = [
+    { id:'backhaul', re:/\b(backhaul|return leg|empty run|pickup)\b/i },
+    { id:'order',    re:/\b(order|crate|quantity|kg|cancel|reduce|increase|volume|price|grade|invoice)\b/i },
+    { id:'help',     re:/\b(help|commands?|what can you (do|see|tell)|how do i use)\b/i },
+    { id:'status',   re:/\b(status|sitrep|report|summary|overview|everything)\b/i },
+    { id:'moisture', re:/\b(moisture|water|irrigat\w*|dry|soil|smap|wet)\b/i },
+    { id:'frost',    re:/\b(frost|cold|freez\w*|temperature|temp|heat|hot|harvest|pick)\b/i },
+    { id:'ndvi',     re:/\b(ndvi|health|vigou?r|canopy|crop|yield|green|outlook|supply)\b/i },
+    { id:'route',    re:/\b(road|route|reroute|eta|deliver\w*|drive|waypoint|flood|stuck|traffic|blocked|where)\b/i }
+  ];
+
+  function match(text){
+    const hit = INTENTS.find(i => i.re.test(text));
+    return hit ? hit.id : 'fallback';
+  }
+
+  /** Persona-aware replies. Every number is read from live state. */
+  function reply(intent, persona){
+    const s = State.data.latest;
+    const r = State.data.route;
+    const alerts = [...State.data.alerts.values()];
+    const ts = clockStr(State.data.clock);
+
+    switch(intent){
+      case 'help':
+        return { text:`I track four orbital feeds and act on what they show. Ask me about: soil moisture · frost and temperature · NDVI crop health · road conditions and your route · order quantities · backhaul. Say "status" for the full picture.` };
+
+      case 'status': {
+        const line = alerts.length
+          ? alerts.map(a => `${SEV[a.severity].icon} ${a.label}`).join(' · ')
+          : '✓ no active advisories';
+        return {
+          text:`Field readiness ${State.data.readiness}/100 — ${SEV[State.data.posture].word.toLowerCase()}. ${line}.`,
+          kv:`moisture ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\nsurface ${fmt(s.temp,1)}°C  ·  trafficability ${fmt(s.traff,0)}%\nroute ${r ? fmt(r.km,1)+' km / '+Math.round(r.min)+' min' : 'n/a'}  ·  ${Orders.total()} crates booked\nlast downlink ${ts} UTC`
+        };
+      }
+
+      case 'moisture': {
+        const stressed = s.moisture <= CFG.THRESH.moistArm;
+        if(persona === 'BUYER') return { text:`Root-zone moisture on the supplying plots is ${fmt(s.moisture,1)}% (SMAP, ${ts} UTC). ${stressed ? 'Below the stress floor — I may propose a volume revision if it holds.' : 'Comfortably above the stress floor, so no supply impact expected.'}` };
+        if(persona === 'DRIVER') return { text:`Moisture reaches you only through the roads — trafficability is ${fmt(s.traff,0)}% right now. Soil moisture itself is ${fmt(s.moisture,1)}%.` };
+        // Quote the plot's own reading, then state plainly how it was derived.
+        // At 9 km all three plots share one SMAP pixel, so this is a downscaled
+        // estimate and must not be presented as a plot-level measurement.
+        const pr = (State.data.plots.F2 || {}).moisture;
+        const peers = Telemetry.pixelPeers('F2', 'moisture');
+        const prov = pr
+          ? (pr.downscaled
+              ? `Downscaled from a ${(pr.pixelM/1000)} km ${pr.src} pixel shared with ${peers.length ? peers.map(p => NODES[p].name).join(' and ') : 'no other plot'} — confidence ${pr.confidence.toFixed(2)}, field mean ${fmt(s.moisture,1)}%.`
+              : `Measured directly at ${pr.pixelM} m resolution — confidence ${pr.confidence.toFixed(2)}.`)
+          : '';
+        const val = pr ? pr.v : s.moisture;
+        return {
+          text:`Plot F-2 root-zone moisture is ${fmt(val,1)}% (${REGION.sources.CROP_CASMA ? 'SMAP / CROP-CASMA' : 'SMAP L4'}, ${ts} UTC). ${stressed ? `Below the ${CFG.THRESH.moistArm}% stress floor — irrigation advised within 48 hours.` : `Above the ${CFG.THRESH.moistArm}% stress floor. No irrigation needed.`} ${prov}`,
+          kv:`plot F-2 ${fmt(val,1)}%  ·  field mean ${fmt(s.moisture,1)}%  ·  stress ${fmt(s.stress,2)}\npixel ${pr ? (pr.pixelM >= 1000 ? (pr.pixelM/1000)+' km' : pr.pixelM+' m') : '—'}  ·  confidence ${pr ? pr.confidence.toFixed(2) : '—'}  ·  ${pr && pr.downscaled ? 'DOWNSCALED ESTIMATE' : 'direct measurement'}`
+        };
+      }
+
+      case 'frost': {
+        const frost = s.temp <= CFG.THRESH.frostArm;
+        const heat  = s.temp >= CFG.THRESH.heatArm;
+        const win   = Dispatch.getHarvestWindow() === 'EARLY' ? 'early-harvest' : 'normal';
+        if(persona === 'BUYER') return { text:`Surface temperature is ${fmt(s.temp,1)}°C. ${frost ? 'Frost protocol is active, so your order has been revised — see the last revision note.' : heat ? 'Heat protocol is active; cold chain is engaged but quantities are unchanged.' : 'Nothing thermal affecting your order.'}` };
+        if(persona === 'DRIVER') return { text:`${fmt(s.temp,1)}°C at surface. ${heat ? 'Refrigerated unit required today.' : frost ? 'Pickup pulled forward to the early window — load will be lighter.' : 'No thermal impact on your run.'}` };
+        return {
+          text:`Surface temperature is ${fmt(s.temp,1)}°C (thermal IR, ${ts} UTC). ${frost ? 'At or below the frost floor — cut Plot F-2 within 4 hours.' : heat ? 'Above the heat threshold — hold harvesting through the midday peak.' : `Above the 0.0°C frost floor, so the harvest window stays ${win}.`}`,
+          kv:`surface ${fmt(s.temp,1)}°C  ·  frost floor 0.0°C  ·  window ${win}`
+        };
+      }
+
+      case 'ndvi': {
+        const low = s.ndvi <= CFG.THRESH.ndviArm;
+        return {
+          text:`Sentinel-2 NDVI reads ${fmt(s.ndvi,3)} across the monitored plots (${ts} UTC). ${low ? `Below the ${CFG.THRESH.ndviArm} health floor — canopy vigour is declining and the yield forecast is revised down.` : `Above the ${CFG.THRESH.ndviArm} health floor; canopy vigour is healthy.`}`,
+          kv:`NDVI ${fmt(s.ndvi,3)}  ·  floor ${CFG.THRESH.ndviArm}  ·  moisture ${fmt(s.moisture,1)}%`
+        };
+      }
+
+      case 'route': {
+        if(!r) return { text:`No active route computed yet — waiting on the first Sentinel-1 pass.` };
+        const blocked = Dispatch.blockedEdges();
+        if(r.fallback) return {
+          text:`Every path to the depot currently crosses an impassable segment — ${blocked.map(e=>e.id).join(', ')}. Do not depart. Hold at ${NODES[ROUTE_ORIGIN].name} until SAR shows a crossing reopening; the waypoints below are the least-bad option and are NOT cleared for use.`,
+          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min · ⚠ NOT CLEARED`
+        };
+        const base = State.data.baselineRoute;
+        const dk = base ? r.km - base.km : 0;
+        return {
+          text:`${blocked.length ? `Segment${blocked.length>1?'s':''} ${blocked.map(e=>e.id).join(', ')} ${blocked.length>1?'are':'is'} below the passability floor, so the route avoids ${blocked.length>1?'them':'it'}. ` : `All segments passable — you are on the shortest-time path. `}Mean trafficability ${fmt(s.traff,0)}% (Sentinel-1 SAR, ${ts} UTC).`,
+          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min${Math.abs(dk) > 0.05 ? `  (${dk>=0?'+':''}${fmt(dk,1)} km vs clear-weather path)` : ''}`
+        };
+      }
+
+      case 'order': {
+        const revised = State.data.orders.filter(o => o.status === 'revised');
+        return {
+          text: revised.length
+            ? `${revised.length} of ${State.data.orders.length} orders are currently revised — ${Orders.baseTotal() - Orders.total()} crates withdrawn against a booked ${Orders.baseTotal()}. Revisions reverse automatically when the triggering advisory clears.`
+            : `All ${State.data.orders.length} orders stand at their booked quantities — ${Orders.total()} crates total. No autonomous revisions are active.`,
+          kv: State.data.orders.map(o => `${o.id}  ${String(o.crates).padStart(3)} cr  grade ${o.grade}  ${o.status}`).join('\n')
+        };
+      }
+
+      case 'backhaul': {
+        const bh = Dispatch.backhaul();
+        if(!bh) return { text:`No backhaul leg available on the current network state.` };
+        return {
+          text:`Backhaul optimised: after the depot drop you collect from Plot F-3 on the return rather than running empty. That recovers roughly ${fmt(bh.km,1)} km of otherwise unloaded distance.`,
+          kv:`${bh.path.join(' → ')}\n${fmt(bh.km,1)} km · ${Math.round(bh.min)} min return leg`
+        };
+      }
+
+      default:
+        return { text:`I did not match that to a live data channel. I can answer on soil moisture, frost and temperature, NDVI crop health, roads and routing, order quantities, or backhaul. Try "status" for everything at once.` };
+    }
+  }
+
+  function handleUserMessage(text){
+    const persona = State.data.persona;
+    post(persona, text, { mine:true });
+    const res = reply(match(text), persona);
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    State.emit('typing', 'BOT');
+    setTimeout(() => {
+      State.emit('typing', null);
+      post('BOT', res.text, { kv: res.kv, channel: PEOPLE[persona].channel });
+    }, reduced ? 60 : 620 + Math.random() * 520);
+  }
+
+  function greet(){
+    const s = State.data.latest;
+    post('SYSTEM', 'Secure channel established · AURA-AgriNet 1.0 · 5 participants', { channel:'ALL' });
+    play([
+      { from:'BOT', delay:600, text:`Good morning. I have acquired all four orbital feeds — SMAP, Sentinel-1, Sentinel-2 and thermal IR. Monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.`,
+        kv:`moisture ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\nsurface ${fmt(s.temp,1)}°C  ·  trafficability ${fmt(s.traff,0)}%` },
+      { from:'FARMER', delay:1000, text:`Morning. Anything I should worry about on F-2 today?` },
+      { from:'BOT', delay:900, channel:'FARMER', text:`Nothing yet. I will message you directly the moment any threshold is crossed — you do not need to watch the feed.` }
+    ]);
+  }
+
+  return { post, cascade, handleUserMessage, greet, match, reply };
+})();
+
+
+/* ===================== MODULE 4: AUTONOMOUS EVENT ENGINE ===================== */
+
+const EventEngine = (() => {
+  /* Each rule carries separate arm/clear thresholds plus a debounce, so a metric
+     hovering on the boundary cannot flap the dashboard. */
+  const RULES = [
+    {
+      id:'FROST_EVENT', label:'Frost event', severity:'critical', metric:'temp', minTicks:1,
+      arm:   s => s.temp !== null && s.temp <= CFG.THRESH.frostArm,
+      clear: s => s.temp !== null && s.temp >= CFG.THRESH.frostClear,
+      detail: s => `Surface temperature ${fmt(s.temp,1)}°C — at or below the 0.0°C frost floor.`,
+      onArm(){
+        // Per-plot temperature decides which plots are actually frosted; only the
+        // crops grown there can affect an order.
+        const hit = PLOTS.filter(p => {
+          const r = State.data.plots[p] && State.data.plots[p].temp;
+          return r && r.v <= CFG.THRESH.frostArm;
+        });
+        const affected = hit.length ? hit : PLOTS;
+        const cut = Orders.adjust('FROST_EVENT', -0.28, 'B', affected);
+        Dispatch.setHarvestWindow('EARLY');
+        Console.cascade('FROST', { cut, affected });
+      },
+      onClear(){
+        Orders.restore('FROST_EVENT');
+        Dispatch.setHarvestWindow('NORMAL');
+        Console.cascade('FROST_CLEAR', {});
+      }
+    },
+    {
+      id:'HEATWAVE', label:'Heatwave', severity:'serious', metric:'temp', minTicks:2,
+      arm:   s => s.temp !== null && s.temp >= CFG.THRESH.heatArm,
+      clear: s => s.temp !== null && s.temp <= CFG.THRESH.heatClear,
+      detail: s => `Surface temperature ${fmt(s.temp,1)}°C — heat stress threshold exceeded.`,
+      onArm(){ Dispatch.setColdChain(true);  Console.cascade('HEAT', {}); },
+      onClear(){ Dispatch.setColdChain(false); Console.cascade('HEAT_CLEAR', {}); }
+    },
+    {
+      id:'FLOOD_SATURATION', label:'Road saturation', severity:'critical', metric:'traff', minTicks:1,
+      arm:   s => s.traff !== null && s.traff <= CFG.THRESH.traffArm,
+      clear: s => s.traff !== null && s.traff >= CFG.THRESH.traffClear,
+      detail: s => `Sentinel-1 SAR indicates ${fmt(s.traff,0)}% mean trafficability — rural segments saturating.`,
+      onArm(){
+        const before = State.data.route;
+        const after  = Dispatch.recomputeRoute();
+        Console.cascade('FLOOD', { before, after, blocked: Dispatch.blockedEdges() });
+      },
+      onClear(){
+        const after = Dispatch.recomputeRoute();
+        Console.cascade('FLOOD_CLEAR', { after });
+      }
+    },
+    {
+      id:'SOIL_STRESS', label:'Root-zone moisture stress', severity:'warning', metric:'moisture', minTicks:2,
+      arm:   s => s.moisture !== null && s.moisture <= CFG.THRESH.moistArm,
+      clear: s => s.moisture !== null && s.moisture >= CFG.THRESH.moistClear,
+      detail: s => `SMAP root-zone moisture ${fmt(s.moisture,1)}% — below the ${CFG.THRESH.moistArm}% stress floor.`,
+      onArm(){ Console.cascade('DROUGHT', {}); },
+      onClear(){ Console.cascade('DROUGHT_CLEAR', {}); }
+    },
+    {
+      id:'NDVI_DECLINE', label:'Canopy vigour decline', severity:'warning', metric:'ndvi', minTicks:2,
+      arm:   s => s.ndvi !== null && s.ndvi <= CFG.THRESH.ndviArm,
+      clear: s => s.ndvi !== null && s.ndvi >= CFG.THRESH.ndviClear,
+      detail: s => `Sentinel-2 NDVI ${fmt(s.ndvi,3)} — canopy vigour below the ${CFG.THRESH.ndviArm} health floor.`,
+      onArm(){ Console.cascade('NDVI', {}); },
+      onClear(){ Console.cascade('NDVI_CLEAR', {}); }
+    }
+  ];
+
+  const counters = {};   // ruleId -> consecutive satisfied evaluations
+
+  function evaluate(){
+    const s = State.data.latest;
+    let changed = false;
+
+    RULES.forEach(rule => {
+      const active = State.data.alerts.has(rule.id);
+      const test = active ? rule.clear(s) : rule.arm(s);
+      if(test){
+        counters[rule.id] = (counters[rule.id] || 0) + 1;
+        if(counters[rule.id] >= rule.minTicks){
+          counters[rule.id] = 0;
+          if(active) release(rule); else arm(rule, s);
+          changed = true;
+        }
+      } else {
+        counters[rule.id] = 0;
+      }
+    });
+
+    Dispatch.refreshEdges();
+    Scoring.recompute();
+    if(changed) State.emit('alerts');
+    State.emit('tick');
+  }
+
+  function arm(rule, s){
+    State.data.alerts.set(rule.id, {
+      id: rule.id, label: rule.label, severity: rule.severity,
+      since: State.data.clock, detail: rule.detail(s)
+    });
+    Log.add(rule.severity, rule.label, rule.detail(s));
+    try{ rule.onArm(); }catch(e){ console.error('[rule.onArm]', rule.id, e); }
+  }
+
+  function release(rule){
+    State.data.alerts.delete(rule.id);
+    Log.add('good', rule.label + ' cleared', 'Telemetry returned past the release threshold; autonomous actions reverted.');
+    try{ rule.onClear(); }catch(e){ console.error('[rule.onClear]', rule.id, e); }
+  }
+
+  /* Manual firing injects a telemetry excursion and lets the rule path run.
+     Manual and autonomous triggers therefore execute identical code. */
+  function fire(id){
+    switch(id){
+      case 'FROST_EVENT': Telemetry.inject('temp', -3.4, 7, true); break;
+      case 'HEATWAVE':    Telemetry.inject('temp', 38.6, 7, true); break;
+      case 'FLOOD_SATURATION':
+        // 57% is chosen, not arbitrary. Per-segment trafficability is
+        //   t(e) = g - floodRisk(e) * (100 - g) * 0.9
+        // so the ford R-14 drops below the 35% impassable floor once g <= 65,
+        // while the southern detour (R-07) stays above it only while g > 54.
+        // The window that yields a genuine reroute rather than a severed
+        // network is therefore g in [54, 64]; 57 sits mid-window with margin
+        // on both sides, and still arms the rule (which triggers at g <= 60).
+        Telemetry.inject('traff', 57, 8, true);
+        Telemetry.inject('moisture', 46, 8, true);
+        break;
+      case 'SOIL_STRESS':
+        Telemetry.inject('moisture', 16.5, 8, true);
+        Telemetry.inject('stress', 0.79, 8, true);
+        Telemetry.inject('ndvi', 0.41, 8, true);
+        break;
+      case 'SIGNAL_LOSS':
+        Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'reacquire'));
+        Log.add('warning', 'Downlink degraded', 'All four orbital sources dropped to reacquisition. Holding last known values.');
+        Console.cascade('SIGNAL_LOSS', {});
+        return;
+      case 'RESTORE':
+        Telemetry.clearInjections();
+        Object.keys(METRICS).forEach(k => Telemetry.inject(k, METRICS[k].seed, 5, true));
+        Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'nominal', SOURCES[sid].latency));
+        Log.add('info', 'Restore requested', 'Nudging all metrics back toward nominal. Advisories clear as each metric crosses its release threshold.');
+        Console.cascade('RESTORE', {});
+        return;
+    }
+    const rule = RULES.find(r => r.id === id);
+    if(rule) Log.add('info', 'Simulation injected',
+      `${rule.label} excursion queued on the ${METRICS[rule.metric].label.toLowerCase()} feed — awaiting next downlink.`);
+  }
+
+  return { evaluate, fire, RULES };
+})();
+
+
+/* ===================== MODULE 7: VIEWS ===================== */
+
+const Views = (() => {
+  const TILES = ['moisture','ndvi','temp','traff'];
+  let tableOpen = false;
+
+  /* ---------- header ---------- */
+  function renderClock(){ el('missionClock').textContent = clockStrFull(State.data.clock); }
+
+  function renderRegionPicker(){
+    const html = Object.values(REGIONS).map(r =>
+      `<option value="${esc(r.id)}"${r.id === State.data.regionId ? ' selected' : ''}>${esc(r.name)} · ${esc(r.country)}</option>`
+    ).join('');
+    ['regionSel', 'regionSelM'].forEach(id => {
+      const s = el(id);
+      if(s) s.innerHTML = html;
+    });
+  }
+
+  function renderLinks(){
+    el('linkChips').innerHTML = Object.values(SOURCES).map(src => {
+      const l = State.data.links[src.id] || { status:'reacquire', latency:null };
+      // A source with no coverage over the active region is shown greyed and
+      // labelled, never silently polled. CROP-CASMA is CONUS-only, so outside the
+      // United States the SMAP chip says so.
+      if(l.status === 'unavailable' || !Region.covers(src.id)){
+        return `<div class="link-chip" style="opacity:.42" title="${esc(src.label)} — no coverage over ${esc(REGION.name)}">
+          <span class="link-dot" style="background:var(--text-muted)"></span>
+          <span>${esc(src.short)}</span><span class="link-lat">N/A</span>
+        </div>`;
+      }
+      const cls  = l.status === 'nominal' ? 'nominal' : l.status === 'degraded' ? 'degraded' : 'reacquire';
+      const word = l.status === 'nominal' ? 'LOCK'    : l.status === 'degraded' ? 'DEGRADED' : 'REACQ';
+      const label = (src.id === 'SMAP' && REGION && REGION.sources.CROP_CASMA)
+        ? 'SMAP/CASMA' : src.short;
+      return `<div class="link-chip ${l.rx ? 'rx' : ''}" title="${esc(src.label)} · ${src.id === 'SMAP' ? '9 km' : src.id === 'TIR' ? '1 km' : '10 m'} pixel">
+        <span class="link-dot ${cls}"></span>
+        <span>${esc(label)}</span>
+        <span class="link-lat">${l.rx ? '···' : word}${(l.latency && l.status === 'nominal') ? ' ' + l.latency + 'ms' : ''}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPosture(){
+    const p = State.data.posture;
+    const n = State.data.alerts.size;
+    const pill = el('posturePill');
+    pill.className = 'chip ' + p + ' flex-none';
+    pill.innerHTML = `<span class="chip-icon">${SEV[p].icon}</span><span>${
+      n ? esc(n + ' active advisor' + (n > 1 ? 'ies' : 'y')) : 'All Systems Nominal'}</span>`;
+  }
+
+  /* ---------- hero ---------- */
+  function renderHero(){
+    const d = State.data;
+    el('heroValue').textContent = d.readiness;
+    el('alertCount').textContent = d.alerts.size;
+
+    const chip = el('heroPosture');
+    chip.className = 'chip ' + d.posture;
+    chip.innerHTML = `<span class="chip-icon">${SEV[d.posture].icon}</span><span>${SEV[d.posture].word}</span>`;
+
+    const rank = { critical:0, serious:1, warning:2 };
+    const alerts = [...d.alerts.values()].sort((a,b) => rank[a.severity] - rank[b.severity]);
+    el('heroNote').textContent = alerts.length
+      ? alerts[0].detail
+      : 'All four orbital feeds within nominal bands. No autonomous interventions active.';
+  }
+
+  /* ---------- stat tiles ---------- */
+  function sparkPath(vals, w, h, pad){
+    if(vals.length < 2) return '';
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const span = (max - min) || 1;
+    return vals.map((v,i) => {
+      const x = pad + (i / (vals.length - 1)) * (w - pad * 2);
+      const y = h - pad - ((v - min) / span) * (h - pad * 2);
+      return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+    }).join(' ');
+  }
+
+  function renderTiles(){
+    const d = State.data;
+    const W = 150, H = 30;
+
+    el('tileGrid').innerHTML = TILES.map(key => {
+      const m = METRICS[key];
+      const v = d.latest[key], prev = d.prev[key];
+      const sev = metricSeverity(key, v);
+      const colour = sevColour(sev);
+      const vals = d.series[key].slice(-14).map(p => p.v);
+
+      const delta = (v !== null && prev !== null) ? v - prev : null;
+      const deltaTxt = delta === null ? '—'
+        : (delta >= 0 ? '▲ +' : '▼ ') + fmt(Math.abs(delta), m.decimals) + m.unit;
+      // Direction of "good" differs per metric, so colour the delta by meaning.
+      const upIsGood = (key === 'moisture' || key === 'ndvi' || key === 'traff');
+      const deltaColour = (delta === null || Math.abs(delta) < 1e-9) ? 'var(--text-muted)'
+        : ((delta > 0) === upIsGood ? '#5fd35f' : '#ff8f8f');
+
+      const link = d.links[m.src];
+      const stale = !!(link && link.status !== 'nominal');
+      const tileCls = sev === 'critical' ? 'tile is-alert'
+                    : (sev === 'warning' || sev === 'serious') ? 'tile is-warn' : 'tile';
+
+      // Meter for the two metrics measured against a hard limit.
+      let meter = '';
+      if(key === 'traff' || key === 'moisture'){
+        const limit = key === 'traff' ? 100 : 45;
+        const floor = key === 'traff' ? CFG.THRESH.traffArm : CFG.THRESH.moistArm;
+        const pct = Math.max(2, Math.min(100, (v / limit) * 100));
+        meter = `<div class="meter-track mt-2" role="img" aria-label="${esc(m.label)} ${fmt(v,m.decimals)} against a floor of ${floor}">
+                   <div class="meter-fill" style="width:${pct.toFixed(1)}%;background:${colour}"></div>
+                 </div>
+                 <div class="tile-src mt-1">floor ${floor}${esc(m.unit)}</div>`;
+      }
+
+      let endDot = '';
+      if(vals.length > 1){
+        const mn = Math.min(...vals), mx = Math.max(...vals), sp = (mx - mn) || 1;
+        const cy = (H - 3 - ((vals[vals.length-1] - mn) / sp) * (H - 6)).toFixed(1);
+        endDot = `<circle cx="${W-3}" cy="${cy}" r="3.5" fill="${colour}" stroke="var(--surface-2)" stroke-width="2"/>`;
+      }
+
+      return `<div class="${tileCls}" data-key="${key}">
+        <div class="flex items-start justify-between gap-2">
+          <span class="tile-label">${esc(m.label)}</span>
+          <span class="chip ${sev}" style="padding:1px 6px"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(statusWord(key, sev))}</span></span>
+        </div>
+        <div class="flex items-end justify-between gap-2 mt-1.5 ${stale ? 'stale' : ''}">
+          <div>
+            <div class="tile-value">${fmt(v, m.decimals)}<span class="tile-unit">${esc(m.unit)}</span></div>
+            <div class="tile-delta mt-0.5" style="color:${deltaColour}">${esc(deltaTxt)}</div>
+          </div>
+          <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:52%;overflow:visible" aria-hidden="true">
+            <path d="${sparkPath(vals, W, H, 3)}" fill="none" stroke="${colour}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            ${endDot}
+          </svg>
+        </div>
+        ${meter}
+        <div class="tile-src mt-1.5">${esc(SOURCES[m.src].short)} · ${m.pixelM >= 1000 ? (m.pixelM/1000)+' km' : m.pixelM+' m'} px${stale ? ' · holding last value' : ''}</div>
+        ${m.downscaled
+          ? `<div class="tile-src" style="color:#c9a227" title="All plots share one ${(m.pixelM/1000)} km ${m.src} pixel — per-plot values are downscaled estimates, not measurements">≈ downscaled · conf ${m.confidence.toFixed(2)}</div>`
+          : `<div class="tile-src" style="color:#4f8f5f" title="Pixel is smaller than a plot, so this is a direct per-plot measurement">✓ measured · conf ${m.confidence.toFixed(2)}</div>`}
+      </div>`;
+    }).join('');
+  }
+
+  /* ---------- table view (the WCAG-clean twin) ---------- */
+  function renderTable(){
+    if(!tableOpen) return;
+    const d = State.data;
+    const n = Math.min(CFG.CHART_POINTS, d.series.temp.length);
+    const rows = [];
+    for(let i = 0; i < n; i++){
+      const at = k => {
+        const buf = d.series[k];
+        const j = buf.length - 1 - i;
+        return j >= 0 ? buf[j].v : null;
+      };
+      const row = d.series.temp[d.series.temp.length - 1 - i];
+      rows.push(`<tr>
+        <td>${clockStrFull(row.t)}</td>
+        <td>${fmt(at('moisture'),1)}</td>
+        <td>${fmt(at('stress'),2)}</td>
+        <td>${fmt(at('ndvi'),3)}</td>
+        <td>${fmt(at('temp'),1)}</td>
+        <td>${fmt(at('traff'),0)}</td>
+      </tr>`);
+    }
+    el('tableBody').innerHTML = rows.join('');
+  }
+
+  /* ---------- thermal chart: emphasis on the frost floor ---------- */
+  const TC = { w:620, h:210, l:42, r:14, t:14, b:30 };
+  let thermalCtx = null;
+
+  function renderThermal(){
+    const svg = el('thermalChart');
+    const pts = State.data.series.temp.slice(-CFG.CHART_POINTS);
+    if(pts.length < 2){ svg.innerHTML = ''; return; }
+
+    const vals = pts.map(p => p.v);
+    let min = Math.min(...vals, -2), max = Math.max(...vals, 6);
+    const padY = (max - min) * 0.14;
+    min -= padY; max += padY;
+
+    const plotW = TC.w - TC.l - TC.r;
+    const plotH = TC.h - TC.t - TC.b;
+    const X = i => TC.l + (i / (pts.length - 1)) * plotW;
+    const Y = v => TC.t + plotH - ((v - min) / (max - min)) * plotH;
+
+    const ticks = [];
+    const step = (max - min) / 4;
+    for(let i = 0; i <= 4; i++) ticks.push(min + step * i);
+
+    const zeroY = Y(0);
+    const zeroVisible = zeroY >= TC.t && zeroY <= TC.t + plotH;
+
+    let out = '';
+
+    // gridlines — solid hairlines, recessive
+    out += ticks.map(v => `<line class="gridline" x1="${TC.l}" y1="${Y(v).toFixed(1)}" x2="${TC.l+plotW}" y2="${Y(v).toFixed(1)}"/>`).join('');
+    out += ticks.map(v => `<text class="axis-text" x="${TC.l-8}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end">${fmt(v,0)}</text>`).join('');
+
+    // sub-zero region wash, then the frost floor rule
+    if(zeroVisible){
+      out += `<rect x="${TC.l}" y="${zeroY.toFixed(1)}" width="${plotW}" height="${(TC.t+plotH-zeroY).toFixed(1)}" fill="var(--critical)" opacity=".08"/>`;
+      out += `<line class="thresh-line" x1="${TC.l}" y1="${zeroY.toFixed(1)}" x2="${TC.l+plotW}" y2="${zeroY.toFixed(1)}"/>`;
+      out += `<text class="thresh-text" x="${TC.l+4}" y="${(zeroY-6).toFixed(1)}">0°C FROST FLOOR</text>`;
+    }
+
+    // area wash under the line
+    const area = pts.map((p,i) => `${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ')
+      + ` L${X(pts.length-1).toFixed(1)} ${(TC.t+plotH).toFixed(1)} L${X(0).toFixed(1)} ${(TC.t+plotH).toFixed(1)} Z`;
+    out += `<path d="${area}" fill="var(--series-1)" opacity=".10"/>`;
+
+    // base line, then sub-zero segments overpainted in critical (emphasis, not diverging)
+    out += `<path class="series-line" d="${pts.map((p,i) => `${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ')}" stroke="var(--series-1)"/>`;
+    for(let i = 1; i < pts.length; i++){
+      if(pts[i].v <= 0 || pts[i-1].v <= 0){
+        out += `<path class="series-line" stroke="var(--critical)" d="M${X(i-1).toFixed(1)} ${Y(pts[i-1].v).toFixed(1)} L${X(i).toFixed(1)} ${Y(pts[i].v).toFixed(1)}"/>`;
+      }
+    }
+
+    // axis band — the container is sized to include these labels
+    out += `<line class="axisline" x1="${TC.l}" y1="${TC.t+plotH}" x2="${TC.l+plotW}" y2="${TC.t+plotH}"/>`;
+    [0, Math.floor((pts.length-1)/2), pts.length-1].forEach(i => {
+      const anchor = i === 0 ? 'start' : i === pts.length-1 ? 'end' : 'middle';
+      out += `<text class="axis-text" x="${X(i).toFixed(1)}" y="${(TC.t+plotH+15).toFixed(1)}" text-anchor="${anchor}">${clockStr(pts[i].t)}</text>`;
+    });
+    out += `<text class="axis-text" x="${TC.l}" y="${(TC.t+plotH+27).toFixed(1)}" style="font-size:8.5px">UTC · last ${pts.length} readings</text>`;
+
+    // Selective direct labels only: the current value, plus the coldest point if sub-zero.
+    const last = pts[pts.length-1];
+    out += `<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.v).toFixed(1)}" r="4.5" fill="${last.v <= 0 ? 'var(--critical)' : 'var(--series-1)'}" stroke="var(--surface-1)" stroke-width="2"/>`;
+    out += `<text x="${(X(pts.length-1)-8).toFixed(1)}" y="${(Y(last.v)-9).toFixed(1)}" text-anchor="end" style="fill:var(--text-primary);font-size:11px;font-weight:600">${fmt(last.v,1)}°C</text>`;
+
+    const coldIdx = vals.indexOf(Math.min(...vals));
+    if(vals[coldIdx] <= 0 && coldIdx !== pts.length - 1){
+      out += `<circle cx="${X(coldIdx).toFixed(1)}" cy="${Y(vals[coldIdx]).toFixed(1)}" r="4" fill="var(--critical)" stroke="var(--surface-1)" stroke-width="2"/>`;
+      out += `<text x="${X(coldIdx).toFixed(1)}" y="${(Y(vals[coldIdx])+16).toFixed(1)}" text-anchor="middle" style="fill:#ff6b6b;font-size:10px;font-weight:700">${fmt(vals[coldIdx],1)}°</text>`;
+    }
+
+    // hover layer — hit target spans the full plot height
+    out += `<g id="thermalCross" style="display:none"><line class="crosshair" y1="${TC.t}" y2="${TC.t+plotH}"/><circle r="5" fill="none" stroke="var(--text-primary)" stroke-width="2"/></g>`;
+    out += `<rect id="thermalHit" x="${TC.l}" y="${TC.t}" width="${plotW}" height="${plotH}" fill="transparent" style="cursor:crosshair" tabindex="0"/>`;
+
+    svg.innerHTML = out;
+    thermalCtx = { pts, X, Y };
+
+    const sev = metricSeverity('temp', State.data.latest.temp);
+    const chip = el('thermalChip');
+    chip.className = 'chip ' + sev;
+    chip.innerHTML = `<span class="chip-icon">${SEV[sev].icon}</span><span>${esc(statusWord('temp', sev))}</span>`;
+  }
+
+  /** Hover wired once via delegation, so a chart re-render never leaks listeners. */
+  function initThermalHover(){
+    const svg = el('thermalChart');
+    const tip = el('thermalTip');
+
+    function show(clientX){
+      if(!thermalCtx) return;
+      const { pts, X, Y } = thermalCtx;
+      const cross = el('thermalCross');
+      if(!cross) return;
+      const box = svg.getBoundingClientRect();
+      const scale = TC.w / box.width;
+      const sx = (clientX - box.left) * scale;
+      let idx = Math.round(((sx - TC.l) / (TC.w - TC.l - TC.r)) * (pts.length - 1));
+      idx = Math.max(0, Math.min(pts.length - 1, idx));
+      const p = pts[idx];
+
+      cross.style.display = '';
+      cross.querySelector('line').setAttribute('x1', X(idx));
+      cross.querySelector('line').setAttribute('x2', X(idx));
+      cross.querySelector('circle').setAttribute('cx', X(idx));
+      cross.querySelector('circle').setAttribute('cy', Y(p.v));
+
+      const sev = metricSeverity('temp', p.v);
+      tip.innerHTML = `<div class="mono tnum" style="font-weight:700;font-size:13px">${fmt(p.v,1)}°C</div>
+        <div style="color:var(--text-muted);font-size:10px" class="mono">${clockStrFull(p.t)} UTC</div>
+        <div style="color:${sevColour(sev)};font-size:10px;font-weight:700;margin-top:2px">${SEV[sev].icon} ${esc(statusWord('temp', sev))}</div>`;
+      tip.classList.add('on');
+      tip.style.left = Math.min(box.width - 122, Math.max(4, X(idx)/scale + 12)) + 'px';
+      tip.style.top  = (Y(p.v)/scale - 14) + 'px';
+    }
+    function hide(){
+      const cross = el('thermalCross');
+      if(cross) cross.style.display = 'none';
+      tip.classList.remove('on');
+    }
+
+    svg.addEventListener('mousemove', e => { if(e.target.id === 'thermalHit') show(e.clientX); });
+    svg.addEventListener('mouseleave', hide);
+    svg.addEventListener('touchmove', e => { if(e.touches[0]) show(e.touches[0].clientX); }, { passive:true });
+    svg.addEventListener('touchend', hide);
+    // Keyboard focus surfaces the same content as hover.
+    svg.addEventListener('focusin', e => { if(e.target.id === 'thermalHit') show(svg.getBoundingClientRect().right - 20); });
+    svg.addEventListener('focusout', hide);
+  }
+
+  /* ---------- micro-logistics map ---------- */
+  function renderMap(){
+    const es = State.data.edgeState;
+    const route = State.data.route;
+
+    let out = `<defs>
+      <pattern id="hatch" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="0" y2="7" stroke="var(--critical)" stroke-width="3.2" opacity=".85"/>
+      </pattern>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="var(--series-1)"/>
+      </marker>
+    </defs>`;
+
+    // roads
+    EDGES.forEach(e => {
+      const A = NODES[e.a], B = NODES[e.b];
+      const st = es[e.id] || { traff:100, passable:true, degraded:false };
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+      const vertical = Math.abs(A.y - B.y) > Math.abs(A.x - B.x);
+
+      let stroke = '#28313d', opacity = 1;
+      if(!st.passable){ stroke = 'var(--critical)'; }
+      else if(st.degraded){ stroke = 'var(--warning)'; opacity = .75; }
+
+      out += `<line class="road" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${stroke}" stroke-width="5" opacity="${opacity}"/>`;
+      if(!st.passable){
+        out += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="url(#hatch)" stroke-width="7" opacity=".9"/>`;
+      }
+
+      const lx = mx + (vertical ? 14 : 0);
+      const ly = my + (vertical ? 0 : -8);
+      out += `<text class="road-label" x="${lx}" y="${ly}" text-anchor="middle">${e.id} · ${e.km}km</text>`;
+      if(!st.passable){
+        out += `<text class="blocked-tag" x="${lx}" y="${ly + 11}" text-anchor="middle">✕ IMPASSABLE</text>`;
+      } else if(st.degraded){
+        out += `<text x="${lx}" y="${ly + 11}" text-anchor="middle" style="fill:#ffc44d;font-size:8px;font-weight:700">▲ ${fmt(st.traff,0)}%</text>`;
+      }
+    });
+
+    // superseded route ghost — held for one beat so a reroute is legible
+    if(State.data.prevRoutePoints){
+      out += `<path class="route-ghost" d="${State.data.prevRoutePoints.map((id,i) => `${i?'L':'M'}${NODES[id].x} ${NODES[id].y}`).join(' ')}"/>`;
+    }
+
+    // active route
+    if(route){
+      out += `<path id="routePath" class="route-line" d="${route.path.map((id,i) => `${i?'L':'M'}${NODES[id].x} ${NODES[id].y}`).join(' ')}" marker-end="url(#arrow)"/>`;
+    }
+
+    // nodes
+    Object.values(NODES).forEach(n => {
+      const onRoute = !!(route && route.path.indexOf(n.id) !== -1);
+      if(n.kind === 'farm'){
+        out += `<rect x="${n.x-9}" y="${n.y-9}" width="18" height="18" rx="3" fill="var(--surface-3)" stroke="${onRoute ? 'var(--series-1)' : 'var(--series-3)'}" stroke-width="2"/>`;
+        out += `<rect x="${n.x-4}" y="${n.y-4}" width="8" height="8" rx="1.5" fill="var(--series-3)"/>`;
+      } else if(n.kind === 'depot'){
+        out += `<polygon points="${n.x},${n.y-11} ${n.x+10},${n.y-4} ${n.x+10},${n.y+7} ${n.x-10},${n.y+7} ${n.x-10},${n.y-4}" fill="var(--surface-3)" stroke="var(--series-1)" stroke-width="2"/>`;
+        out += `<circle cx="${n.x}" cy="${n.y}" r="3" fill="var(--series-1)"/>`;
+      } else if(n.kind === 'hub'){
+        out += `<circle cx="${n.x}" cy="${n.y}" r="9" fill="var(--surface-3)" stroke="var(--series-2)" stroke-width="2"/>`;
+        out += `<circle cx="${n.x}" cy="${n.y}" r="3.5" fill="var(--series-2)"/>`;
+      } else {
+        out += `<circle cx="${n.x}" cy="${n.y}" r="5" fill="var(--surface-3)" stroke="var(--text-muted)" stroke-width="1.6"/>`;
+      }
+      out += `<text class="node-label" x="${n.x}" y="${n.y - 15}" text-anchor="middle">${esc(n.name)}</text>`;
+      if(n.sub) out += `<text class="node-sub" x="${n.x}" y="${n.y - 6}" text-anchor="middle">${esc(n.sub)}</text>`;
+    });
+
+    // driver marker (positioned by the animation loop)
+    out += `<g id="driverMarker" style="display:none">
+      <circle r="9" fill="var(--series-4)" stroke="var(--surface-1)" stroke-width="2.5"/>
+      <text y="3.2" text-anchor="middle" style="fill:#080b0f;font-size:9px;font-weight:800">D3</text>
+    </g>`;
+
+    // legend — identity is never colour-alone
+    out += `<g transform="translate(14,320)">
+      <rect x="-8" y="-12" width="392" height="22" rx="6" fill="var(--surface-2)" opacity=".92"/>
+      <rect x="0" y="-5" width="9" height="9" rx="2" fill="none" stroke="var(--series-3)" stroke-width="1.6"/>
+      <text class="node-sub" x="14" y="3">Farm plot</text>
+      <polygon points="82,-7 90,-3 90,4 74,4 74,-3" fill="none" stroke="var(--series-1)" stroke-width="1.6"/>
+      <text class="node-sub" x="96" y="3">Depot</text>
+      <circle cx="142" cy="-1" r="5" fill="none" stroke="var(--series-2)" stroke-width="1.6"/>
+      <text class="node-sub" x="152" y="3">Buyer hub</text>
+      <line x1="214" y1="-1" x2="230" y2="-1" stroke="var(--series-1)" stroke-width="3" stroke-linecap="round"/>
+      <text class="node-sub" x="235" y="3">Active route</text>
+      <line x1="304" y1="-1" x2="320" y2="-1" stroke="var(--critical)" stroke-width="3" stroke-linecap="round"/>
+      <text class="node-sub" x="325" y="3">✕ Blocked</text>
+    </g>`;
+
+    el('fieldMap').innerHTML = out;
+    startDriver();
+    renderRouteStats();
+  }
+
+  function renderRouteStats(){
+    const r = State.data.route, base = State.data.baselineRoute;
+    if(!r) return;
+    el('routeKm').textContent  = fmt(r.km, 1);
+    el('routeEta').textContent = Math.round(r.min);
+    el('routeWaypoints').textContent = r.waypoints.join('  →  ');
+
+    const paint = (node, val, unit, decimals) => {
+      if(!base || Math.abs(val) < 0.05){
+        node.textContent = 'baseline path';
+        node.style.color = 'var(--text-muted)';
+      } else {
+        node.textContent = (val > 0 ? '▲ +' : '▼ ') + fmt(Math.abs(val), decimals) + ' ' + unit + ' vs clear weather';
+        node.style.color = val > 0 ? '#ff8f8f' : '#5fd35f';
+      }
+    };
+    paint(el('routeKmDelta'),  base ? r.km  - base.km  : 0, 'km',  1);
+    paint(el('routeEtaDelta'), base ? r.min - base.min : 0, 'min', 0);
+
+    const blocked = Dispatch.blockedEdges();
+    const anyDegraded = Object.keys(State.data.edgeState).some(k => State.data.edgeState[k].degraded);
+    const sev = (r.fallback || blocked.length) ? 'critical' : anyDegraded ? 'warning' : 'good';
+    const chip = el('routeChip');
+    chip.className = 'chip ' + sev;
+    chip.innerHTML = `<span class="chip-icon">${SEV[sev].icon}</span><span>${
+      r.fallback ? 'No viable route — network cut'
+      : blocked.length ? esc(blocked.map(e => e.id).join(', ') + ' impassable — rerouted')
+      : sev === 'warning' ? 'Segments degraded' : 'Primary route clear'}</span>`;
+  }
+
+  /* driver marker animated along the route path */
+  let driverRaf = null, driverPos = 0, driverLast = 0;
+  function startDriver(){
+    const path = el('routePath'), marker = el('driverMarker');
+    if(!path || !marker) return;
+    const total = path.getTotalLength();
+    if(!total || !isFinite(total)) return;
+    marker.style.display = '';
+
+    if(driverRaf) cancelAnimationFrame(driverRaf);
+
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const p = path.getPointAtLength(total * 0.5);
+      marker.setAttribute('transform', `translate(${p.x},${p.y})`);
+      return;
+    }
+    driverLast = performance.now();
+    const step = (now) => {
+      const dt = Math.min(64, now - driverLast); driverLast = now;
+      if(!State.data.paused) driverPos = (driverPos + dt * 0.000055 * State.data.speed) % 1;
+      const p = path.getPointAtLength(total * driverPos);
+      marker.setAttribute('transform', `translate(${p.x},${p.y})`);
+      driverRaf = requestAnimationFrame(step);
+    };
+    driverRaf = requestAnimationFrame(step);
+  }
+  function stopDriver(){ if(driverRaf) cancelAnimationFrame(driverRaf); driverRaf = null; }
+
+  /* ---------- event log ---------- */
+  function renderLog(){
+    const log = State.data.log;
+    el('logCount').textContent = log.length + (log.length === 1 ? ' entry' : ' entries');
+    if(!log.length){
+      el('eventLog').innerHTML = `<div class="text-[11px] px-1" style="color:var(--text-muted)">No events yet. Autonomous decisions and manual injections both land here.</div>`;
+      return;
+    }
+    el('eventLog').innerHTML = log.map(e => `<div class="logrow ${e.severity}">
+      <span style="color:${sevColour(e.severity)};font-size:11px;line-height:1.35">${SEV[e.severity] ? SEV[e.severity].icon : '·'}</span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-baseline gap-2">
+          <span class="font-semibold text-[11.5px]">${esc(e.title)}</span>
+          <span class="mono tnum text-[9.5px]" style="color:var(--text-muted)">${clockStrFull(e.t)}</span>
+        </div>
+        <div class="text-[11px] leading-snug mt-0.5" style="color:var(--text-secondary)">${esc(e.detail)}</div>
+      </div>
+    </div>`).join('');
+  }
+
+  /* ---------- chat ---------- */
+  function msgHtml(m){
+    const p = PEOPLE[m.from] || PEOPLE.BOT;
+    if(m.from === 'SYSTEM'){
+      return `<div class="msg" style="justify-content:center"><div class="bubble sys">${esc(m.text)}</div></div>`;
+    }
+    const sevMark = m.severity
+      ? `<div><span class="chip ${m.severity}" style="padding:1px 6px;margin-bottom:4px"><span class="chip-icon">${SEV[m.severity].icon}</span><span>${SEV[m.severity].word}</span></span></div>`
+      : '';
+    return `<div class="msg ${m.mine ? 'mine' : ''}">
+      <div class="avatar" style="background:${p.colour}" title="${esc(p.name)}">${esc(p.initials)}</div>
+      <div class="bubble">
+        ${m.mine ? '' : `<div class="msg-from" style="color:${p.colour}">${esc(p.name)}${p.role ? ` <span style="color:var(--text-muted);font-weight:500">· ${esc(p.role)}</span>` : ''}</div>`}
+        ${sevMark}
+        <div>${esc(m.text)}</div>
+        ${m.kv ? `<span class="kv">${esc(m.kv).replace(/\n/g,'<br>')}</span>` : ''}
+        <div class="msg-time">${clockStrFull(m.t)} UTC</div>
+      </div>
+    </div>`;
+  }
+
+  function channelVisible(m){
+    const ch = State.data.channel;
+    if(ch === 'ALL') return true;
+    if(m.from === 'SYSTEM') return false;
+    return m.channel === ch || m.from === ch;
+  }
+
+  function renderChat(){
+    el('chatStream').innerHTML = State.data.chat.filter(channelVisible).map(msgHtml).join('');
+    scrollToBottom();
+  }
+
+  function appendChat(m){
+    if(!channelVisible(m)) return;
+    const stick = nearBottom();
+    const holder = document.createElement('div');
+    holder.innerHTML = msgHtml(m);
+    const stream = el('chatStream');
+    stream.appendChild(holder.firstElementChild);
+    while(stream.children.length > CFG.MAX_CHAT) stream.removeChild(stream.firstChild);
+    if(stick) scrollToBottom(); else el('newPill').classList.remove('hidden');
+  }
+
+  function nearBottom(){
+    const s = el('chatScroll');
+    return s.scrollHeight - s.scrollTop - s.clientHeight < CFG.SCROLL_STICK_PX;
+  }
+  function scrollToBottom(){
+    const s = el('chatScroll');
+    requestAnimationFrame(() => { s.scrollTop = s.scrollHeight; el('newPill').classList.add('hidden'); });
+  }
+
+  function renderTyping(fromId){
+    const row = el('typingRow');
+    if(!fromId){ row.classList.add('hidden'); return; }
+    const p = PEOPLE[fromId] || PEOPLE.BOT;
+    const av = el('typingAvatar');
+    av.style.background = p.colour;
+    av.textContent = p.initials;
+    row.classList.remove('hidden');
+    if(nearBottom()) scrollToBottom();
+  }
+
+  /* Every string here must resolve to the intent named beside it. The harness
+     asserts this — the labels and the matcher are easy to drift apart, and three
+     of these buttons shipped broken before that check existed. */
+  const QUICK = {
+    FARMER: ['Soil moisture?', 'Frost risk today?', 'Crop health',      'Full status'],
+    BUYER:  ['My order',       'Crop outlook',      'Delivery route',   'Full status'],
+    DRIVER: ['Route check',    'Any roads blocked?','Backhaul options', 'Full status']
+  };
+  // intent:   moisture/order/route   frost/ndvi/route   ndvi/route/backhaul   status
+  function renderQuickReplies(){
+    const list = QUICK[State.data.persona] || QUICK.FARMER;
+    el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(q)}</button>`).join('');
+  }
+
+  /* ---------- trigger panel ---------- */
+  const TRIGGERS = [
+    { id:'FROST_EVENT',      label:'Trigger frost event',        glyph:'❄', cls:'c-crit', note:'−3.4°C excursion' },
+    { id:'HEATWAVE',         label:'Trigger heatwave',           glyph:'☀', cls:'c-ser',  note:'+38.6°C excursion' },
+    { id:'FLOOD_SATURATION', label:'Trigger flood / saturation', glyph:'≋', cls:'c-crit', note:'SAR 41% · reroutes' },
+    { id:'SOIL_STRESS',      label:'Trigger drought stress',     glyph:'◷', cls:'c-warn', note:'moisture 16.5%' },
+    { id:'SIGNAL_LOSS',      label:'Simulate downlink loss',     glyph:'⚡', cls:'c-warn', note:'all four sources' },
+    { id:'RESTORE',          label:'Restore nominal',            glyph:'✓', cls:'c-good', note:'converge all' }
+  ];
+  /* Painted into BOTH the desktop panel and the mobile sheet. Clicks are handled
+     by one delegated listener on document, so neither copy needs its own wiring. */
+  function renderTriggers(){
+    const html = TRIGGERS.map(t => `
+      <button class="btn ${t.cls}" data-trigger="${t.id}">
+        <span class="btn-glyph">${t.glyph}</span>
+        <span class="flex-1">${esc(t.label)}</span>
+        <span class="mono" style="color:var(--text-muted);font-size:10px;font-weight:500">${esc(t.note)}</span>
+      </button>`).join('');
+    ['triggerButtons', 'triggerButtonsMobile'].forEach(id => {
+      const host = el(id);
+      if(host) host.innerHTML = html;
+    });
+  }
+
+  /** Keep the duplicated desktop/mobile controls showing the same state. */
+  function syncControls(){
+    const paused = State.data.paused;
+    ['btnPause', 'btnPauseM'].forEach(id => {
+      const b = el(id);
+      if(b) b.innerHTML = paused
+        ? '<span class="btn-glyph">▶</span><span>Resume feed</span>'
+        : '<span class="btn-glyph">❚❚</span><span>Pause feed</span>';
+    });
+    ['btnSpeed', 'btnSpeedM'].forEach(id => {
+      const b = el(id);
+      if(b) b.innerHTML = `<span class="btn-glyph">»</span><span>×${State.data.speed}</span>`;
+    });
+    ['regionSel', 'regionSelM'].forEach(id => {
+      const s = el(id);
+      if(s) s.value = State.data.regionId;
+    });
+  }
+
+  function toggleTable(){
+    tableOpen = !tableOpen;
+    el('tableView').classList.toggle('hidden', !tableOpen);
+    el('btnTable').setAttribute('aria-pressed', String(tableOpen));
+    renderTable();
+  }
+
+  /* ==================== ROLE-SCOPED MOBILE VIEWS ====================
+     Each role sees only what that person acts on. These compose the existing
+     state and helpers rather than duplicating logic -- the same readings,
+     advisories, orders and route that drive the Ops console. */
+
+  /** Advisories relevant to a role, so a driver is not shown canopy vigour. */
+  function alertsFor(role){
+    const all = [...State.data.alerts.values()];
+    if(role === 'FARMER') return all.filter(a => a.id !== 'FLOOD_SATURATION');
+    if(role === 'DRIVER') return all.filter(a => a.id === 'FLOOD_SATURATION');
+    if(role === 'BUYER')  return all.filter(a => a.id === 'FROST_EVENT' || a.id === 'NDVI_DECLINE' || a.id === 'HEATWAVE');
+    return all;
+  }
+
+  function chipHtml(sev, text){
+    return `<span class="chip ${sev}"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(text)}</span></span>`;
+  }
+
+  function advisoryBlock(role){
+    const list = alertsFor(role);
+    if(!list.length){
+      return `<div class="mcard"><div class="mcard-head">${chipHtml('good','No advisories')}</div>
+        <div class="mlabel">Nothing needs your attention. AURA will message you the moment a threshold is crossed — you don't need to watch this screen.</div></div>`;
+    }
+    return list.map(a => `<div class="mcard" style="border-color:${sevColour(a.severity)}66">
+      <div class="mcard-head">${chipHtml(a.severity, a.label)}
+        <div class="flex-1"></div><span class="prov mono">${clockStr(a.since)} UTC</span></div>
+      <div class="mlabel" style="color:var(--text-primary);font-size:13px">${esc(a.detail)}</div>
+    </div>`).join('');
+  }
+
+  /* ---- FARMER: my plots, what to do, and how good the data actually is ---- */
+  function renderFarmer(){
+    const pane = el('paneFarmer');
+    if(!pane) return;
+    const d = State.data;
+    const win = Dispatch.getHarvestWindow() === 'EARLY';
+
+    const plots = PLOTS.map(p => {
+      const n = NODES[p]; if(!n) return '';
+      const pr = d.plots[p] || {};
+      const temp = pr.temp, moist = pr.moisture, ndvi = pr.ndvi;
+      const sev = temp && temp.v <= CFG.THRESH.frostArm ? 'critical'
+                : moist && moist.v <= CFG.THRESH.moistArm ? 'warning'
+                : ndvi && ndvi.v <= CFG.THRESH.ndviArm ? 'warning' : 'good';
+      const cls = sev === 'critical' ? 'plotcard alert' : sev === 'warning' ? 'plotcard warn' : 'plotcard';
+      return `<div class="${cls}">
+        <div class="flex items-center justify-between gap-2">
+          <div><div style="font-size:14px;font-weight:650">${esc(n.name)}</div>
+            <div class="prov">${esc(n.crop)} · ${n.ha} ha</div></div>
+          ${chipHtml(sev, sev === 'good' ? 'Healthy' : sev === 'warning' ? 'Watch' : 'Act now')}
+        </div>
+        <div class="grid grid-cols-3 gap-2 mt-2.5">
+          <div><div class="prov">Moisture</div><div class="mval">${moist ? fmt(moist.v,1)+'%' : '—'}</div></div>
+          <div><div class="prov">NDVI</div><div class="mval">${ndvi ? fmt(ndvi.v,3) : '—'}</div></div>
+          <div><div class="prov">Surface</div><div class="mval">${temp ? fmt(temp.v,1)+'°' : '—'}</div></div>
+        </div>
+        <div class="prov mt-2">${moist && moist.downscaled
+          ? `≈ moisture downscaled from a ${(moist.pixelM/1000)} km ${moist.src} pixel · conf ${moist.confidence.toFixed(2)}`
+          : '✓ direct measurement'} · NDVI ✓ ${ndvi ? ndvi.pixelM+' m' : ''}</div>
+      </div>`;
+    }).join('');
+
+    pane.innerHTML = `
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Harvest window</span><div class="flex-1"></div>
+          ${chipHtml(win ? 'critical' : 'good', win ? 'Early harvest' : 'Normal')}</div>
+        <div class="mbig" style="color:${win ? '#ff6b6b' : 'var(--text-primary)'}">${win ? 'CUT NOW' : 'Normal'}</div>
+        <div class="mlabel mt-2">${win
+          ? 'Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.'
+          : 'No change to your usual schedule. Harvest as planned.'}</div>
+      </div>
+      ${advisoryBlock('FARMER')}
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">My plots</span><div class="flex-1"></div>
+          <span class="prov">${esc(REGION.name)}</span></div>
+        ${plots}
+      </div>`;
+  }
+
+  /* ---- BUYER: my orders and what changed, with the reason ---- */
+  function renderBuyer(){
+    const pane = el('paneBuyer');
+    if(!pane) return;
+    const r = State.data.route;
+    const revised = State.data.orders.filter(o => o.status === 'revised');
+
+    const rows = State.data.orders.map(o => {
+      const delta = o.crates - o.baseCrates;
+      return `<div class="mrow">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:600">${esc(o.crop)} <span class="prov mono">${esc(o.id)}</span></div>
+          <div class="prov">${esc(o.buyer)} · grade ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:#ffc44d">(contracted ${esc(o.baseGrade)})</span>` : ''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="mval">${o.crates}<span class="prov"> cr</span></div>
+          ${delta ? `<div class="prov" style="color:#ff8f8f">${delta > 0 ? '+' : ''}${delta} vs booked</div>` : `<div class="prov">as booked</div>`}
+        </div>
+      </div>`;
+    }).join('');
+
+    pane.innerHTML = `
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Incoming today</span><div class="flex-1"></div>
+          ${chipHtml(revised.length ? 'warning' : 'good', revised.length ? revised.length + ' revised' : 'All confirmed')}</div>
+        <div class="mbig">${Orders.total()}<span class="prov" style="font-size:15px"> crates</span></div>
+        <div class="mlabel mt-2">${revised.length
+          ? `${Orders.baseTotal() - Orders.total()} crates withdrawn against ${Orders.baseTotal()} booked. Revisions reverse automatically when the advisory clears.`
+          : `All orders stand at their booked quantities.`}</div>
+      </div>
+      ${advisoryBlock('BUYER')}
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Order book</span></div>
+        ${rows}
+      </div>
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Delivery</span></div>
+        <div class="mrow"><span class="mlabel">Drive time from pickup</span><span class="mval">${r ? Math.round(r.min) + ' min' : '—'}</span></div>
+        <div class="mrow"><span class="mlabel">Distance</span><span class="mval">${r ? fmt(r.km,1) + ' km' : '—'}</span></div>
+        <div class="mrow"><span class="mlabel">Route status</span>
+          <span>${chipHtml(r && r.fallback ? 'critical' : Dispatch.blockedEdges().length ? 'warning' : 'good',
+            r && r.fallback ? 'No viable route' : Dispatch.blockedEdges().length ? 'Rerouted' : 'Clear')}</span></div>
+      </div>`;
+  }
+
+  /* ---- DRIVER: next stop, blocked roads, the map ---- */
+  function renderDriver(){
+    const pane = el('paneDriver');
+    if(!pane) return;
+    const r = State.data.route;
+    const blocked = Dispatch.blockedEdges();
+    const base = State.data.baselineRoute;
+    const bh = Dispatch.backhaul();
+    const next = r ? r.waypoints[1] || r.waypoints[r.waypoints.length - 1] : '—';
+
+    pane.innerHTML = `
+      <div class="mcard" style="${r && r.fallback ? 'border-color:rgba(208,59,59,.5)' : ''}">
+        <div class="mcard-head"><span class="mcard-title">Next stop</span><div class="flex-1"></div>
+          ${chipHtml(r && r.fallback ? 'critical' : blocked.length ? 'warning' : 'good',
+             r && r.fallback ? 'Do not depart' : blocked.length ? 'Rerouted' : 'Clear')}</div>
+        <div class="mbig" style="font-size:30px">${esc(next)}</div>
+        <div class="flex gap-5 mt-2.5">
+          <div><div class="prov">Distance</div><div class="mval">${r ? fmt(r.km,1) : '—'} km</div></div>
+          <div><div class="prov">Drive time</div><div class="mval">${r ? Math.round(r.min) : '—'} min</div></div>
+          ${base && r && Math.abs(r.km - base.km) > 0.05
+            ? `<div><div class="prov">vs clear</div><div class="mval" style="color:#ff8f8f">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
+        </div>
+      </div>
+      ${r && r.fallback ? `<div class="mcard" style="border-color:rgba(208,59,59,.5)">
+        <div class="mcard-head">${chipHtml('critical','Hold position')}</div>
+        <div class="mlabel" style="color:var(--text-primary);font-size:13px">Every route to the depot crosses an impassable segment. Wait for SAR to show a crossing reopening — the waypoints below are the least-bad option and are <strong>not cleared for use</strong>.</div>
+      </div>` : ''}
+      ${blocked.length ? `<div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Avoid</span></div>
+        ${blocked.map(e => `<div class="mrow"><span class="mlabel">${esc(e.id)} · ${fmt(e.km,1)} km</span>${chipHtml('critical','Impassable')}</div>`).join('')}
+      </div>` : ''}
+      <div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Route</span></div>
+        <div class="mono" style="font-size:12px;line-height:2;color:var(--text-secondary)">
+          ${r ? r.waypoints.map((w,i) => `<div>${i === 0 ? '◉' : i === r.waypoints.length-1 ? '⬢' : '○'} ${esc(w)}</div>`).join('') : '—'}
+        </div>
+      </div>
+      ${bh ? `<div class="mcard">
+        <div class="mcard-head"><span class="mcard-title">Backhaul</span></div>
+        <div class="mlabel">Collect from ${esc(bh.path[bh.path.length-1])} on the return rather than running empty — recovers ${fmt(bh.km,1)} km of unloaded distance.</div>
+      </div>` : ''}
+      <div class="mcard" style="padding:0;overflow:hidden">
+        <div id="driverMapHost"></div>
+      </div>`;
+
+    // Relocate the real map panel rather than rendering a second copy -- one node
+    // means no duplicate element ids and no ambiguity in startDriver()'s lookup
+    // of #routePath.
+    placeMap();
+  }
+
+  /** Move #mapPanel into the driver pane on mobile, back to Ops otherwise. */
+  function placeMap(){
+    const panel = el('mapPanel');
+    if(!panel) return;
+    const mobile = window.matchMedia('(max-width:1023px)').matches;
+    const host = el('driverMapHost');
+    const home = el('mapHome');
+    if(mobile && State.data.role === 'DRIVER' && host){
+      if(panel.parentNode !== host){ host.appendChild(panel); startDriver(); }
+    } else if(home && panel.parentNode !== home){
+      home.appendChild(panel);
+      startDriver();
+    }
+  }
+
+  const ROLE_RENDER = { FARMER:renderFarmer, BUYER:renderBuyer, DRIVER:renderDriver, OPS:()=>{} };
+
+  function renderRolePanes(){
+    const r = State.data.role;
+    if(ROLE_RENDER[r]) ROLE_RENDER[r]();
+    renderRoleBadges();
+  }
+
+  function renderRoleBadges(){
+    document.querySelectorAll('[data-badge]').forEach(b => {
+      const n = alertsFor(b.dataset.badge).length;
+      b.textContent = n;
+      b.classList.toggle('hidden', n === 0);
+    });
+  }
+
+  /** Selecting a role also sets who you speak as and which channel you read,
+      so the console stops being a god-view. */
+  function setRole(role){
+    if(!ROLE_RENDER[role]) role = 'OPS';
+    State.commit({ role });
+    document.body.dataset.role = role;
+    document.querySelectorAll('[data-role]').forEach(b =>
+      b.setAttribute('aria-selected', String(b.dataset.role === role)));
+
+    if(role !== 'OPS'){
+      State.data.persona = role;
+      State.data.channel = role;
+      const sel = el('personaSel'); if(sel) sel.value = role;
+      document.querySelectorAll('[data-channel]').forEach(t =>
+        t.setAttribute('aria-selected', String(t.dataset.channel === role)));
+      renderQuickReplies();
+      renderChat();
+    }
+    renderRolePanes();
+    placeMap();
+    syncControls();
+    window.scrollTo({ top:0, behavior:'auto' });
+  }
+
+  function openSheet(open){
+    const s = el('simSheet');
+    if(!s) return;
+    s.hidden = !open;
+    if(open) syncControls();
+  }
+
+  return { renderClock, renderLinks, renderRegionPicker, renderPosture, renderHero, renderTiles, renderTable,
+           renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
+           renderChat, appendChat, renderTyping, renderQuickReplies, renderTriggers,
+           toggleTable, scrollToBottom, startDriver, stopDriver,
+           setRole, renderRolePanes, renderRoleBadges, alertsFor,
+           syncControls, openSheet, placeMap,
+           QUICK, TRIGGERS, ROLE_RENDER };   // exposed for the regression harness
+})();
+
+
+/* ===================== MODULE 8: BOOTSTRAP ===================== */
+
+(function boot(){
+  /* --- restore any previous session before seeding --- */
+  const restored = State.restore();
+  // A ?role= deep link (manifest shortcut) wins over the stored role.
+  const urlRole = new URLSearchParams(location.search).get('role');
+  if(urlRole) State.data.role = urlRole.toUpperCase();
+
+  /* --- seed the active region, then the telemetry that depends on it --- */
+  function seedRegion(id){
+    const region = Region.load(id);
+    State.data.regionId = region.id;
+    Telemetry.seedHistory();
+    Dispatch.refreshEdges();
+    const initial = Dispatch.buildRoute();
+    State.commit({ route: initial, baselineRoute: initial, prevRoutePoints: null });
+    Scoring.recompute();
+    return region;
+  }
+  const region = seedRegion(State.data.regionId || DEFAULT_REGION);
+  // Default to a role view on phones, the full console on desktop.
+  if(!restored && !urlRole && window.matchMedia('(max-width:1023px)').matches){
+    State.data.role = 'FARMER';
+  }
+
+  /* --- first paint --- */
+  Views.renderRegionPicker();
+  Views.renderTriggers();
+  Views.renderQuickReplies();
+  Views.renderLinks();
+  Views.renderTiles();
+  Views.renderThermal();
+  Views.initThermalHover();
+  Views.renderMap();
+  Views.renderHero();
+  Views.renderPosture();
+  Views.renderClock();
+  Views.setRole(State.data.role);
+  Log.add('info', restored ? 'Session restored' : 'AURA-AgriNet online',
+    `Monitoring ${region.name}, ${region.country}. Decision matrix armed with 5 rules across thermal, SAR, SMAP and multispectral channels.` +
+    (region.sources.CROP_CASMA ? '' : ' CROP-CASMA has no coverage here (CONUS only); soil moisture falls back to SMAP L4 at 9 km.'));
+
+  /* --- state -> view bindings (views never mutate state) --- */
+  State.on('telemetry',      () => { Views.renderTiles(); Views.renderThermal(); Views.renderTable(); Views.renderHero(); });
+  State.on('telemetry:loss', () => { Views.renderTiles(); });
+  State.on('links',   Views.renderLinks);
+  State.on('alerts',  () => { Views.renderHero(); Views.renderPosture(); Views.renderTiles(); });
+  State.on('score',   () => { Views.renderHero(); Views.renderPosture(); });
+  State.on('log',     Views.renderLog);
+  State.on('route',   Views.renderMap);
+  State.on('tick',    Views.renderMap);
+  State.on('chat',    m => Views.appendChat(m));
+  State.on('typing',  f => Views.renderTyping(f));
+  // Role panes track the same state the console does.
+  State.on('telemetry', Views.renderRolePanes);
+  State.on('alerts',    Views.renderRolePanes);
+  State.on('route',     Views.renderRolePanes);
+  State.on('orders',    Views.renderRolePanes);
+
+  /* --- mission clock --- */
+  const clockTimer = setInterval(() => {
+    if(!State.data.paused) State.data.clock += 1000 * State.data.speed;
+    Views.renderClock();
+  }, 1000);
+
+  /* --- controls ---
+     Delegated from document so the desktop panel and the mobile sheet share one
+     handler each; neither copy needs its own wiring and they cannot drift. */
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-trigger]');
+    if(!btn) return;
+    btn.classList.add('armed');
+    setTimeout(() => btn.classList.remove('armed'), 900);
+    EventEngine.fire(btn.dataset.trigger);
+  });
+
+  function togglePause(){
+    const paused = !State.data.paused;
+    State.commit({ paused });
+    Views.syncControls();
+    Log.add('info', paused ? 'Feed paused' : 'Feed resumed', paused
+      ? 'Ingestion halted. Displayed values are held; no autonomous actions will fire.'
+      : 'Ingestion resumed across all four sources.');
+  }
+  function cycleSpeed(){
+    State.commit({ speed: State.data.speed === 1 ? 4 : State.data.speed === 4 ? 8 : 1 });
+    Views.syncControls();
+  }
+  ['btnPause','btnPauseM'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', togglePause); });
+  ['btnSpeed','btnSpeedM'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', cycleSpeed); });
+
+  el('btnTable').addEventListener('click', Views.toggleTable);
+
+  /* --- mobile simulation sheet --- */
+  el('fabSim').addEventListener('click', () => Views.openSheet(true));
+  el('simClose').addEventListener('click', () => Views.openSheet(false));
+  el('simSheet').addEventListener('click', e => {          // tap the scrim to dismiss
+    if(e.target.id === 'simSheet') Views.openSheet(false);
+  });
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') Views.openSheet(false);
+  });
+
+  /* --- region switching: rebuild the graph and re-seed, then repaint --- */
+  function onRegionChange(e){
+    Telemetry.stop();
+    State.data.alerts.clear();
+    Telemetry.clearInjections();
+    const r = seedRegion(e.target.value);
+    Views.renderLinks(); Views.renderTiles(); Views.renderThermal();
+    Views.renderMap(); Views.renderHero(); Views.renderPosture(); Views.renderTable();
+    State.emit('alerts');
+    Log.add('info', 'Region changed',
+      `Now monitoring ${r.name}, ${r.country}. Graph rebuilt from WGS-84 coordinates; ` +
+      `advisories cleared and telemetry re-seeded to local climate baselines.`);
+    Console.post('BOT', `Switched monitoring to ${r.name}, ${r.country}. Road network rebuilt from real coordinates — ${EDGES.length} segments, catchment ${fmt(Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]),1)} km origin-to-depot straight line.`, {
+      kv:`SMAP ${r.sources.SMAP?'✓':'✗'} · CROP-CASMA ${r.sources.CROP_CASMA?'✓':'✗ (CONUS only)'}\nSentinel-1 ${r.sources.S1?'✓':'✗'} · Sentinel-2 ${r.sources.S2?'✓':'✗'}`
+    });
+    Views.renderRegionPicker();
+    Views.syncControls();
+    Views.renderRolePanes();
+    Telemetry.start();
+  }
+  ['regionSel','regionSelM'].forEach(id => {
+    const s = el(id);
+    if(s) s.addEventListener('change', onRegionChange);
+  });
+
+  /* --- chat --- */
+  el('chatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = el('chatInput');
+    const text = input.value.trim();
+    if(!text) return;
+    input.value = '';
+    Console.handleUserMessage(text);
+  });
+
+  el('quickReplies').addEventListener('click', e => {
+    const btn = e.target.closest('[data-quick]');
+    if(btn) Console.handleUserMessage(btn.dataset.quick);
+  });
+
+  el('personaSel').addEventListener('change', e => {
+    State.commit({ persona: e.target.value });
+    Views.renderQuickReplies();
+    el('chatInput').focus();
+  });
+
+  document.querySelectorAll('[data-channel]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-channel]').forEach(t => t.setAttribute('aria-selected','false'));
+      tab.setAttribute('aria-selected','true');
+      State.commit({ channel: tab.dataset.channel });
+      Views.renderChat();
+    });
+  });
+
+  /* --- role tab bar --- */
+  document.querySelectorAll('.rolebtn').forEach(btn => {
+    btn.addEventListener('click', () => { Views.setRole(btn.dataset.role); State.save(); });
+  });
+
+  el('newPill').addEventListener('click', Views.scrollToBottom);
+  el('chatScroll').addEventListener('scroll', () => {
+    const s = el('chatScroll');
+    if(s.scrollHeight - s.scrollTop - s.clientHeight < CFG.SCROLL_STICK_PX) el('newPill').classList.add('hidden');
+  });
+
+  /* --- lifecycle: never let timers run against a hidden tab --- */
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){ Telemetry.stop(); Views.stopDriver(); State.save(); }
+    else { Telemetry.start(); Views.startDriver(); }
+  });
+  // pagehide is the reliable save point on iOS -- beforeunload often never fires
+  // when a PWA is swiped away or backgrounded.
+  window.addEventListener('pagehide', () => { State.save(); Telemetry.stop(); Views.stopDriver(); });
+  window.addEventListener('beforeunload', () => {
+    State.save();
+    Telemetry.stop();
+    Views.stopDriver();
+    clearInterval(clockTimer);
+  });
+  window.addEventListener('resize', () => { Views.startDriver(); Views.renderRolePanes(); });
+  // Periodic snapshot so a hard kill loses at most 20s.
+  setInterval(() => State.save(), 20000);
+
+  /* --- service worker: the offline shell --- */
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const sw = reg.installing;
+          if(!sw) return;
+          sw.addEventListener('statechange', () => {
+            // A new version is ready and an old one is still controlling the page.
+            if(sw.state === 'installed' && navigator.serviceWorker.controller){
+              Log.add('info', 'Update available', 'A newer build is cached. It applies on next launch.');
+            }
+          });
+        });
+      }).catch(err => console.warn('[sw] registration failed', err));
+    });
+  }
+
+  /* --- go --- */
+  Telemetry.start();
+  Console.greet();
+  Views.renderLog();
+})();
+</script>
+</body>
+</html>

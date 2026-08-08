@@ -1,0 +1,55 @@
+{
+  "id": "/aura-agrinet/",
+  "name": "AURA-AgriNet — Agricultural Micro-Logistics",
+  "short_name": "AURA-AgriNet",
+  "description": "Autonomous remote-sensing agent fusing NASA SMAP, ESA Sentinel-1/2 and thermal-IR telemetry into frost, drought and flood advisories, with live micro-logistics dispatch for farmers, buyers and drivers.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0b0e13",
+  "background_color": "#0b0e13",
+  "categories": ["productivity", "utilities", "business"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Farmer view",
+      "short_name": "Farmer",
+      "url": "./?role=FARMER",
+      "description": "Plot status, advisories and harvest window"
+    },
+    {
+      "name": "Driver view",
+      "short_name": "Driver",
+      "url": "./?role=DRIVER",
+      "description": "Next stop, route and blocked segments"
+    },
+    {
+      "name": "Buyer view",
+      "short_name": "Buyer",
+      "url": "./?role=BUYER",
+      "description": "Order status and delivery timing"
+    }
+  ]
+}
