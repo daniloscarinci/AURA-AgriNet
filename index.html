@@ -2235,6 +2235,15 @@ const Orders = (() => {
           grown on no affected plot is left alone entirely.
         - each crop's own frost sensitivity. Cassava is a root crop, so its tuber
           survives canopy loss and it takes ~1/3 the cut a fruiting crop does. */
+  /* A rule id like FROST_EVENT becomes the rule's own human label, so the
+     translated string is the one already in the catalogue rather than an
+     ad-hoc lowercased variant that would never match a key. */
+  function labelForReason(reason){
+    const rule = (typeof EventEngine !== 'undefined' && EventEngine.RULES || [])
+      .find(r => r.id === reason);
+    return rule ? rule.label : String(reason).replace(/_/g, ' ');
+  }
+
   function adjust(reason, pct, grade, affectedPlots){
     const plots = affectedPlots && affectedPlots.length ? affectedPlots : PLOTS;
     const affectedCrops = new Set(plots.map(p => Region.cropOf(p)).filter(Boolean));
@@ -2256,16 +2265,18 @@ const Orders = (() => {
       touched++;
     });
     if(spared > 0 && touched > 0){
-      Log.add('info', 'Orders spared',
-        `${spared} order${spared>1?'s':''} untouched — crop not grown on any affected plot.`);
+      Log.add('info', t('Orders spared'),
+        t('{n} orders untouched — crop not grown on any affected plot.', { n: spared }));
     }
     if(totalCut > 0){
       State.data.orderAudit.unshift({
         t: State.data.clock, reason,
-        text: `${totalCut} crates withdrawn across ${touched} buyer orders; grade re-marked ${grade || 'unchanged'}.`
+        text: t('{cut} crates withdrawn across {n} buyer orders; grade re-marked {grade}.',
+          { cut: totalCut, n: touched, grade: grade || t('unchanged') })
       });
-      Log.add('warning', 'Buyer orders revised',
-        `Autonomous adjustment: −${totalCut} crates across ${touched} orders (${reason.replace(/_/g,' ').toLowerCase()}).`);
+      Log.add('warning', t('Buyer orders revised'),
+        t('Autonomous adjustment: −{cut} crates across {n} orders ({reason}).',
+          { cut: totalCut, n: touched, reason: t(labelForReason(reason)).toLowerCase() }));
     }
     State.emit('orders');
     return totalCut;
@@ -2284,8 +2295,10 @@ const Orders = (() => {
     });
     if(restored > 0){
       State.data.orderAudit.unshift({ t: State.data.clock, reason,
-        text: `${restored} crates reinstated after ${reason.replace(/_/g,' ').toLowerCase()} cleared.` });
-      Log.add('good', 'Buyer orders reinstated', `+${restored} crates returned to the order book.`);
+        text: t('{n} crates reinstated after {reason} cleared.',
+          { n: restored, reason: t(labelForReason(reason)).toLowerCase() }) });
+      Log.add('good', t('Buyer orders reinstated'),
+        t('+{n} crates returned to the order book.', { n: restored }));
     }
     State.emit('orders');
     return restored;
@@ -2403,115 +2416,179 @@ const Console = (() => {
 
   /** Event cascades. Every trigger produces a contextual multi-party thread
       whose numbers are read from live state at send time. */
+  /* Scripted multi-party briefings.
+
+     Every line is a prose block: tp(key, english, vars) returns the translation
+     when i18n/prose/<lang>.json is loaded and the English written here when it
+     is not, so a briefing never arrives blank or half-rendered. The English
+     stays in this file deliberately — it is the source of truth a translator
+     works from, and the fallback a first-run offline reader gets.
+
+     Names (Amara, Kwesi, Tunde) and segment ids (R-14) are placeholders rather
+     than baked into the sentence, so word order can move around them. */
   function cascade(kind, ctx){
+    // Long-form and fetched on demand. Kick the load off here; the first
+    // briefing in a new language may be English, every one after it will not be.
+    I18n.loadProse();
     const s = State.data.latest;
     const steps = [];
+    const NAME = { farmer: PEOPLE.FARMER.name, buyer: PEOPLE.BUYER.name, driver: PEOPLE.DRIVER.name };
 
     switch(kind){
       case 'FROST': {
         steps.push({ from:'BOT', delay:500, severity:'critical', text:
-          `FROST EVENT — thermal IR shows ${fmt(s.temp,1)}°C at plot level, at or below the 0.0°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.` });
+          tp('chat.frost.alert',
+             'FROST EVENT — surface temperature {temp}°C at plot level, at or below the {floor}°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.',
+             { temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }) });
         steps.push({ from:'BOT', delay:800, channel:'FARMER', text:
-          `Amara — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.`,
-          kv:`Plot F-2 · surface ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
+          tp('chat.frost.farmer',
+             '{farmer} — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.',
+             { farmer: NAME.farmer }),
+          kv:`Plot F-2 · ${t('surface')} ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
         steps.push({ from:'FARMER', delay:1200, text:
-          `Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.` });
+          tp('chat.frost.farmerReply',
+             'Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.') });
         steps.push({ from:'BOT', delay:900, channel:'BUYER', severity:'warning', text:
-          `Kwesi — frost-driven revision to your standing order. Volume reduced by ${ctx && ctx.cut ? ctx.cut : 0} crates and grade re-marked B. No price change applied; the revision is logged for review.`,
-          kv:`ORD-4417 · ${State.data.orders[0].crates} crates · grade ${State.data.orders[0].grade}` });
+          tp('chat.frost.buyer',
+             '{buyer} — frost-driven revision to your standing order. Volume reduced by {cut} crates and grade re-marked B. No price change applied; the revision is logged for review.',
+             { buyer: NAME.buyer, cut: (ctx && ctx.cut) ? ctx.cut : 0 }),
+          kv:`ORD-4417 · ${State.data.orders[0].crates} ${t('crates')} · ${t('grade')} ${State.data.orders[0].grade}` });
         steps.push({ from:'BUYER', delay:1100, text:
-          `That works. Send whatever holds grade — I'll move the softer stock through the lunch menu rather than retail.` });
+          tp('chat.frost.buyerReply',
+             'That works. Send whatever holds grade — I will move the softer stock through the lunch menu rather than retail.') });
         steps.push({ from:'BOT', delay:850, channel:'DRIVER', text:
-          `Tunde — pickup at Plot F-2 pulled forward to the early window. Route unchanged; load is lighter, so expect one collection stop instead of two.` });
+          tp('chat.frost.driver',
+             '{driver} — pickup at Plot F-2 pulled forward to the early window. Route unchanged; load is lighter, so expect one collection stop instead of two.',
+             { driver: NAME.driver }) });
         break;
       }
       case 'FROST_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          `Frost cleared — surface temperature recovered to ${fmt(s.temp,1)}°C. Harvest window returned to normal and withdrawn order volume reinstated.` });
-        steps.push({ from:'BUYER', delay:900, text: `Good news. Back to the usual crate count then.` });
+          tp('chat.frostClear.alert',
+             'Frost cleared — surface temperature recovered to {temp}°C. Harvest window returned to normal and withdrawn order volume reinstated.',
+             { temp: fmt(s.temp,1) }) });
+        steps.push({ from:'BUYER', delay:900, text:
+          tp('chat.frostClear.buyerReply', 'Good news. Back to the usual crate count then.') });
         break;
       }
       case 'FLOOD': {
         const before = ctx && ctx.before, after = ctx && ctx.after;
         const blocked = ((ctx && ctx.blocked) || []).map(e => e.id);
         steps.push({ from:'BOT', delay:500, severity:'critical', text:
-          `ROAD SATURATION — Sentinel-1 SAR backscatter puts mean trafficability at ${fmt(s.traff,0)}%. ${blocked.length ? `Segment${blocked.length>1?'s':''} ${blocked.join(', ')} below the passability floor.` : 'Rural segments degrading.'}` });
+          blocked.length
+            ? tp('chat.flood.alert',
+                 'ROAD SATURATION — mean trafficability {pct}%. Segments {segments} below the passability floor.',
+                 { pct: fmt(s.traff,0), segments: blocked.join(', ') })
+            : tp('chat.flood.alertNoSegments',
+                 'ROAD SATURATION — mean trafficability {pct}%. Rural segments degrading.',
+                 { pct: fmt(s.traff,0) }) });
         if(after){
           const dk = before ? after.km - before.km : 0;
           const dm = before ? after.min - before.min : 0;
           steps.push({ from:'BOT', delay:900, channel:'DRIVER', severity:'warning', text:
-            `Tunde — do not attempt ${blocked[0] || 'the ford'}. Rerouting you now. New waypoints pushed to your handset.`,
+            tp('chat.flood.driver',
+               '{driver} — do not attempt {segment}. Rerouting you now. New waypoints pushed to your handset.',
+               { driver: NAME.driver, segment: blocked[0] || t('the ford') }),
             kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}${before ? `  (${dk>=0?'+':''}${fmt(dk,1)} km · ${dm>=0?'+':''}${Math.round(dm)} min)` : ''}` });
           steps.push({ from:'DRIVER', delay:1200, text:
-            `Copy. I'm at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.` });
+            tp('chat.flood.driverReply',
+               'Copy. I am at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.') });
           steps.push({ from:'BOT', delay:900, channel:'BUYER', text:
-            `Kwesi — your delivery is rerouted around a flooded crossing. Revised drive time is ${minS(after.min)} from pickup; contents and quantity unchanged.` });
+            tp('chat.flood.buyer',
+               '{buyer} — your delivery is rerouted around a flooded crossing. Revised drive time is {time} from pickup; contents and quantity unchanged.',
+               { buyer: NAME.buyer, time: minS(after.min) }) });
         }
         break;
       }
       case 'FLOOD_CLEAR': {
         const after = ctx && ctx.after;
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          `Trafficability recovered to ${fmt(s.traff,0)}%. Primary crossing reopened; shortest-time path restored.` });
+          tp('chat.floodClear.alert',
+             'Trafficability recovered to {pct}%. Primary crossing reopened; shortest-time path restored.',
+             { pct: fmt(s.traff,0) }) });
         if(after) steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          `Tunde — R-14 is passable again. Standard route reinstated.`,
+          tp('chat.floodClear.driver', '{driver} — R-14 is passable again. Standard route reinstated.',
+             { driver: NAME.driver }),
           kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}` });
-        steps.push({ from:'DRIVER', delay:900, text: `Good, that saves me the long way round tomorrow.` });
+        steps.push({ from:'DRIVER', delay:900, text:
+          tp('chat.floodClear.driverReply', 'Good, that saves me the long way round tomorrow.') });
         break;
       }
       case 'HEAT': {
         steps.push({ from:'BOT', delay:500, severity:'serious', text:
-          `HEATWAVE — surface temperature ${fmt(s.temp,1)}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.` });
+          tp('chat.heat.alert',
+             'HEATWAVE — surface temperature {temp}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.',
+             { temp: fmt(s.temp,1) }) });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
-          `Amara — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.` });
-        steps.push({ from:'FARMER', delay:1100, text: `Fine by me. We'll start again around five.` });
+          tp('chat.heat.farmer',
+             '{farmer} — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.',
+             { farmer: NAME.farmer }) });
+        steps.push({ from:'FARMER', delay:1100, text:
+          tp('chat.heat.farmerReply', 'Fine by me. We will start again around five.') });
         steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          `Tunde — refrigerated unit required for today's run. Depot has been notified to pre-chill.` });
+          tp('chat.heat.driver',
+             '{driver} — refrigerated unit required for today\'s run. Depot has been notified to pre-chill.',
+             { driver: NAME.driver }) });
         break;
       }
       case 'HEAT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          `Heat advisory cleared at ${fmt(s.temp,1)}°C. Standard collection windows restored.` });
+          tp('chat.heatClear.alert', 'Heat advisory cleared at {temp}°C. Standard collection windows restored.',
+             { temp: fmt(s.temp,1) }) });
         break;
       }
       case 'DROUGHT': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          `ROOT-ZONE STRESS — SMAP puts moisture at ${fmt(s.moisture,1)}%, below the ${CFG.THRESH.moistArm}% stress floor. Stress index ${fmt(s.stress,2)}.` });
+          tp('chat.drought.alert',
+             'ROOT-ZONE STRESS — moisture at {pct}%, below the {floor}% stress floor. Stress index {idx}.',
+             { pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0), idx: fmt(s.stress,2) }) });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
-          `Amara — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.`,
-          kv:`moisture ${fmt(s.moisture,1)}% · stress ${fmt(s.stress,2)} · NDVI ${fmt(s.ndvi,3)}` });
+          tp('chat.drought.farmer',
+             '{farmer} — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.',
+             { farmer: NAME.farmer }),
+          kv:`${t('moisture')} ${fmt(s.moisture,1)}% · ${t('stress')} ${fmt(s.stress,2)} · NDVI ${fmt(s.ndvi,3)}` });
         steps.push({ from:'FARMER', delay:1150, text:
-          `The pump is working. I'll run it tonight when the line pressure is better.` });
+          tp('chat.drought.farmerReply',
+             'The pump is working. I will run it tonight when the line pressure is better.') });
         break;
       }
       case 'DROUGHT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          `Root-zone moisture recovered to ${fmt(s.moisture,1)}%. Irrigation advisory withdrawn.` });
+          tp('chat.droughtClear.alert', 'Root-zone moisture recovered to {pct}%. Irrigation advisory withdrawn.',
+             { pct: fmt(s.moisture,1) }) });
         break;
       }
       case 'NDVI': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          `CANOPY VIGOUR — Sentinel-2 NDVI at ${fmt(s.ndvi,3)}, below the ${CFG.THRESH.ndviArm} health floor. Yield forecast revised down for the affected plots.` });
+          tp('chat.ndvi.alert',
+             'CANOPY VIGOUR — NDVI at {v}, below the {floor} health floor. Yield forecast revised down for the affected plots.',
+             { v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }) });
         steps.push({ from:'BOT', delay:850, channel:'BUYER', text:
-          `Kwesi — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I'll propose a volume revision.` });
+          tp('chat.ndvi.buyer',
+             '{buyer} — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I will propose a volume revision.',
+             { buyer: NAME.buyer }) });
         break;
       }
       case 'NDVI_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          `NDVI recovered to ${fmt(s.ndvi,3)}. Yield forecast restored.` });
+          tp('chat.ndviClear.alert', 'NDVI recovered to {v}. Yield forecast restored.', { v: fmt(s.ndvi,3) }) });
         break;
       }
       case 'SIGNAL_LOSS': {
         steps.push({ from:'BOT', delay:450, severity:'warning', text:
-          `DOWNLINK DEGRADED — all four orbital sources dropped to reacquisition. Operating on last known values; no autonomous order changes will be issued while the feed is stale.` });
-        steps.push({ from:'DRIVER', delay:1000, text: `Do I keep going on the last route you sent?` });
+          tp('chat.signalLoss.alert',
+             'DOWNLINK DEGRADED — all sources dropped to reacquisition. Operating on last known values; no autonomous order changes will be issued while the feed is stale.') });
+        steps.push({ from:'DRIVER', delay:1000, text:
+          tp('chat.signalLoss.driverReply', 'Do I keep going on the last route you sent?') });
         steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          `Yes — hold the current waypoints. The last SAR pass is still within its validity window. I'll push an update the moment the link is reacquired.` });
+          tp('chat.signalLoss.driver',
+             'Yes — hold the current waypoints. The last pass is still within its validity window. I will push an update the moment the link is reacquired.') });
         break;
       }
       case 'RESTORE': {
         steps.push({ from:'BOT', delay:450, severity:'good', text:
-          `Restore requested — all feeds reacquired and metrics converging on nominal. Advisories will clear individually as each metric crosses its release threshold.` });
+          tp('chat.restore.alert',
+             'Restore requested — all feeds reacquired and metrics converging on nominal. Advisories will clear individually as each metric crosses its release threshold.') });
         break;
       }
     }
@@ -2539,9 +2616,23 @@ const Console = (() => {
     { id:'route',    re:/\b(road|route|reroute|eta|deliver\w*|drive|waypoint|flood|stuck|traffic|blocked|where)\b/i }
   ];
 
+  /* English keywords are always tested, in every language. Two reasons: the
+     quick-reply buttons deliberately send English so they keep working after a
+     language switch, and a grower who knows the English term for a product
+     should not be penalised for using it. The active language's own keywords are
+     tried second, as substring matches -- word boundaries are meaningless in
+     Chinese and unreliable in agglutinative languages like Kiswahili. */
   function match(text){
     const hit = INTENTS.find(i => i.re.test(text));
-    return hit ? hit.id : 'fallback';
+    if(hit) return hit.id;
+
+    const words = I18n.intents();
+    const hay = String(text).toLowerCase();
+    for(const id of Object.keys(words)){
+      const list = words[id];
+      if(Array.isArray(list) && list.some(w => w && hay.includes(String(w).toLowerCase()))) return id;
+    }
+    return 'fallback';
   }
 
   /** Persona-aware replies. Every number is read from live state. */
@@ -2553,22 +2644,29 @@ const Console = (() => {
 
     switch(intent){
       case 'help':
-        return { text:`I track four orbital feeds and act on what they show. Ask me about: soil moisture · frost and temperature · NDVI crop health · road conditions and your route · order quantities · backhaul. Say "status" for the full picture.` };
+        return { text: t('I track live observations and act on what they show. Ask me about: soil moisture · frost and temperature · NDVI crop health · road conditions and your route · order quantities · backhaul. Say "status" for the full picture.') };
 
       case 'status': {
         const line = alerts.length
           ? alerts.map(a => `${SEV[a.severity].icon} ${a.label}`).join(' · ')
-          : '✓ no active advisories';
+          : '✓ ' + t('no active advisories');
         return {
-          text:`Field readiness ${State.data.readiness}/100 — ${SEV[State.data.posture].word.toLowerCase()}. ${line}.`,
-          kv:`moisture ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\nsurface ${fmt(s.temp,1)}°C  ·  trafficability ${fmt(s.traff,0)}%\nroute ${r ? fmt(r.km,1)+' km / '+Math.round(r.min)+' min' : 'n/a'}  ·  ${Orders.total()} crates booked\nlast downlink ${ts} UTC`
+          text: t('Field readiness {n}/100 — {posture}. {advisories}.',
+            { n: State.data.readiness, posture: t(SEV[State.data.posture].word).toLowerCase(), advisories: line }),
+          kv:`${t('moisture')} ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\n` +
+             `${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('trafficability')} ${fmt(s.traff,0)}%\n` +
+             `${t('route')} ${r ? fmt(r.km,1)+' km / '+Math.round(r.min)+' min' : t('n/a')}  ·  ${Orders.total()} ${t('crates booked')}\n` +
+             `${t('last downlink')} ${ts} UTC`
         };
       }
 
       case 'moisture': {
         const stressed = s.moisture <= CFG.THRESH.moistArm;
-        if(persona === 'BUYER') return { text:`Root-zone moisture on the supplying plots is ${fmt(s.moisture,1)}% (SMAP, ${ts} UTC). ${stressed ? 'Below the stress floor — I may propose a volume revision if it holds.' : 'Comfortably above the stress floor, so no supply impact expected.'}` };
-        if(persona === 'DRIVER') return { text:`Moisture reaches you only through the roads — trafficability is ${fmt(s.traff,0)}% right now. Soil moisture itself is ${fmt(s.moisture,1)}%.` };
+        if(persona === 'BUYER') return { text: t('Root-zone moisture on the supplying plots is {pct}% ({ts} UTC).', { pct: fmt(s.moisture,1), ts }) + ' ' +
+          (stressed ? t('Below the stress floor — I may propose a volume revision if it holds.')
+                    : t('Comfortably above the stress floor, so no supply impact expected.')) };
+        if(persona === 'DRIVER') return { text: t('Moisture reaches you only through the roads — trafficability is {traff}% right now. Soil moisture itself is {pct}%.',
+          { traff: fmt(s.traff,0), pct: fmt(s.moisture,1) }) };
         // Quote the plot's own reading, then state plainly how it was derived.
         // At 9 km all three plots share one SMAP pixel, so this is a downscaled
         // estimate and must not be presented as a plot-level measurement.
@@ -2576,48 +2674,75 @@ const Console = (() => {
         const peers = Telemetry.pixelPeers('F2', 'moisture');
         const prov = pr
           ? (pr.downscaled
-              ? `Downscaled from a ${(pr.pixelM/1000)} km ${pr.src} pixel shared with ${peers.length ? peers.map(p => NODES[p].name).join(' and ') : 'no other plot'} — confidence ${pr.confidence.toFixed(2)}, field mean ${fmt(s.moisture,1)}%.`
-              : `Measured directly at ${pr.pixelM} m resolution — confidence ${pr.confidence.toFixed(2)}.`)
+              ? t('Downscaled from a {res} km {src} cell shared with {peers} — confidence {conf}, field mean {mean}%.',
+                  { res: (pr.pixelM/1000), src: pr.src,
+                    peers: peers.length ? peers.map(p => NODES[p].name).join(' ' + t('and') + ' ') : t('no other plot'),
+                    conf: fmt(pr.confidence,2), mean: fmt(s.moisture,1) })
+              : t('Resolved directly at {res} m — confidence {conf}.',
+                  { res: pr.pixelM, conf: fmt(pr.confidence,2) }))
           : '';
         const val = pr ? pr.v : s.moisture;
         return {
-          text:`Plot F-2 root-zone moisture is ${fmt(val,1)}% (${REGION.sources.CROP_CASMA ? 'SMAP / CROP-CASMA' : 'SMAP L4'}, ${ts} UTC). ${stressed ? `Below the ${CFG.THRESH.moistArm}% stress floor — irrigation advised within 48 hours.` : `Above the ${CFG.THRESH.moistArm}% stress floor. No irrigation needed.`} ${prov}`,
-          kv:`plot F-2 ${fmt(val,1)}%  ·  field mean ${fmt(s.moisture,1)}%  ·  stress ${fmt(s.stress,2)}\npixel ${pr ? (pr.pixelM >= 1000 ? (pr.pixelM/1000)+' km' : pr.pixelM+' m') : '—'}  ·  confidence ${pr ? pr.confidence.toFixed(2) : '—'}  ·  ${pr && pr.downscaled ? 'DOWNSCALED ESTIMATE' : 'direct measurement'}`
+          text: t('Plot F-2 root-zone moisture is {pct}% ({src}, {ts} UTC).',
+              { pct: fmt(val,1), src: pr && pr.src ? pr.src : t('model'), ts }) + ' ' +
+            (stressed
+              ? t('Below the {floor}% stress floor — irrigation advised within 48 hours.', { floor: fmt(CFG.THRESH.moistArm,0) })
+              : t('Above the {floor}% stress floor. No irrigation needed.', { floor: fmt(CFG.THRESH.moistArm,0) })) +
+            (prov ? ' ' + prov : ''),
+          kv:`${t('plot')} F-2 ${fmt(val,1)}%  ·  ${t('field mean')} ${fmt(s.moisture,1)}%  ·  ${t('stress')} ${fmt(s.stress,2)}\n` +
+             `${t('cell')} ${pr ? (pr.pixelM >= 1000 ? (pr.pixelM/1000)+' km' : pr.pixelM+' m') : '—'}  ·  ${t('confidence')} ${pr ? fmt(pr.confidence,2) : '—'}  ·  ${pr && pr.downscaled ? t('DOWNSCALED ESTIMATE') : t('resolves per plot')}`
         };
       }
 
       case 'frost': {
         const frost = s.temp <= CFG.THRESH.frostArm;
         const heat  = s.temp >= CFG.THRESH.heatArm;
-        const win   = Dispatch.getHarvestWindow() === 'EARLY' ? 'early-harvest' : 'normal';
-        if(persona === 'BUYER') return { text:`Surface temperature is ${fmt(s.temp,1)}°C. ${frost ? 'Frost protocol is active, so your order has been revised — see the last revision note.' : heat ? 'Heat protocol is active; cold chain is engaged but quantities are unchanged.' : 'Nothing thermal affecting your order.'}` };
-        if(persona === 'DRIVER') return { text:`${fmt(s.temp,1)}°C at surface. ${heat ? 'Refrigerated unit required today.' : frost ? 'Pickup pulled forward to the early window — load will be lighter.' : 'No thermal impact on your run.'}` };
+        const win   = Dispatch.getHarvestWindow() === 'EARLY' ? t('early-harvest') : t('normal');
+        if(persona === 'BUYER') return { text: t('Surface temperature is {temp}°C.', { temp: fmt(s.temp,1) }) + ' ' +
+          (frost ? t('Frost protocol is active, so your order has been revised — see the last revision note.')
+                 : heat ? t('Heat protocol is active; cold chain is engaged but quantities are unchanged.')
+                        : t('Nothing thermal affecting your order.')) };
+        if(persona === 'DRIVER') return { text: t('{temp}°C at surface.', { temp: fmt(s.temp,1) }) + ' ' +
+          (heat ? t('Refrigerated unit required today.')
+                : frost ? t('Pickup pulled forward to the early window — load will be lighter.')
+                        : t('No thermal impact on your run.')) };
         return {
-          text:`Surface temperature is ${fmt(s.temp,1)}°C (thermal IR, ${ts} UTC). ${frost ? 'At or below the frost floor — cut Plot F-2 within 4 hours.' : heat ? 'Above the heat threshold — hold harvesting through the midday peak.' : `Above the 0.0°C frost floor, so the harvest window stays ${win}.`}`,
-          kv:`surface ${fmt(s.temp,1)}°C  ·  frost floor 0.0°C  ·  window ${win}`
+          text: t('Surface temperature is {temp}°C ({ts} UTC).', { temp: fmt(s.temp,1), ts }) + ' ' +
+            (frost ? t('At or below the frost floor — cut Plot F-2 within 4 hours.')
+                   : heat ? t('Above the heat threshold — hold harvesting through the midday peak.')
+                          : t('Above the {floor}°C frost floor, so the harvest window stays {win}.',
+                              { floor: fmt(CFG.THRESH.frostArm,1), win })),
+          kv:`${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('frost floor')} ${fmt(CFG.THRESH.frostArm,1)}°C  ·  ${t('window')} ${win}`
         };
       }
 
       case 'ndvi': {
         const low = s.ndvi <= CFG.THRESH.ndviArm;
         return {
-          text:`Sentinel-2 NDVI reads ${fmt(s.ndvi,3)} across the monitored plots (${ts} UTC). ${low ? `Below the ${CFG.THRESH.ndviArm} health floor — canopy vigour is declining and the yield forecast is revised down.` : `Above the ${CFG.THRESH.ndviArm} health floor; canopy vigour is healthy.`}`,
-          kv:`NDVI ${fmt(s.ndvi,3)}  ·  floor ${CFG.THRESH.ndviArm}  ·  moisture ${fmt(s.moisture,1)}%`
+          text: t('NDVI reads {v} across the monitored plots ({ts} UTC).', { v: fmt(s.ndvi,3), ts }) + ' ' +
+            (low ? t('Below the {floor} health floor — canopy vigour is declining and the yield forecast is revised down.', { floor: fmt(CFG.THRESH.ndviArm,2) })
+                 : t('Above the {floor} health floor; canopy vigour is healthy.', { floor: fmt(CFG.THRESH.ndviArm,2) })),
+          kv:`NDVI ${fmt(s.ndvi,3)}  ·  ${t('floor')} ${fmt(CFG.THRESH.ndviArm,2)}  ·  ${t('moisture')} ${fmt(s.moisture,1)}%`
         };
       }
 
       case 'route': {
-        if(!r) return { text:`No active route computed yet — waiting on the first Sentinel-1 pass.` };
+        if(!r) return { text: t('No active route computed yet — waiting on the first downlink.') };
         const blocked = Dispatch.blockedEdges();
         if(r.fallback) return {
-          text:`Every path to the depot currently crosses an impassable segment — ${blocked.map(e=>e.id).join(', ')}. Do not depart. Hold at ${NODES[ROUTE_ORIGIN].name} until SAR shows a crossing reopening; the waypoints below are the least-bad option and are NOT cleared for use.`,
-          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min · ⚠ NOT CLEARED`
+          text: t('Every path to the depot currently crosses an impassable segment — {segments}. Do not depart. Hold at {origin} until a crossing reopens; the waypoints below are the least-bad option and are NOT cleared for use.',
+            { segments: blocked.map(e=>e.id).join(', '), origin: NODES[ROUTE_ORIGIN].name }),
+          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min · ⚠ ${t('NOT CLEARED')}`
         };
         const base = State.data.baselineRoute;
         const dk = base ? r.km - base.km : 0;
         return {
-          text:`${blocked.length ? `Segment${blocked.length>1?'s':''} ${blocked.map(e=>e.id).join(', ')} ${blocked.length>1?'are':'is'} below the passability floor, so the route avoids ${blocked.length>1?'them':'it'}. ` : `All segments passable — you are on the shortest-time path. `}Mean trafficability ${fmt(s.traff,0)}% (Sentinel-1 SAR, ${ts} UTC).`,
-          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min${Math.abs(dk) > 0.05 ? `  (${dk>=0?'+':''}${fmt(dk,1)} km vs clear-weather path)` : ''}`
+          text: (blocked.length
+              ? t('Segments {segments} are below the passability floor, so the route avoids them.',
+                  { segments: blocked.map(e=>e.id).join(', ') })
+              : t('All segments passable — you are on the shortest-time path.')) + ' ' +
+            t('Mean trafficability {pct}% ({ts} UTC).', { pct: fmt(s.traff,0), ts }),
+          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min${Math.abs(dk) > 0.05 ? `  (${dk>=0?'+':''}${fmt(dk,1)} km ${t('vs clear-weather path')})` : ''}`
         };
       }
 
@@ -2625,23 +2750,27 @@ const Console = (() => {
         const revised = State.data.orders.filter(o => o.status === 'revised');
         return {
           text: revised.length
-            ? `${revised.length} of ${State.data.orders.length} orders are currently revised — ${Orders.baseTotal() - Orders.total()} crates withdrawn against a booked ${Orders.baseTotal()}. Revisions reverse automatically when the triggering advisory clears.`
-            : `All ${State.data.orders.length} orders stand at their booked quantities — ${Orders.total()} crates total. No autonomous revisions are active.`,
-          kv: State.data.orders.map(o => `${o.id}  ${String(o.crates).padStart(3)} cr  grade ${o.grade}  ${o.status}`).join('\n')
+            ? t('{n} of {total} orders are currently revised — {cut} crates withdrawn against a booked {booked}. Revisions reverse automatically when the triggering advisory clears.',
+                { n: revised.length, total: State.data.orders.length,
+                  cut: Orders.baseTotal() - Orders.total(), booked: Orders.baseTotal() })
+            : t('All {n} orders stand at their booked quantities — {crates} crates total. No autonomous revisions are active.',
+                { n: State.data.orders.length, crates: Orders.total() }),
+          kv: State.data.orders.map(o => `${o.id}  ${String(o.crates).padStart(3)} ${t('cr')}  ${t('grade')} ${o.grade}  ${t(o.status)}`).join('\n')
         };
       }
 
       case 'backhaul': {
         const bh = Dispatch.backhaul();
-        if(!bh) return { text:`No backhaul leg available on the current network state.` };
+        if(!bh) return { text: t('No backhaul leg available on the current network state.') };
         return {
-          text:`Backhaul optimised: after the depot drop you collect from Plot F-3 on the return rather than running empty. That recovers roughly ${fmt(bh.km,1)} km of otherwise unloaded distance.`,
-          kv:`${bh.path.join(' → ')}\n${fmt(bh.km,1)} km · ${Math.round(bh.min)} min return leg`
+          text: t('Backhaul optimised: after the depot drop you collect from Plot F-3 on the return rather than running empty. That recovers roughly {km} km of otherwise unloaded distance.',
+            { km: fmt(bh.km,1) }),
+          kv:`${bh.path.join(' → ')}\n${fmt(bh.km,1)} km · ${Math.round(bh.min)} min ${t('return leg')}`
         };
       }
 
       default:
-        return { text:`I did not match that to a live data channel. I can answer on soil moisture, frost and temperature, NDVI crop health, roads and routing, order quantities, or backhaul. Try "status" for everything at once.` };
+        return { text: t('I did not match that to a live data channel. I can answer on soil moisture, frost and temperature, NDVI crop health, roads and routing, order quantities, or backhaul. Try "status" for everything at once.') };
     }
   }
 
@@ -2659,12 +2788,12 @@ const Console = (() => {
 
   function greet(){
     const s = State.data.latest;
-    post('SYSTEM', 'Secure channel established · AURA-AgriNet 1.0 · 5 participants', { channel:'ALL' });
+    post('SYSTEM', t('Secure channel established · AURA-AgriNet 1.0 · 5 participants'), { channel:'ALL' });
     play([
-      { from:'BOT', delay:600, text:`Good morning. I have acquired all four orbital feeds — SMAP, Sentinel-1, Sentinel-2 and thermal IR. Monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.`,
-        kv:`moisture ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\nsurface ${fmt(s.temp,1)}°C  ·  trafficability ${fmt(s.traff,0)}%` },
-      { from:'FARMER', delay:1000, text:`Morning. Anything I should worry about on F-2 today?` },
-      { from:'BOT', delay:900, channel:'FARMER', text:`Nothing yet. I will message you directly the moment any threshold is crossed — you do not need to watch the feed.` }
+      { from:'BOT', delay:600, text: t('Good morning. I am monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.'),
+        kv:`${t('moisture')} ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\n${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('trafficability')} ${fmt(s.traff,0)}%` },
+      { from:'FARMER', delay:1000, text: t('Morning. Anything I should worry about on F-2 today?') },
+      { from:'BOT', delay:900, channel:'FARMER', text: t('Nothing yet. I will message you directly the moment any threshold is crossed — you do not need to watch the feed.') }
     ]);
   }
 
@@ -2682,7 +2811,8 @@ const EventEngine = (() => {
       id:'FROST_EVENT', label:'Frost event', severity:'critical', metric:'temp', minTicks:1,
       arm:   s => s.temp !== null && s.temp <= CFG.THRESH.frostArm,
       clear: s => s.temp !== null && s.temp >= CFG.THRESH.frostClear,
-      detail: s => `Surface temperature ${fmt(s.temp,1)}°C — at or below the 0.0°C frost floor.`,
+      detail: s => t('Surface temperature {temp}°C — at or below the {floor}°C frost floor.',
+                      { temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }),
       onArm(){
         // Per-plot temperature decides which plots are actually frosted; only the
         // crops grown there can affect an order.
@@ -2705,7 +2835,8 @@ const EventEngine = (() => {
       id:'HEATWAVE', label:'Heatwave', severity:'serious', metric:'temp', minTicks:2,
       arm:   s => s.temp !== null && s.temp >= CFG.THRESH.heatArm,
       clear: s => s.temp !== null && s.temp <= CFG.THRESH.heatClear,
-      detail: s => `Surface temperature ${fmt(s.temp,1)}°C — heat stress threshold exceeded.`,
+      detail: s => t('Surface temperature {temp}°C — heat stress threshold exceeded.',
+                      { temp: fmt(s.temp,1) }),
       onArm(){ Dispatch.setColdChain(true);  Console.cascade('HEAT', {}); },
       onClear(){ Dispatch.setColdChain(false); Console.cascade('HEAT_CLEAR', {}); }
     },
@@ -2713,7 +2844,8 @@ const EventEngine = (() => {
       id:'FLOOD_SATURATION', label:'Road saturation', severity:'critical', metric:'traff', minTicks:1,
       arm:   s => s.traff !== null && s.traff <= CFG.THRESH.traffArm,
       clear: s => s.traff !== null && s.traff >= CFG.THRESH.traffClear,
-      detail: s => `Sentinel-1 SAR indicates ${fmt(s.traff,0)}% mean trafficability — rural segments saturating.`,
+      detail: s => t('Mean trafficability {pct}% — rural segments saturating.',
+                      { pct: fmt(s.traff,0) }),
       onArm(){
         const before = State.data.route;
         const after  = Dispatch.recomputeRoute();
@@ -2728,7 +2860,8 @@ const EventEngine = (() => {
       id:'SOIL_STRESS', label:'Root-zone moisture stress', severity:'warning', metric:'moisture', minTicks:2,
       arm:   s => s.moisture !== null && s.moisture <= CFG.THRESH.moistArm,
       clear: s => s.moisture !== null && s.moisture >= CFG.THRESH.moistClear,
-      detail: s => `SMAP root-zone moisture ${fmt(s.moisture,1)}% — below the ${CFG.THRESH.moistArm}% stress floor.`,
+      detail: s => t('Root-zone moisture {pct}% — below the {floor}% stress floor.',
+                      { pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0) }),
       onArm(){ Console.cascade('DROUGHT', {}); },
       onClear(){ Console.cascade('DROUGHT_CLEAR', {}); }
     },
@@ -2736,7 +2869,8 @@ const EventEngine = (() => {
       id:'NDVI_DECLINE', label:'Canopy vigour decline', severity:'warning', metric:'ndvi', minTicks:2,
       arm:   s => s.ndvi !== null && s.ndvi <= CFG.THRESH.ndviArm,
       clear: s => s.ndvi !== null && s.ndvi >= CFG.THRESH.ndviClear,
-      detail: s => `Sentinel-2 NDVI ${fmt(s.ndvi,3)} — canopy vigour below the ${CFG.THRESH.ndviArm} health floor.`,
+      detail: s => t('NDVI {v} — canopy vigour below the {floor} health floor.',
+                      { v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }),
       onArm(){ Console.cascade('NDVI', {}); },
       onClear(){ Console.cascade('NDVI_CLEAR', {}); }
     }
@@ -2774,13 +2908,14 @@ const EventEngine = (() => {
       id: rule.id, label: rule.label, severity: rule.severity,
       since: State.data.clock, detail: rule.detail(s)
     });
-    Log.add(rule.severity, rule.label, rule.detail(s));
+    Log.add(rule.severity, t(rule.label), rule.detail(s));
     try{ rule.onArm(); }catch(e){ console.error('[rule.onArm]', rule.id, e); }
   }
 
   function release(rule){
     State.data.alerts.delete(rule.id);
-    Log.add('good', rule.label + ' cleared', 'Telemetry returned past the release threshold; autonomous actions reverted.');
+    Log.add('good', t('{label} cleared', { label: t(rule.label) }),
+      t('Telemetry returned past the release threshold; autonomous actions reverted.'));
     try{ rule.onClear(); }catch(e){ console.error('[rule.onClear]', rule.id, e); }
   }
 
@@ -2808,20 +2943,23 @@ const EventEngine = (() => {
         break;
       case 'SIGNAL_LOSS':
         Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'reacquire'));
-        Log.add('warning', 'Downlink degraded', 'All four orbital sources dropped to reacquisition. Holding last known values.');
+        Log.add('warning', t('Downlink degraded'),
+          t('All four sources dropped to reacquisition. Holding last known values.'));
         Console.cascade('SIGNAL_LOSS', {});
         return;
       case 'RESTORE':
         Telemetry.clearInjections();
         Object.keys(METRICS).forEach(k => Telemetry.inject(k, METRICS[k].seed, 5, true));
         Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'nominal', SOURCES[sid].latency));
-        Log.add('info', 'Restore requested', 'Nudging all metrics back toward nominal. Advisories clear as each metric crosses its release threshold.');
+        Log.add('info', t('Restore requested'),
+          t('Nudging all metrics back toward nominal. Advisories clear as each metric crosses its release threshold.'));
         Console.cascade('RESTORE', {});
         return;
     }
     const rule = RULES.find(r => r.id === id);
-    if(rule) Log.add('info', 'Simulation injected',
-      `${rule.label} excursion queued on the ${METRICS[rule.metric].label.toLowerCase()} feed — awaiting next downlink.`);
+    if(rule) Log.add('info', t('Simulation injected'),
+      t('{label} excursion queued on the {metric} feed — awaiting next downlink.',
+        { label: t(rule.label), metric: t(METRICS[rule.metric].label).toLowerCase() }));
   }
 
   return { evaluate, fire, RULES };
@@ -4176,7 +4314,7 @@ const Manual = (() => {
   const SECTIONS = [
     {
       id:'what', nav:'What it does', title:'What AURA-AgriNet does',
-      render: () => `
+      render: () => tp('manual.what', `
         <p>Four satellite feeds land every few seconds. A set of rules watches them. When a
         reading crosses a threshold and stays there, the app does not simply colour a tile
         red — it <em>changes the plan</em>: it revises buyer orders, moves the harvest window,
@@ -4200,24 +4338,24 @@ const Manual = (() => {
 
         <div class="note"><p>Every advisory is reversible. When telemetry crosses back past the
         release threshold, the rule releases and its actions are undone: the crates go back on the
-        order, the harvest window returns to normal, the original route is restored.</p></div>`
+        order, the harvest window returns to normal, the original route is restored.</p></div>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'feeds', nav:'Where data comes from', title:'Where the data comes from',
-      render: () => {
-        const on = Live.ready();
-        return `
+      render: () => tp('manual.feeds', `
         <p>Search for a location and AURA polls services a keyless static page can
         genuinely reach. There is no API key in this app and no server behind it, which
         rules a great deal in and a little out.</p>
 
-        ${on ? `<div class="note"><p><strong>${esc(Live.statusLine().text)}</strong> for
-        ${esc((Region.current() || {}).name || 'this location')}. Everything below is what is
-        producing the numbers on screen right now.</p></div>` : `<div class="note warn">
-        <p>No location is loaded, so every value on screen is synthetic. Search for a place
-        to switch to real observations.</p></div>`}
+        {liveNote}
 
-        ${provenanceTable()}
+        {provenanceTable}
 
         <h3>What is not here, and why</h3>
         <ul>
@@ -4238,12 +4376,17 @@ const Manual = (() => {
         successful fetch is cached against its coordinates. Lose the connection and the app
         serves that cache, with its age stated in the header chip — <em>Offline · cached</em>,
         and the exact age on hover. A location you have never visited falls back to simulation
-        and says so. The app never presents a stale number as current, and never invents one.</p>`;
-      }
+        and says so. The app never presents a stale number as current, and never invents one.</p>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'scope', nav:'Real vs simulated', title:'What is real, and what is not',
-      render: () => `
+      render: () => tp('manual.scope', `
         <div class="note warn"><p><strong>Every telemetry reading in this app is synthetic.</strong>
         No network call is made to NASA, ESA or anyone else. The numbers come from a bounded
         random walk around a per-region climate baseline.</p></div>
@@ -4258,7 +4401,7 @@ const Manual = (() => {
         <p>Instrument resolution differs by three orders of magnitude across these four feeds, and
         that difference decides what you are allowed to claim.</p>
 
-        ${granularityTable()}
+        {granularityTable}
 
         <p>Sentinel-2 resolves 10 m pixels, so a 1.4 ha plot covers roughly 140 of them: NDVI for
         that plot is a <em>measurement</em>. SMAP's finest routine product is about 9 km, which is
@@ -4269,17 +4412,23 @@ const Manual = (() => {
         <div class="note"><p>This is why plot cards label soil moisture
         <code>≈ downscaled · conf 0.55</code> and NDVI <code>✓ measured</code>. Showing three
         different soil-moisture figures for three plots without that label would imply three
-        independent measurements that no instrument in orbit took.</p></div>`
+        independent measurements that no instrument in orbit took.</p></div>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'action', nav:'Advisory → action', title:'How an advisory becomes an action',
-      render: () => `
+      render: () => tp('manual.action', `
         <p>Take the frost rule end to end. Every number below is read live from the running
         configuration, so it is what the engine will actually do.</p>
 
         <ol class="steps">
           <li><strong>Arm test.</strong> Surface temperature at or below
-              <code>${thr('frostArm').toFixed(1)}°C</code>. One qualifying downlink is enough —
+              <code>{frostArm}°C</code>. One qualifying downlink is enough —
               frost is not something to wait out for confirmation.</li>
           <li><strong>Which plots.</strong> Per-plot temperature decides. Only plots actually at
               or below the floor count; if none individually qualify, all plots are treated as hit.</li>
@@ -4290,21 +4439,27 @@ const Manual = (() => {
           <li><strong>Downstream.</strong> The harvest window moves to <code>EARLY</code>, and the
               farmer, buyer and driver each get the part of the story that concerns them.</li>
           <li><strong>Release.</strong> Once temperature reaches
-              <code>${thr('frostClear').toFixed(1)}°C</code>, the rule clears: crates are reinstated,
+              <code>{frostClear}°C</code>, the rule clears: crates are reinstated,
               the contracted grade is restored, and the harvest window returns to normal.</li>
         </ol>
 
         <h3>Why cassava is treated differently</h3>
-        ${cropTable()}
+        {cropTable}
         <p>A frost destroys a tomato crop's fruiting canopy. Cassava is a root crop — the canopy
         dies but the tuber survives in the ground — so it takes roughly a third of the cut. An
         earlier version applied one flat percentage to every order, which meant a frost on the
         tomato plot also cut the cassava order by 28%. It was wrong in a way that looked
-        perfectly reasonable on screen.</p>`
+        perfectly reasonable on screen.</p>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'map', nav:'Map and route', title:'Reading the map and the route',
-      render: () => `
+      render: () => tp('manual.map', `
         <p>The map is a live projection of the active region's real coordinates, not a picture.
         Longitude is scaled by the cosine of the centre latitude so the catchment is not stretched
         east-west — negligible in Ghana, a 20% correction at Fresno.</p>
@@ -4317,8 +4472,8 @@ const Manual = (() => {
           <li><strong>The depot</strong> is the cold store and the route's destination; the
               <strong>hub</strong> is the buyer.</li>
           <li><strong>Segments</strong> darken as trafficability falls. Below
-              <code>${thr('edgeDegraded')}%</code> a segment is degraded; at or below
-              <code>${thr('edgeImpassable')}%</code> it is impassable and routing refuses to use it.</li>
+              <code>{edgeDegraded}%</code> a segment is degraded; at or below
+              <code>{edgeImpassable}%</code> it is impassable and routing refuses to use it.</li>
         </ul>
 
         <h3>The route is timed, not just measured</h3>
@@ -4333,32 +4488,44 @@ const Manual = (() => {
         admitting there is no way through.</p></div>
 
         <p>The return leg is planned too: rather than run empty, the driver is offered a backhaul
-        pickup on the way back from the depot.</p>`
+        pickup on the way back from the depot.</p>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'try', nav:'Try it', title:'Try it — six scenarios',
-      render: () => `
+      render: () => tp('manual.try', `
         <p>Each button below fires the same code path the console's trigger panel does. They
         inject a telemetry excursion and let the normal rule path run, so the effect lands on the
-        <em>next downlink</em> — up to about ${nb((SOURCES.S1.cadence/1000) + ' s')} for anything
+        <em>next downlink</em> — up to about {s1Cadence} for anything
         Sentinel-1 carries. Raise the simulation speed to compress the wait.</p>
 
         <p>Running a scenario closes the manual so you can watch it land.</p>
 
-        ${scenarioCards()}
+        {scenarios}
 
         <div class="note"><p>Nothing here is a canned animation. Each button changes a number in
         the feed; everything you then see — the advisory, the order revision, the reroute, the
-        chat briefing — is the engine reacting to that number.</p></div>`
+        chat briefing — is the engine reacting to that number.</p></div>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     },
     {
       id:'thresholds', nav:'Thresholds', title:'Threshold reference',
-      render: () => `
+      render: () => tp('manual.thresholds', `
         <p>Every rule arms on one figure and clears on a different one. The gap between them is
         the hysteresis, and it is what stops a reading sitting on a boundary from arming and
         clearing the same advisory on alternate downlinks.</p>
 
-        ${thresholdTable()}
+        {thresholdTable}
 
         <p>The <em>downlinks</em> column is the debounce: how many consecutive qualifying readings
         are required before the rule acts. Frost and road saturation act on the first one because
@@ -4374,9 +4541,26 @@ const Manual = (() => {
         <hr>
         <p style="color:var(--text-muted);font-size:12px;margin-top:14px">Values on this page are
         read from the running configuration each time the manual opens. If a threshold is changed
-        in the code, this table changes with it.</p>`
+        in the code, this table changes with it.</p>`, {
+        liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
+        cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
+        frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
+        edgeDegraded: thr('edgeDegraded'), edgeImpassable: thr('edgeImpassable'),
+        s1Cadence: nb(fmt(SOURCES.S1.cadence/1000,0) + ' s')
+      })
     }
   ];
+
+  /* The live/simulated banner at the top of section 2. Hoisted out of the prose
+     so the block a translator sees is one continuous document. */
+  function liveNote(){
+    if(Live.ready()){
+      return `<div class="note"><p><strong>${esc(Live.statusLine().text)}</strong> ` +
+             `${esc(t('for'))} ${esc((Region.current() || {}).name || t('this location'))}. ` +
+             `${esc(t('Everything below is what is producing the numbers on screen right now.'))}</p></div>`;
+    }
+    return `<div class="note warn"><p>${esc(t('No location is loaded, so every value on screen is synthetic. Search for a place to switch to real observations.'))}</p></div>`;
+  }
 
   /* ---------- render ---------- */
 
@@ -4434,6 +4618,9 @@ const Manual = (() => {
   function open(){
     if(isOpen()) return;
     lastFocus = document.activeElement;
+    // Fetch the translated prose if we do not have it yet, then rebuild once it
+    // lands. The first open in a new language shows English with a badge.
+    if(!I18n.proseReady()) I18n.loadProse().then(() => { if(isOpen()) build(); });
     build();                       // rebuilt on every open, so live values are current
     el('manualLayer').hidden = false;
     document.body.style.overflow = 'hidden';       // scroll lock behind the layer
@@ -5112,10 +5299,14 @@ const I18n = (() => {
 
   const STORE_KEY = 'aura-lang';
   let code = 'en';
-  let dict = {};
+  let dict = {};                      // short UI strings, precached
+  let words = {};                     // per-language intent keywords, precached
+  let prose = {};                     // long-form blocks, fetched on demand
   let meta = { coverage: 1, reviewed: false };
   const missing = new Set();          // strings with no translation, for the badge
-  const loaded = new Map();           // code -> {dict, meta}
+  const loaded = new Map();           // code -> {dict, words, meta}
+  const proseLoaded = new Map();      // code -> block map
+  let proseInflight = null;
 
   const langFor = c => LANGS.find(l => l.code === c) || LANGS[0];
   const current = () => langFor(code);
@@ -5139,6 +5330,34 @@ const I18n = (() => {
   /** True when this exact string has a translation in the active language. Used
       by the manual to badge sections it is showing in English. */
   const has = s => code === 'en' || Object.prototype.hasOwnProperty.call(dict, String(s));
+
+  /** Long-form block lookup.
+
+      Separate from t() for three reasons: these carry inline HTML and so must
+      never go through the no-markup rule the UI strings are held to; they are
+      fetched on demand rather than precached; and the fallback is not the key
+      but the English block the call site passes, because a documentation key
+      like 'manual.map' is meaningless on screen.
+
+      The English block is therefore always present in the source, which also
+      means the manual reads correctly with the entire prose directory missing. */
+  function tp(key, english, vars){
+    let out = (code !== 'en' && Object.prototype.hasOwnProperty.call(prose, key))
+      ? prose[key] : english;
+    if(vars){
+      out = String(out).replace(/\{(\w+)\}/g, (m, name) =>
+        (vars[name] === undefined || vars[name] === null) ? m : String(vars[name]));
+    }
+    return out;
+  }
+
+  /** Whether a block is showing a translation or falling back to English. */
+  const hasProse = key => code === 'en' || Object.prototype.hasOwnProperty.call(prose, key);
+  const proseReady = () => code === 'en' || Object.keys(prose).length > 0;
+
+  /** The active language's intent keywords. English returns {} — its own regex
+      list is always tested first and separately. */
+  const intents = () => (code === 'en' ? {} : words);
 
   /* ---------- locale-aware formatting ---------- */
 
@@ -5185,9 +5404,35 @@ const I18n = (() => {
     const res = await fetch(`i18n/${c}.json`);
     if(!res.ok) throw new Error('catalogue HTTP ' + res.status);
     const j = await res.json();
-    const entry = { dict: j.strings || {}, meta: j.meta || {} };
+    const entry = { dict: j.strings || {}, words: j.intents || {}, meta: j.meta || {} };
     loaded.set(c, entry);
     return entry;
+  }
+
+  /** Prose is a second, larger file fetched only when something actually needs
+      it — the first time the manual opens or the agent starts a briefing. A
+      failure is not an error: the English blocks are already in the source, and
+      the badge says which language the reader is getting. */
+  async function loadProse(){
+    if(code === 'en') return {};
+    if(proseLoaded.has(code)){ prose = proseLoaded.get(code); return prose; }
+    if(proseInflight) return proseInflight;
+    const want = code;
+    proseInflight = (async () => {
+      try{
+        const res = await fetch(`i18n/prose/${want}.json`);
+        if(!res.ok) throw new Error('prose HTTP ' + res.status);
+        const j = await res.json();
+        const blocks = j.blocks || {};
+        proseLoaded.set(want, blocks);
+        if(code === want){ prose = blocks; State.emit('lang', { code, prose:true }); }
+        return blocks;
+      }catch(e){
+        proseLoaded.set(want, {});          // do not retry every open
+        return {};
+      } finally { proseInflight = null; }
+    })();
+    return proseInflight;
   }
 
   /** Switch language. Falls back to English rather than leaving the UI in a
@@ -5196,13 +5441,18 @@ const I18n = (() => {
     const lang = langFor(c);
     try{
       const entry = await fetchCatalogue(lang.code);
-      code = lang.code; dict = entry.dict; meta = entry.meta;
+      code = lang.code; dict = entry.dict; words = entry.words; meta = entry.meta;
+      prose = proseLoaded.get(code) || {};   // fetched lazily, not here
     }catch(e){
-      code = 'en'; dict = {}; meta = { coverage:1, reviewed:true };
+      code = 'en'; dict = {}; words = {}; prose = {}; meta = { coverage:1, reviewed:true };
       throw e;
     } finally {
       missing.clear();
       apply();
+      // Start the prose fetch now rather than when something first needs to
+      // speak. Otherwise the very first advisory in a new language races the
+      // request and arrives in English.
+      if(code !== 'en') loadProse();
       try{ localStorage.setItem(STORE_KEY, code); }catch(e2){}
       State.emit('lang', { code });
     }
@@ -5234,7 +5484,8 @@ const I18n = (() => {
   const reviewed = () => (code === 'en' ? true : !!meta.reviewed);
   const missingList = () => [...missing];
 
-  return { LANGS, t, has, num, time, date, relative, set, apply, initial,
+  return { LANGS, t, tp, has, hasProse, proseReady, intents, loadProse,
+           num, time, date, relative, set, apply, initial,
            lang: () => code, current, dir, isRTL, coverage, reviewed, missingList,
            STORE_KEY, langFor };
 })();
@@ -5242,6 +5493,9 @@ const I18n = (() => {
 /* Shorthand. `t` is used several hundred times; a five-character name keeps the
    call sites readable, which is the entire point of English-as-key. */
 const t = (s, vars) => I18n.t(s, vars);
+/* Long-form counterpart. `english` is the block as written in this file, and is
+   what renders whenever a translation is absent. */
+const tp = (key, english, vars) => I18n.tp(key, english, vars);
 
 
 /* ===================== MODULE 10: SATELLITE IMAGERY =====================
@@ -5578,7 +5832,7 @@ const Search = (() => {
   Views.renderPosture();
   Views.renderClock();
   Views.setRole(State.data.role);
-  Log.add('info', restored ? 'Session restored' : 'AURA-AgriNet online',
+  Log.add('info', restored ? t('Session restored') : t('AURA-AgriNet online'),
     `Monitoring ${region.name}, ${region.country}. Decision matrix armed with 5 rules across thermal, SAR, SMAP and multispectral channels.` +
     (region.sources.CROP_CASMA ? '' : ' CROP-CASMA has no coverage here (CONUS only); soil moisture falls back to SMAP L4 at 9 km.'));
 
@@ -5630,9 +5884,9 @@ const Search = (() => {
     const paused = !State.data.paused;
     State.commit({ paused });
     Views.syncControls();
-    Log.add('info', paused ? 'Feed paused' : 'Feed resumed', paused
-      ? 'Ingestion halted. Displayed values are held; no autonomous actions will fire.'
-      : 'Ingestion resumed across all four sources.');
+    Log.add('info', paused ? t('Feed paused') : t('Feed resumed'), paused
+      ? t('Ingestion halted. Displayed values are held; no autonomous actions will fire.')
+      : t('Ingestion resumed across all sources.'));
   }
   function cycleSpeed(){
     State.commit({ speed: State.data.speed === 1 ? 4 : State.data.speed === 4 ? 8 : 1 });
@@ -5657,8 +5911,8 @@ const Search = (() => {
     try{
       await I18n.set(b.dataset.lang);
     }catch(err){
-      Log.add('warning', 'Language unavailable',
-        'That translation could not be loaded, so the interface stayed in English.');
+      Log.add('warning', t('Language unavailable'),
+        t('That translation could not be loaded, so the interface stayed in English.'));
     }
     Views.repaintAll();
   });
@@ -5683,8 +5937,8 @@ const Search = (() => {
     const node = e.target;
     if(node && node.dataset && node.dataset.satTile){
       Sat.markFailed(node.dataset.satTile);
-      Log.add('info', 'Imagery unavailable',
-        'That NASA product has no recent granule covering this location. Falling back to the vector map.');
+      Log.add('info', t('Imagery unavailable'),
+        t('That NASA product has no recent granule covering this location. Falling back to the vector map.'));
       Sat.set(null);
     }
   }, true);
@@ -5748,7 +6002,8 @@ const Search = (() => {
     }
 
     Views.renderLiveChip();
-    Log.add('info', 'Location changed', `Loading live observations for ${region.name}…`);
+    Log.add('info', t('Location changed'),
+      t('Loading live observations for {place}…', { place: region.name }));
 
     const centre = region.centre;
     const res = await Live.ensure(centre.lat, centre.lon, region.name);
@@ -5772,37 +6027,36 @@ const Search = (() => {
 
     const st = Live.statusLine();
     const w = res.payload ? Agronomy.water(State.data.clock) : null;
+    const place = region.name + (region.country ? ', ' + region.country : '');
     if(res.payload){
       Log.add(res.source === 'cache' ? 'warning' : 'good',
-        res.source === 'cache' ? 'Serving cached observations' : 'Live observations loaded',
-        `${region.name}${region.country ? ', ' + region.country : ''} — ${st.text}. ` +
-        (region.synthesised
-          ? 'Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.'
-          : 'Built-in demo catchment.'));
+        res.source === 'cache' ? t('Serving cached observations') : t('Live observations loaded'),
+        `${place} — ${st.text}. ` + (region.synthesised
+          ? t('Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.')
+          : t('Built-in demo catchment.')));
       Console.post('BOT',
-        `Now monitoring ${region.name}${region.country ? ', ' + region.country : ''}. ` +
-        `${st.text}. Soil moisture and temperature are ECMWF/DWD land-surface model output, ` +
-        `trafficability is derived from rain and river discharge, NDVI has no keyless point source and stays modelled.`, {
-        kv: `elev ${fmt(Live.payload().elevation,0)} m · ${esc(Live.payload().timezone || 'UTC')}
+        t('Now monitoring {place}. {status}. Soil moisture and temperature are ECMWF/DWD land-surface model output, trafficability is derived from rain and river discharge, NDVI has no keyless point source and stays modelled.',
+          { place, status: st.text }), {
+        kv: `${t('elev')} ${fmt(Live.payload().elevation,0)} m · ${esc(Live.payload().timezone || 'UTC')}
 ` +
-            `catchment ${fmt(Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]),1)} km origin→depot · ${EDGES.length} segments
+            `${t('catchment')} ${fmt(Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]),1)} km ${t('origin→depot')} · ${EDGES.length} ${t('segments')}
 ` +
-            (w ? `water: ${w.call}${w.applyMm ? ' ' + w.applyMm + ' mm' : ''}` : '')
+            (w ? `${t('water')}: ${t(w.call)}${w.applyMm ? ' ' + w.applyMm + ' mm' : ''}` : '')
       });
     } else {
-      Log.add('warning', 'No live data',
-        `Could not reach the observation services and nothing is cached for ${region.name}. ` +
-        `Falling back to simulated telemetry, labelled as such.`);
+      Log.add('warning', t('No live data'),
+        t('Could not reach the observation services and nothing is cached for {place}. Falling back to simulated telemetry, labelled as such.',
+          { place }));
       Console.post('BOT',
-        `I could not load real observations for ${region.name} and have nothing cached for it. ` +
-        `Everything you see is simulated until the connection returns — the header chip says so.`);
+        t('I could not load real observations for {place} and have nothing cached for it. Everything you see is simulated until the connection returns — the header chip says so.',
+          { place }));
     }
 
     Telemetry.start();
   }
 
   Search.setHandler(pick => { goToLocation(pick).catch(err => {
-    Log.add('critical', 'Location failed', String(err && err.message || err));
+    Log.add('critical', t('Location failed'), String(err && err.message || err));
   }); });
 
   /* --- search wiring: both copies share one module --- */
@@ -5900,7 +6154,8 @@ const Search = (() => {
           sw.addEventListener('statechange', () => {
             // A new version is ready and an old one is still controlling the page.
             if(sw.state === 'installed' && navigator.serviceWorker.controller){
-              Log.add('info', 'Update available', 'A newer build is cached. It applies on next launch.');
+              Log.add('info', t('Update available'),
+                t('A newer build is cached. It applies on next launch.'));
             }
           });
         });

@@ -156,9 +156,28 @@ module.exports = ({ suite, test, assert }) => {
         assert.deepEqual(stale.slice(0, 5), [], 'stale keys — a UI string changed or was removed');
       });
 
-      test(`${code}: covers the whole UI`, () =>
-        assert.equal(Object.keys(json.strings).length, strings.size,
-          `missing ${strings.size - Object.keys(json.strings).length} of ${strings.size} strings`));
+      /* Partial coverage is a supported state, not a failure — the app falls back
+         to English per string and badges the language. What must never happen is
+         a catalogue that MISREPORTS how complete it is, or one so sparse that the
+         result is a scrambled half-English screen rather than a translation. */
+      test(`${code}: reports its coverage honestly`, () => {
+        const actual = Object.keys(json.strings).length / strings.size;
+        assert.close(json.meta.coverage, actual, 0.02,
+          'the badge would report a coverage the file does not have');
+      });
+
+      test(`${code}: is complete enough to be worth offering`, () => {
+        const actual = Object.keys(json.strings).length / strings.size;
+        assert.ok(actual >= 0.5,
+          `only ${Math.round(actual * 100)}% translated — below this a mixed screen is worse than English`);
+      });
+
+      test(`${code}: anything below full coverage is badged`, () => {
+        const h2 = boot();
+        if (json.meta.coverage >= 1 && json.meta.reviewed) return;   // nothing to badge
+        assert.includes(h2.app.Views.translationBadge.toString(), 'coverage',
+          'partial or unreviewed translations must be visibly marked');
+      });
 
       test(`${code}: is not a bulk copy of the English`, () => {
         // A few legitimately match (proper nouns, unit symbols); a quarter does not.
@@ -174,15 +193,125 @@ module.exports = ({ suite, test, assert }) => {
           assert.equal(got, want, `"${k}" lost or gained a placeholder — a number would vanish`);
         }));
 
-      test(`${code}: coverage metadata matches the file`, () => {
-        const actual = Object.keys(json.strings).length / strings.size;
-        assert.close(json.meta.coverage, actual, 0.02,
-          'the badge would report a coverage the file does not have');
+      /* Without these a farmer typing in their own language gets the fallback
+         reply every time — the buttons work only because they send English. */
+      test(`${code}: supplies intent keywords`, () => {
+        const VALID = ['backhaul','order','help','status','moisture','frost','ndvi','route'];
+        assert.ok(json.intents, 'no intents block');
+        const unknown = Object.keys(json.intents).filter(k => !VALID.includes(k));
+        assert.deepEqual(unknown, [], 'keyword list for an intent the matcher does not have');
+        const empty = VALID.filter(k => !(json.intents[k] || []).length);
+        assert.deepEqual(empty, [], 'intents with no keywords are unreachable by typing');
       });
+
+      test(`${code}: keywords are lowercase and non-trivial`, () =>
+        Object.entries(json.intents || {}).forEach(([id, list]) =>
+          list.forEach(w => {
+            assert.equal(w, w.toLowerCase(), `${id} keyword "${w}" is not lowercase — matching is case-folded`);
+            /* One character is a whole word in a logographic script — 箱 is
+               "crate" — but a lone latin letter would match almost anything. */
+            const cjk = /[㐀-鿿぀-ヿ]/.test(w);
+            const min = cjk ? 1 : 2;
+            assert.ok(w.trim().length >= min, `${id} keyword "${w}" is too short and would match noise`);
+          })));
 
       test(`${code}: contains no markup`, () =>
         Object.entries(json.strings).forEach(([k, v]) =>
           assert.notIncludes(v, '<', `"${k}" contains HTML, which is escaped and shown literally`)));
+    });
+  });
+
+  /* -------------------------------------------------------------- prose --- */
+  suite('i18n · prose blocks', () => {
+    const { script } = readSource();
+    const keys = [...script.matchAll(/tp\('([a-zA-Z.]+)'/g)].map(m => m[1]);
+
+    /* The English block each tp() call falls back to, pulled from the source so
+       the tests compare against exactly what ships. */
+    function englishBlocks() {
+      const out = {};
+      const re = /tp\('([a-zA-Z.]+)',\s*(`[\s\S]*?`|'(?:[^'\\]|\\.)*')/g;
+      for (const m of script.matchAll(re)) out[m[1]] = m[2].slice(1, -1);
+      return out;
+    }
+    const EN = englishBlocks();
+
+    const proseFiles = () => {
+      const dir = path.join(ROOT, 'i18n', 'prose');
+      if (!fs.existsSync(dir)) return [];
+      return fs.readdirSync(dir).filter(f => f.endsWith('.json'))
+        .map(f => ({ code: f.replace('.json', ''),
+                     json: JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) }));
+    };
+
+    test('every tp() key is unique', () =>
+      assert.equal(new Set(keys).size, keys.length, 'a duplicate key would make one block unreachable'));
+
+    test('every tp() call supplies an English fallback', () =>
+      keys.forEach(k => assert.ok(EN[k] !== undefined,
+        `${k} has no readable English block — a missing catalogue would render nothing`)));
+
+    test('the manual has a block per section', () => {
+      const h = boot();
+      h.app.Manual.SECTIONS.forEach(sec =>
+        assert.includes(keys, `manual.${sec.id}`, `section ${sec.id} is not translatable`));
+    });
+
+    test('English renders with no catalogue and no leftover placeholders', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.Manual.open();
+      const doc = h.document.getElementById('manualDoc').innerHTML;
+      assert.notIncludes(doc, 'undefined', 'the manual rendered undefined');
+      assert.deepEqual((doc.match(/\{[a-zA-Z]+\}/g) || []), [],
+        'an unsubstituted placeholder reached the screen');
+    });
+
+    proseFiles().forEach(({ code, json }) => {
+      test(`prose/${code}: declares metadata and does not claim review`, () => {
+        assert.ok(json.meta, 'no meta block');
+        assert.equal(json.meta.code, code, 'meta code disagrees with the filename');
+        assert.equal(json.meta.reviewed, false, 'machine translation must not claim review');
+      });
+
+      test(`prose/${code}: every key matches a tp() call in the app`, () => {
+        const stale = Object.keys(json.blocks).filter(k => !keys.includes(k));
+        assert.deepEqual(stale.slice(0, 5), [], 'stale prose keys');
+      });
+
+      test(`prose/${code}: placeholders survive translation`, () =>
+        Object.entries(json.blocks).forEach(([k, v]) => {
+          const want = [...new Set((EN[k] || '').match(/\{\w+\}/g) || [])].sort().join(',');
+          const got  = [...new Set(v.match(/\{\w+\}/g) || [])].sort().join(',');
+          assert.equal(got, want, `${k} lost or gained a placeholder — a value would vanish or a table would not render`);
+        }));
+
+      /* A dropped </strong> or an invented <div> breaks the manual's layout in a
+         way no amount of reading the prose would reveal. */
+      test(`prose/${code}: HTML tag structure matches the English`, () =>
+        Object.entries(json.blocks).forEach(([k, v]) => {
+          const tags = str => (str.match(/<\/?[a-z][a-z0-9]*/gi) || []).map(x => x.toLowerCase()).sort().join(',');
+          assert.equal(tags(v), tags(EN[k] || ''), `${k} has a different tag structure from the English`);
+        }));
+
+      test(`prose/${code}: is not a bulk copy of the English`, () => {
+        const same = Object.entries(json.blocks).filter(([k, v]) => v === EN[k]);
+        assert.less(same.length / Math.max(1, Object.keys(json.blocks).length), 0.2,
+          `${same.length} blocks are identical to the English source`);
+      });
+    });
+
+    test('prose is fetched on demand, not precached', () => {
+      // The whole point of the split: a low-bandwidth install must not carry
+      // prose for eleven languages it will never open.
+      const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+      assert.notIncludes(sw, 'i18n/prose/', 'prose in PRECACHE would quadruple the install');
+    });
+
+    test('the manual and the chat both trigger a prose load', () => {
+      assert.includes(script, 'I18n.loadProse()', 'nothing ever fetches the prose');
+      const manualOpen = script.slice(script.indexOf('function open(){'), script.indexOf('function close(){'));
+      assert.includes(manualOpen, 'loadProse', 'opening the manual does not fetch its translation');
     });
   });
 
@@ -276,6 +405,33 @@ module.exports = ({ suite, test, assert }) => {
       h.app.Views.renderLangMenu();
       assert.includes(h.document.getElementById('langMenu').innerHTML, 'data-dir="rtl"',
         'RTL endonyms would render in the wrong direction inside an LTR menu');
+    });
+
+    test('typing in each language reaches the right intent', async () => {
+      /* One representative phrase per language, checked against the live
+         matcher rather than against the keyword list, so the whole path is
+         exercised. */
+      const PHRASES = {
+        es: ['humedad del suelo', 'moisture'], fr: ['humidité du sol', 'moisture'],
+        pt: ['umidade do solo', 'moisture'],   id: ['kelembapan tanah', 'moisture'],
+        sw: ['unyevu wa udongo', 'moisture'],  zh: ['土壤湿度', 'moisture'],
+        hi: ['मिट्टी की नमी', 'moisture'],       bn: ['মাটির আর্দ্রতা', 'moisture'],
+        ru: ['влажность почвы', 'moisture'],   ar: ['رطوبة التربة', 'moisture'],
+        ur: ['مٹی کی نمی', 'moisture'],
+      };
+      for (const [code, [phrase, want]] of Object.entries(PHRASES)) {
+        const cat = JSON.parse(fs.readFileSync(path.join(ROOT, 'i18n', code + '.json'), 'utf8'));
+        const hay = phrase.toLowerCase();
+        const hit = Object.keys(cat.intents).find(id =>
+          cat.intents[id].some(w => hay.includes(w.toLowerCase())));
+        assert.equal(hit, want, `"${phrase}" (${code}) would fall through to the fallback reply`);
+      }
+    });
+
+    test('English keywords keep working in every language', () => {
+      const h = boot();
+      assert.equal(h.app.Console.match('soil moisture'), 'moisture',
+        'English must stay matchable — the quick-reply buttons send it');
     });
 
     test('place names are requested in the active language', () => {

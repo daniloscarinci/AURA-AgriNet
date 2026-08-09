@@ -100,16 +100,44 @@ digits is unreadable. Numbers and dates go through `Intl` with the active locale
 so Spanish shows `19,3` where English shows `19.3`. Place-name search asks the
 geocoder in your language too.
 
+Typing works in your own language too: each catalogue carries its own keyword
+list per intent, so `unyevu wa udongo` and `рطوبة التربة` reach the soil-moisture
+answer. English keywords stay active everywhere, which is why the quick-reply
+buttons keep working after a language switch — they send English and display the
+translation.
+
+### Translation coverage
+
+Every user-facing sentence in the app is now translatable. What is actually
+translated differs by language:
+
+| | UI strings | Chat and advisories | Manual and briefings |
+|---|---|---|---|
+| Español | ✅ 100% | ✅ | ✅ chat prose |
+| The other ten | 58% | — | — |
+
+Anything untranslated falls back to correct English and is badged in the UI with
+the exact coverage figure, so a reader always knows which language they are
+getting. Spanish is the complete vertical slice that proves every tier; the rest
+carry the UI chrome translated in an earlier pass.
+
 **These translations are machine-produced and have not been reviewed by native
-speakers.** The app says so, in the language you are reading, via a badge on any
-unreviewed locale. Before this reaches real growers, the catalogues in `i18n/`
-should be reviewed — they are plain JSON keyed by the English source string, so a
-reviewer needs no tooling and no build step.
+speakers.** Every catalogue records `reviewed: false`. Before this reaches real
+growers, `i18n/*.json` (short strings) and `i18n/prose/*.json` (long-form blocks)
+should be reviewed — both are plain JSON keyed by the English source, so a
+reviewer needs no tooling and no build step. Text in `{braces}` is substituted at
+render time and must survive translation; a test enforces that, and another
+enforces that HTML tag structure in prose blocks matches the English.
 
 English is embedded in the app and is the fallback for any string a catalogue
 lacks, so a missing or partial translation degrades to correct English rather
-than to a blank or a raw key. Catalogues are precached by the service worker: a
-farmer who set the app to Kiswahili and then lost signal keeps Kiswahili.
+than to a blank or a raw key.
+
+Delivery is split by what must survive a lost connection. Short strings — labels,
+advisories, the event log — are **precached**, so a farmer who set the app to
+Kiswahili and then lost signal keeps Kiswahili where it matters. Long-form prose
+— the manual and the scripted briefings — is **fetched on first use** and then
+cached, which keeps the install around 100 KB instead of 450 KB.
 
 ## Roles
 
@@ -126,15 +154,15 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 601 checks, no dependencies, no network
+node tests/run.js              # 647 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
 Five groups: **151 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
 downscaling, intent matching), **77 live** (fetch and cache, metric mapping, geocoding,
-catchment synthesis, agronomy, satellite tiling), **125 i18n** (engine, every catalogue's
-completeness and placeholder integrity, RTL layout, and a guard against shadowing the
-translator), **148 control-reachability** (every referenced element exists, every trigger
+catchment synthesis, agronomy, satellite tiling), **171 i18n** (engine, catalogue and prose
+integrity — placeholders and HTML tag structure must survive translation — intent
+keywords per language, RTL layout, and a guard against shadowing the translator), **148 control-reachability** (every referenced element exists, every trigger
 names a real code path, every quick reply resolves to an intent, the manual's numbers
 match the engine), and **100 PWA asset integrity** (precache completeness, icon
 dimensions, cache strategy, no embedded credential).
