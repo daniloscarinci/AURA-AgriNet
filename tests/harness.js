@@ -340,7 +340,13 @@ function boot(opts = {}) {
       key: i => [...store.keys()][i] ?? null,
       get length() { return store.size; },
     },
-    navigator: { onLine: true, userAgent: 'aura-tests', language: 'en' },
+    /* Network is OFF by default so the suite is hermetic and deterministic: a
+       test that silently reaches the real Open-Meteo would pass or fail with the
+       weather. Pass `fetch` to inject a stub, or `online:false` to exercise the
+       offline path explicitly. */
+    fetch: opts.fetch || (() => Promise.reject(new Error('network disabled in tests'))),
+    AbortController: typeof AbortController === 'function' ? AbortController : undefined,
+    navigator: { onLine: opts.online !== false, userAgent: 'aura-tests', language: 'en' },
     location: { search: opts.search || '', protocol: 'http:', hostname: 'localhost', href: 'http://localhost/' },
     performance: { now: () => timers.now() },
     requestAnimationFrame: fn => timers.setTimeout(() => fn(timers.now()), 16),
@@ -378,7 +384,7 @@ function boot(opts = {}) {
 
   const PROBE = `
 ;globalThis.__AURA__ = {
-  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Console, EventEngine, Views, Manual,
+  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Console, EventEngine, Views, Manual, Live, Places, Agronomy, Sat, Search,
   CFG, SOURCES, METRICS, CROPS, REGIONS, EDGE_SPEC, PEOPLE, SEV, MAP_VIEW,
   DEFAULT_REGION, PLOTS, ROUTE_ORIGIN, ROUTE_DEST,
   get NODES(){ return NODES; }, get EDGES(){ return EDGES; }, get REGION(){ return REGION; },

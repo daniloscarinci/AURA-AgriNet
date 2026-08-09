@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,8 +11,9 @@
      actually offline-capable. -->
 <link rel="stylesheet" href="app.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0b0e13">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,55 +21,198 @@
 <meta name="mobile-web-app-capable" content="yes">
 <style>
 /* ==========================================================================
-   AURA-AgriNet design tokens.
-   Dark, single-mode mission console. Every colour is painted explicitly so a
-   Tailwind CDN failure degrades layout only, never legibility.
+   AURA-AgriNet design tokens — modern agrarian.
 
-   Categorical series palette validated against the #12161c surface:
-     validate_palette.js "#3987e5,#d95926,#199e70,#c98500" --mode dark
-     -> ALL PASS  (worst adjacent CVD dE 8.4, normal-vision dE 19.8, all >= 3:1)
+   Warm, paper-like light theme by default with a dark theme that keeps the same
+   warmth rather than turning blue. The palette is earth-derived: oat and linen
+   for ground, bark for ink, olive / terracotta / ochre / slate for identity.
 
-   Status hues clear 3:1 on this surface but are NOT a categorical palette --
-   critical vs good measure dE 4.1 under deuteranopia. Hence the hard rule
-   enforced throughout this file: every status ships an icon AND a text label.
+   Two rules survive from the original console and are not negotiable:
+
+     1. Every colour is painted explicitly. A stylesheet failure must degrade
+        layout only, never legibility.
+     2. Status hues are NOT a categorical palette — under deuteranopia a warm
+        "critical" and a warm "good" converge badly. So every status ships an
+        ICON AND A TEXT LABEL, never colour alone. Enforced by a test.
+
+   Identity colours (series-*) and state colours (good/warning/serious/critical)
+   are separate vocabularies and never borrow from each other.
+
+   `*-ink` is the readable foreground for a state on a washed background;
+   `*-line` is its border. Both are redefined per theme, which is what lets one
+   chip rule serve light and dark without a second selector.
    ========================================================================== */
 :root{
+  color-scheme: light;
+
+  /* ground: oat → linen */
+  --plane:        #f4efe6;
+  --surface-1:    #fffdf9;
+  --surface-2:    #f6f1e8;
+  --surface-3:    #ebe3d6;
+
+  /* ink: bark */
+  --text-primary:   #2b2622;
+  --text-secondary: #5d554c;
+  --text-muted:     #8a8074;
+
+  --grid:      #e7dfd2;
+  --axis:      #cfc4b3;
+  --hairline:  rgba(43,38,34,0.10);
+  --hairline-2:rgba(43,38,34,0.20);
+
+  --header-bg: rgba(255,253,249,0.90);
+  --scrim:     rgba(43,38,34,0.42);
+  --mine-bubble: #e8f0dd;
+  --mine-line:   rgba(79,122,42,0.34);
+  --on-accent:   #fffdf9;
+
+  /* categorical — identity only, never state.
+     Validated against the #fffdf9 surface: all ≥ 4.5:1, worst adjacent pair
+     ΔE 21 in normal vision and ΔE 11 under deuteranopia. */
+  --series-1: #2b5f8f;  /* slate  — AURA agent / primary trend */
+  --series-2: #b0501c;  /* terracotta — buyer */
+  --series-3: #4a7a29;  /* olive  — farmer */
+  --series-4: #8a6a14;  /* ochre  — driver */
+
+  /* status — state only, never identity. Always with icon + label. */
+  --good:     #3f7d20;
+  --warning:  #a97614;
+  --serious:  #c0562a;
+  --critical: #a8322a;
+
+  --good-ink:     #33681a;
+  --warning-ink:  #8a5f0f;
+  --serious-ink:  #9e4520;
+  --critical-ink: #8f2a23;
+  --info-ink:     #24527a;
+
+  --good-line:     rgba(63,125,32,0.38);
+  --warning-line:  rgba(169,118,20,0.38);
+  --serious-line:  rgba(192,86,42,0.38);
+  --critical-line: rgba(168,50,42,0.42);
+  --info-line:     rgba(43,95,143,0.42);
+
+  --good-wash:     rgba(63,125,32,0.10);
+  --warning-wash:  rgba(169,118,20,0.12);
+  --serious-wash:  rgba(192,86,42,0.11);
+  --critical-wash: rgba(168,50,42,0.10);
+  --series1-wash:  rgba(43,95,143,0.10);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  --r-sm: 9px; --r-md: 13px; --r-lg: 18px;
+}
+
+/* Dark theme. Warm-shifted rather than blue: the ground is roasted soil, not
+   slate, so the two themes read as the same product at different times of day.
+   Defined for an explicit choice AND for a system preference with no explicit
+   light override, so all three states (light / dark / system) resolve. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+
+    --plane:        #15120e;
+    --surface-1:    #1d1913;
+    --surface-2:    #251f18;
+    --surface-3:    #302921;
+
+    --text-primary:   #f5efe4;
+    --text-secondary: #bcb2a3;
+    --text-muted:     #8b8173;
+
+    --grid:      #2b2419;
+    --axis:      #3d3428;
+    --hairline:  rgba(245,239,228,0.09);
+    --hairline-2:rgba(245,239,228,0.18);
+
+    --header-bg: rgba(21,18,14,0.92);
+    --scrim:     rgba(8,6,4,0.66);
+    --mine-bubble: #2a3520;
+    --mine-line:   rgba(138,186,94,0.34);
+    --on-accent:   #14110d;
+
+    --series-1: #6aa9dd;
+    --series-2: #e08a55;
+    --series-3: #8dc25c;
+    --series-4: #d8ab3c;
+
+    --good:     #6bb43c;
+    --warning:  #dfa62a;
+    --serious:  #e08a55;
+    --critical: #e2564b;
+
+    --good-ink:     #96d16a;
+    --warning-ink:  #f0c463;
+    --serious-ink:  #f0a67a;
+    --critical-ink: #ff8b80;
+    --info-ink:     #93c4ee;
+
+    --good-line:     rgba(107,180,60,0.42);
+    --warning-line:  rgba(223,166,42,0.42);
+    --serious-line:  rgba(224,138,85,0.42);
+    --critical-line: rgba(226,86,75,0.46);
+    --info-line:     rgba(106,169,221,0.46);
+
+    --good-wash:     rgba(107,180,60,0.14);
+    --warning-wash:  rgba(223,166,42,0.14);
+    --serious-wash:  rgba(224,138,85,0.14);
+    --critical-wash: rgba(226,86,75,0.16);
+    --series1-wash:  rgba(106,169,221,0.14);
+  }
+}
+
+:root[data-theme="dark"]{
   color-scheme: dark;
 
-  --plane:        #0b0e13;
-  --surface-1:    #12161c;
-  --surface-2:    #171c24;
-  --surface-3:    #1e242e;
+  --plane:        #15120e;
+  --surface-1:    #1d1913;
+  --surface-2:    #251f18;
+  --surface-3:    #302921;
 
-  --text-primary:   #f4f6f8;
-  --text-secondary: #a8b2c0;
-  --text-muted:     #6c7889;
+  --text-primary:   #f5efe4;
+  --text-secondary: #bcb2a3;
+  --text-muted:     #8b8173;
 
-  --grid:      #1f2630;
-  --axis:      #2b3441;
-  --hairline:  rgba(255,255,255,0.08);
-  --hairline-2:rgba(255,255,255,0.14);
+  --grid:      #2b2419;
+  --axis:      #3d3428;
+  --hairline:  rgba(245,239,228,0.09);
+  --hairline-2:rgba(245,239,228,0.18);
 
-  /* categorical -- identity only, never state */
-  --series-1: #3987e5;  /* blue    - AURA bot / primary trend */
-  --series-2: #d95926;  /* orange  - buyer */
-  --series-3: #199e70;  /* aqua    - farmer */
-  --series-4: #c98500;  /* yellow  - driver */
+  --header-bg: rgba(21,18,14,0.92);
+  --scrim:     rgba(8,6,4,0.66);
+  --mine-bubble: #2a3520;
+  --mine-line:   rgba(138,186,94,0.34);
+  --on-accent:   #14110d;
 
-  /* status -- state only, never identity. always with icon + label */
-  --good:     #0ca30c;
-  --warning:  #fab219;
-  --serious:  #ec835a;
-  --critical: #d03b3b;
+  --series-1: #6aa9dd;
+  --series-2: #e08a55;
+  --series-3: #8dc25c;
+  --series-4: #d8ab3c;
 
-  --good-wash:     rgba(12,163,12,0.12);
-  --warning-wash:  rgba(250,178,25,0.12);
-  --serious-wash:  rgba(236,131,90,0.12);
-  --critical-wash: rgba(208,59,59,0.14);
-  --series1-wash:  rgba(57,135,229,0.12);
+  --good:     #6bb43c;
+  --warning:  #dfa62a;
+  --serious:  #e08a55;
+  --critical: #e2564b;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --good-ink:     #96d16a;
+  --warning-ink:  #f0c463;
+  --serious-ink:  #f0a67a;
+  --critical-ink: #ff8b80;
+  --info-ink:     #93c4ee;
+
+  --good-line:     rgba(107,180,60,0.42);
+  --warning-line:  rgba(223,166,42,0.42);
+  --serious-line:  rgba(224,138,85,0.42);
+  --critical-line: rgba(226,86,75,0.46);
+  --info-line:     rgba(106,169,221,0.46);
+
+  --good-wash:     rgba(107,180,60,0.14);
+  --warning-wash:  rgba(223,166,42,0.14);
+  --serious-wash:  rgba(224,138,85,0.14);
+  --critical-wash: rgba(226,86,75,0.16);
+  --series1-wash:  rgba(106,169,221,0.14);
 }
 
 *{ box-sizing:border-box; }
@@ -115,10 +259,10 @@ body{
   border:1px solid transparent; white-space:nowrap;
 }
 .chip-icon{ font-size:10px; line-height:1; }
-.chip.good    { color:#5fd35f; background:var(--good-wash);     border-color:rgba(12,163,12,.4); }
-.chip.warning { color:#ffc44d; background:var(--warning-wash);  border-color:rgba(250,178,25,.4); }
-.chip.serious { color:#f5a882; background:var(--serious-wash);  border-color:rgba(236,131,90,.4); }
-.chip.critical{ color:#ff6b6b; background:var(--critical-wash); border-color:rgba(208,59,59,.45); }
+.chip.good    { color:var(--good-ink);     background:var(--good-wash);     border-color:var(--good-line); }
+.chip.warning { color:var(--warning-ink);  background:var(--warning-wash);  border-color:var(--warning-line); }
+.chip.serious { color:var(--serious-ink);  background:var(--serious-wash);  border-color:var(--serious-line); }
+.chip.critical{ color:var(--critical-ink); background:var(--critical-wash); border-color:var(--critical-line); }
 .chip.idle    { color:var(--text-muted); background:rgba(255,255,255,.04); border-color:var(--hairline); }
 
 /* ---------- link chips (header) ---------- */
@@ -182,11 +326,11 @@ body{
 .btn:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 .btn-glyph{ font-size:13px; width:16px; text-align:center; flex:none; }
 .btn.armed{ border-color:currentColor; }
-.btn.c-crit  { color:#ff6b6b; } .btn.c-crit:hover  { background:var(--critical-wash); }
-.btn.c-warn  { color:#ffc44d; } .btn.c-warn:hover  { background:var(--warning-wash); }
-.btn.c-ser   { color:#f5a882; } .btn.c-ser:hover   { background:var(--serious-wash); }
-.btn.c-good  { color:#5fd35f; } .btn.c-good:hover  { background:var(--good-wash); }
-.btn.c-info  { color:#6fa9ee; } .btn.c-info:hover  { background:var(--series1-wash); }
+.btn.c-crit  { color:var(--critical-ink); } .btn.c-crit:hover  { background:var(--critical-wash); }
+.btn.c-warn  { color:var(--warning-ink); } .btn.c-warn:hover  { background:var(--warning-wash); }
+.btn.c-ser   { color:var(--serious-ink); } .btn.c-ser:hover   { background:var(--serious-wash); }
+.btn.c-good  { color:var(--good-ink); } .btn.c-good:hover  { background:var(--good-wash); }
+.btn.c-info  { color:var(--info-ink); } .btn.c-info:hover  { background:var(--series1-wash); }
 
 .toggle{
   padding:4px 9px; border-radius:7px; font-size:10px; font-weight:700;
@@ -195,7 +339,7 @@ body{
   transition:all .16s ease;
 }
 .toggle:hover{ color:var(--text-secondary); border-color:var(--hairline-2); }
-.toggle[aria-pressed="true"]{ background:var(--series1-wash); border-color:rgba(57,135,229,.5); color:#6fa9ee; }
+.toggle[aria-pressed="true"]{ background:var(--series1-wash); border-color:var(--info-line); color:var(--info-ink); }
 .toggle:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 
 /* ---------- charts ---------- */
@@ -204,7 +348,7 @@ body{
 .axisline{ stroke:var(--axis); stroke-width:1; }
 .axis-text{ fill:var(--text-muted); font-size:9px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
 .thresh-line{ stroke:var(--critical); stroke-width:1; opacity:.8; }
-.thresh-text{ fill:#ff6b6b; font-size:9px; font-weight:700; letter-spacing:.09em; }
+.thresh-text{ fill:var(--critical-ink); font-size:9px; font-weight:700; letter-spacing:.09em; }
 .series-line{ fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
 .crosshair{ stroke:var(--text-muted); stroke-width:1; opacity:.55; }
 
@@ -230,13 +374,23 @@ body{
 
 /* ---------- map ---------- */
 .road       { stroke-linecap:round; fill:none; transition:stroke .5s ease, opacity .5s ease; }
-.road-label { fill:var(--text-muted); font-size:8.5px; font-family:var(--font-mono); letter-spacing:.02em; }
+.road-label {
+  fill:var(--text-secondary); font-size:8.5px; font-family:var(--font-mono); letter-spacing:.02em;
+  /* Imagery can be any colour, so map text carries its own background. */
+  paint-order:stroke; stroke:var(--surface-1); stroke-width:3px; stroke-linejoin:round;
+}
 .route-line { fill:none; stroke:var(--series-1); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
 .route-ghost{ fill:none; stroke:var(--text-muted); stroke-width:3; stroke-linecap:round; opacity:.3; animation:ghostout 2.6s ease forwards; }
 @keyframes ghostout{ from{opacity:.38} to{opacity:0} }
-.node-label { fill:var(--text-secondary); font-size:9px; font-weight:600; letter-spacing:.03em; }
-.node-sub   { fill:var(--text-muted); font-size:8px; font-family:var(--font-mono); }
-.blocked-tag{ fill:#ff6b6b; font-size:8.5px; font-weight:700; letter-spacing:.05em; }
+.node-label {
+  fill:var(--text-primary); font-size:9px; font-weight:700; letter-spacing:.03em;
+  paint-order:stroke; stroke:var(--surface-1); stroke-width:3px; stroke-linejoin:round;
+}
+.node-sub {
+  fill:var(--text-secondary); font-size:8px; font-family:var(--font-mono);
+  paint-order:stroke; stroke:var(--surface-1); stroke-width:2.5px; stroke-linejoin:round;
+}
+.blocked-tag{ fill:var(--critical-ink); font-size:8.5px; font-weight:700; letter-spacing:.05em; }
 
 /* ---------- chat ---------- */
 .chat-scroll{ overflow-y:auto; scroll-behavior:smooth; }
@@ -258,7 +412,7 @@ body{
   background:var(--surface-2); border:1px solid var(--hairline);
   font-size:12.5px; line-height:1.5; word-break:break-word;
 }
-.msg.mine .bubble{ background:#1b3a2c; border-color:rgba(25,158,112,.35); }
+.msg.mine .bubble{ background:var(--mine-bubble); border-color:var(--mine-line); }
 .msg-from{ font-size:10px; font-weight:700; letter-spacing:.06em; margin-bottom:3px; }
 .msg-time{ font-size:9px; color:var(--text-muted); font-family:var(--font-mono); margin-top:4px; }
 .bubble.sys{
@@ -274,7 +428,7 @@ body{
 
 .newpill{
   position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
-  background:var(--series-1); color:#fff; border:none;
+  background:var(--series-1); color:var(--on-accent); border:none;
   padding:6px 13px; border-radius:999px; font-size:11px; font-weight:700;
   cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.5); z-index:20;
   animation:msgin .22s ease;
@@ -336,7 +490,7 @@ body{
 .tabbar{
   position:fixed; left:0; right:0; bottom:0; z-index:50;
   display:none; grid-template-columns:repeat(4,1fr);
-  background:rgba(11,14,19,.96); backdrop-filter:blur(14px);
+  background:var(--header-bg); backdrop-filter:blur(14px);
   border-top:1px solid var(--hairline);
   /* clear the iPhone home indicator */
   padding-bottom:env(safe-area-inset-bottom, 0px);
@@ -356,7 +510,7 @@ body{
 .rolebtn .rb-badge{
   position:absolute; top:4px; right:calc(50% - 20px);
   min-width:15px; height:15px; padding:0 4px; border-radius:8px;
-  background:var(--critical); color:#fff; font-size:9px; font-weight:800;
+  background:var(--critical); color:var(--on-accent); font-size:9px; font-weight:800;
   display:grid; place-items:center;
 }
 
@@ -414,7 +568,7 @@ body{
   bottom:calc(84px + env(safe-area-inset-bottom, 0px));
   width:56px; height:56px; border-radius:50%;
   display:none; align-items:center; justify-content:center;
-  background:var(--series-1); color:#fff; border:none;
+  background:var(--series-1); color:var(--on-accent); border:none;
   font-size:22px; cursor:pointer;
   box-shadow:0 6px 22px rgba(0,0,0,.55);
 }
@@ -443,8 +597,8 @@ body{
 /* Big primary action for the driver view */
 .bigaction{
   display:block; width:100%; text-align:center;
-  padding:15px; border-radius:12px; border:1px solid rgba(57,135,229,.45);
-  background:var(--series1-wash); color:#6fa9ee;
+  padding:15px; border-radius:12px; border:1px solid var(--info-line);
+  background:var(--series1-wash); color:var(--info-ink);
   font-size:14px; font-weight:700; letter-spacing:.03em; cursor:pointer;
 }
 
@@ -456,6 +610,122 @@ body{
    prose on a phone. Reading measure is capped at 68ch inside a wide panel
    rather than letting the text run the full 1080px.
    ========================================================================== */
+/* ---------- location search ---------- */
+.search{ position:relative; display:flex; align-items:center; width:clamp(190px, 26vw, 330px); }
+.search-block{ width:100%; }
+.search-icon{
+  position:absolute; left:10px; font-size:14px; color:var(--text-muted);
+  pointer-events:none; line-height:1;
+}
+.search-input{ padding-left:28px; padding-right:34px; font-size:12.5px; }
+.search-input::-webkit-search-cancel-button{ display:none; }
+.search-geo{
+  position:absolute; right:6px; width:26px; height:26px; border-radius:7px;
+  display:grid; place-items:center; cursor:pointer;
+  background:transparent; border:1px solid transparent; color:var(--text-muted);
+  font-size:13px; line-height:1;
+}
+.search-geo:hover{ color:var(--series-1); background:var(--surface-3); }
+.search-geo:focus-visible{ outline:2px solid var(--series-1); outline-offset:1px; }
+.search-results{
+  position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:80;
+  max-height:min(58vh, 420px); overflow-y:auto;
+  background:var(--surface-1); border:1px solid var(--hairline-2);
+  border-radius:var(--r-md); box-shadow:0 18px 44px rgba(0,0,0,.22);
+  padding:5px;
+}
+.search-results[hidden]{ display:none; }
+.res{
+  display:flex; align-items:baseline; gap:8px; width:100%; text-align:left;
+  padding:8px 10px; border-radius:var(--r-sm); border:1px solid transparent;
+  background:transparent; cursor:pointer; font-family:var(--font-sans);
+}
+.res:hover, .res[aria-selected="true"]{ background:var(--surface-2); border-color:var(--hairline); }
+.res-name{ font-size:13px; font-weight:600; color:var(--text-primary); }
+.res-sub{ font-size:11px; color:var(--text-muted); flex:1; min-width:0;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.res-flag{ font-size:14px; flex:none; }
+.res-head{
+  font-size:9px; letter-spacing:.13em; text-transform:uppercase; color:var(--text-muted);
+  padding:7px 10px 4px; font-weight:700;
+}
+.res-empty{ padding:12px 10px; font-size:12px; color:var(--text-muted); }
+
+/* ---------- satellite layers ---------- */
+.satbar{
+  display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+  padding:9px 14px; border-bottom:1px solid var(--hairline); background:var(--surface-2);
+}
+.satbtn{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid var(--hairline); background:var(--surface-1); color:var(--text-secondary);
+  font-family:var(--font-sans); font-size:11px; font-weight:600; letter-spacing:.02em;
+  transition:background .15s ease, color .15s ease;
+}
+.satbtn:hover{ border-color:var(--hairline-2); color:var(--text-primary); }
+.satbtn[aria-pressed="true"]{
+  background:var(--series1-wash); border-color:var(--info-line); color:var(--info-ink);
+}
+.satbtn:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+.satbtn .satdot{ width:7px; height:7px; border-radius:50%; background:currentColor; flex:none; }
+.satnote{ font-size:10.5px; color:var(--text-muted); padding:7px 2px 0; line-height:1.5; }
+.satnote[hidden]{ display:none; }
+
+/* Unsmoothed on purpose: the blocks ARE the resolution, and softening them
+   would hide the single most important fact about a 9 km product. */
+.satlayer image{ image-rendering:pixelated; }
+.pixel-footprint{
+  fill:none; stroke:var(--text-primary); stroke-width:1.4;
+  stroke-dasharray:6 4; opacity:.75;
+}
+.pixel-label{
+  fill:var(--text-primary); font-size:9px; font-weight:700;
+  letter-spacing:.06em; opacity:.85; paint-order:stroke;
+  stroke:var(--surface-1); stroke-width:2.5px;
+}
+
+/* ---------- agronomy ---------- */
+.agro-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(215px, 1fr)); gap:11px; padding:13px; }
+.agro{
+  border:1px solid var(--hairline); border-radius:var(--r-md);
+  background:var(--surface-2); padding:12px 13px; display:flex; flex-direction:column; gap:7px;
+}
+.agro-head{ display:flex; align-items:center; gap:7px; }
+.agro-title{ font-size:10px; font-weight:700; letter-spacing:.11em; text-transform:uppercase; color:var(--text-muted); }
+.agro-call{ font-size:20px; font-weight:650; line-height:1.1; letter-spacing:-.015em; color:var(--text-primary); }
+.agro-call.act{ color:var(--critical-ink); }
+.agro-call.warn{ color:var(--warning-ink); }
+.agro-call.ok{ color:var(--good-ink); }
+.agro-why{ font-size:11.5px; line-height:1.5; color:var(--text-secondary); }
+.agro-rows{ display:flex; flex-direction:column; gap:3px; margin-top:2px; }
+.agro-row{ display:flex; justify-content:space-between; gap:10px; font-size:11.5px; }
+.agro-row dt{ color:var(--text-muted); }
+.agro-row dd{ margin:0; color:var(--text-primary); font-variant-numeric:tabular-nums; font-weight:600; }
+
+/* Depletion bar: how much of the plant-available water is gone. */
+.wbar{ height:8px; border-radius:4px; background:var(--surface-3); overflow:hidden; position:relative; }
+.wbar i{ display:block; height:100%; background:var(--series-1); }
+.wbar.act i{ background:var(--critical); }
+.wbar.warn i{ background:var(--warning); }
+.wbar-mark{ position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--text-secondary); opacity:.65; }
+
+/* 48 h spray strip and 72 h thermal strip: one cell per hour. */
+.strip{ display:flex; gap:1.5px; height:26px; align-items:stretch; }
+.strip i{ flex:1; border-radius:2px; background:var(--surface-3); }
+.strip i.good{ background:var(--good); }
+.strip i.marginal{ background:var(--warning); }
+.strip i.no{ background:var(--critical); opacity:.55; }
+.strip i.frost{ background:var(--critical); }
+.strip i.heat{ background:var(--serious); }
+.strip i.mild{ background:var(--good); opacity:.45; }
+.strip-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:3px; }
+
+/* Provenance line under a live value. */
+.prov-live{ color:var(--good-ink); }
+.prov-cached{ color:var(--warning-ink); }
+.prov-sim{ color:var(--text-muted); }
+
 /* Tailwind here is a locally built, content-scanned stylesheet with no build step
    in the repo, so a class it was not built with simply does not exist. `sm:inline`
    is one of those. Hence a plain rule rather than a utility that would silently
@@ -501,7 +771,7 @@ body{
 }
 .toc-link:hover{ color:var(--text-secondary); background:var(--surface-2); }
 .toc-link[aria-current="true"]{
-  background:var(--series1-wash); border-color:rgba(57,135,229,.42); color:#6fa9ee;
+  background:var(--series1-wash); border-color:var(--info-line); color:var(--info-ink);
 }
 .toc-link:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 .toc-num{ font-family:var(--font-mono); font-size:10px; opacity:.7; flex:none; }
@@ -587,7 +857,7 @@ body{
 .doc .scn-go{
   flex:none; align-self:center;
   padding:9px 13px; border-radius:9px; cursor:pointer;
-  border:1px solid rgba(57,135,229,.45); background:var(--series1-wash); color:#6fa9ee;
+  border:1px solid var(--info-line); background:var(--series1-wash); color:var(--info-ink);
   font-size:11.5px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
   font-family:var(--font-sans); transition:background .15s ease;
 }
@@ -614,7 +884,7 @@ body{
 <body>
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
-<header class="sticky top-0 z-40" style="background:rgba(11,14,19,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline)">
+<header class="sticky top-0 z-40" style="background:var(--header-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline)">
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">
@@ -640,12 +910,23 @@ body{
 
     <div id="posturePill" class="chip good flex-none"><span class="chip-icon">✓</span><span>All Systems Nominal</span></div>
 
-    <div class="flex items-center gap-2 flex-none">
-      <label for="regionSel" class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)">Region</label>
-      <select id="regionSel" class="field" style="width:auto;padding:4px 8px;font-size:11px"></select>
+    <!-- Worldwide place search. A combobox rather than a select: the list is
+         every populated place on Earth, so it cannot be enumerated up front. -->
+    <div class="search flex-none" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResults">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input id="placeSearch" class="field search-input" type="search" autocomplete="off"
+             spellcheck="false" placeholder="Search any location on Earth…"
+             aria-label="Search for a location" aria-controls="placeResults" aria-autocomplete="list">
+      <button id="placeGeo" class="search-geo" type="button" title="Use my location"
+              aria-label="Use my current location">◎</button>
+      <div id="placeResults" class="search-results" role="listbox" aria-label="Location results" hidden></div>
     </div>
 
     <div class="flex-1"></div>
+
+    <div id="liveChip" class="chip idle flex-none" role="status" aria-live="polite">
+      <span class="chip-icon">·</span><span>Starting…</span>
+    </div>
 
     <!-- The one control that must survive every role and both breakpoints, so it
          lives in the header rather than the tab bar or the simulation sheet. -->
@@ -712,6 +993,17 @@ body{
       </div>
     </div>
 
+    <!-- AGRONOMY: the four decisions a grower actually acts on -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Field Decisions</span>
+        <span class="panel-sub">Irrigation · frost window · spray · heat units</span>
+        <div class="flex-1"></div>
+        <span id="agroProv" class="prov"></span>
+      </div>
+      <div id="agroGrid" class="agro-grid"></div>
+    </div>
+
     <!-- THERMAL CHART -->
     <div class="panel">
       <div class="panel-head">
@@ -734,14 +1026,19 @@ body{
     <div class="panel" id="mapPanel">
       <div class="panel-head">
         <span class="panel-title">Micro-Logistics Grid</span>
-        <span class="panel-sub">Sentinel-1 SAR trafficability · live routing</span>
+        <span class="panel-sub">Derived trafficability · live routing</span>
         <div class="flex-1"></div>
         <span id="routeChip" class="chip good"><span class="chip-icon">✓</span><span>Primary route clear</span></span>
       </div>
 
+      <!-- Real NASA imagery under the graph. Off by default: the vector map is
+           the faster read, and the raster is the thing you turn on to check it. -->
+      <div id="satBar" class="satbar" role="group" aria-label="Satellite imagery layers"></div>
+
       <div class="p-3">
         <svg id="fieldMap" viewBox="0 0 600 340" width="100%" style="display:block" role="img"
              aria-label="Field road network showing farm plots, depot, buyer hub and the active delivery route"></svg>
+        <div id="satNote" class="satnote" hidden></div>
       </div>
 
       <div class="px-3 pb-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -877,9 +1174,16 @@ body{
       <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
     </div>
 
-    <div class="flex items-center gap-2 mb-3">
-      <label for="regionSelM" class="text-[9px] tracking-[.12em] uppercase flex-none" style="color:var(--text-muted)">Region</label>
-      <select id="regionSelM" class="field" style="flex:1"></select>
+    <div class="mb-3">
+      <div class="text-[9px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)">Location</div>
+      <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
+               spellcheck="false" placeholder="Search any location…"
+               aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list">
+        <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location">◎</button>
+        <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden></div>
+      </div>
     </div>
 
     <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)">
@@ -1011,10 +1315,19 @@ const METRICS = {
 /* Crop frost sensitivity, 0..1, scaling how hard an early-harvest order cut bites.
    Cassava is a root crop: a frost destroys the canopy but the tuber survives in the
    ground, so the volume loss is far smaller than for a fruiting crop. */
+/* `baseTempC` is the crop's lower development threshold for growing-degree days;
+   `gddToMaturity` is a conventional accumulation from transplant/emergence to
+   harvest. Both are textbook figures and vary by cultivar — the agronomy panel
+   presents them as an assumption, not a guarantee. */
 const CROPS = {
-  Tomato:  { frostSensitivity: 1.00, note:'fruiting · frost-intolerant' },
-  Pepper:  { frostSensitivity: 0.95, note:'fruiting · frost-intolerant' },
-  Cassava: { frostSensitivity: 0.35, note:'root · tuber survives canopy loss' }
+  Tomato:  { frostSensitivity: 1.00, note:'fruiting · frost-intolerant',        baseTempC: 10, gddToMaturity: 1400 },
+  Pepper:  { frostSensitivity: 0.95, note:'fruiting · frost-intolerant',        baseTempC: 10, gddToMaturity: 1500 },
+  Cassava: { frostSensitivity: 0.35, note:'root · tuber survives canopy loss',  baseTempC: 13, gddToMaturity: 3600 },
+  Maize:   { frostSensitivity: 0.90, note:'cereal · frost kills the growing point', baseTempC: 10, gddToMaturity: 1500 },
+  Potato:  { frostSensitivity: 0.55, note:'tuber · haulm dies, tuber survives', baseTempC:  7, gddToMaturity: 1300 },
+  Wheat:   { frostSensitivity: 0.25, note:'cereal · frost-hardy when vegetative', baseTempC: 0, gddToMaturity: 2000 },
+  Soybean: { frostSensitivity: 0.85, note:'legume · frost-intolerant',          baseTempC: 10, gddToMaturity: 1500 },
+  Rice:    { frostSensitivity: 0.80, note:'cereal · cold-sensitive at flowering', baseTempC: 10, gddToMaturity: 2000 }
 };
 
 /* ---- REGIONS ----------------------------------------------------------------
@@ -1149,7 +1462,12 @@ const Geo = (() => {
       east-west -- negligible at 6°N (0.994) but a 20% error at Fresno (0.80).
       Aspect is preserved and the result centred, so a tall catchment
       letterboxes rather than distorting. */
-  function project(region){
+  /** The projection as a reusable function, so anything else that needs to place
+      geography on this map -- satellite tiles, a pixel footprint, a search pin --
+      goes through exactly the same transform the nodes did. Two projections that
+      disagree by even a few pixels would put a raster out of register with the
+      roads drawn on top of it. */
+  function projectorFor(region){
     const ids = Object.keys(region.nodes);
     const k = Math.cos(rad(region.centre.lat));
     const xs = ids.map(id => region.nodes[id].lon * k);
@@ -1166,13 +1484,20 @@ const Geo = (() => {
     const offX = MAP_VIEW.pad + (availW - spanX * scale) / 2;
     const offY = MAP_VIEW.pad + (availH - spanY * scale) / 2;
 
+    const fn = (lat, lon) => ({ x: offX + (lon * k - minX) * scale, y: offY + (maxY - lat) * scale });
+    fn.scale = scale; fn.k = k;
+    fn.bounds = { minLat:minY, maxLat:maxY, minLon:minX / k, maxLon:maxX / k };
+    return fn;
+  }
+
+  function project(region){
+    const to = projectorFor(region);
     const out = {};
-    ids.forEach(id => {
+    Object.keys(region.nodes).forEach(id => {
       const n = region.nodes[id];
+      const pt = to(n.lat, n.lon);
       out[id] = Object.assign({}, n, {
-        id,
-        x: offX + (n.lon * k - minX) * scale,
-        y: offY + (maxY - n.lat) * scale,          // screen y grows downward
+        id, x: pt.x, y: pt.y,                      // screen y grows downward
         sub: n.sub || (n.crop ? `${n.crop} · ${n.ha} ha` : '')
       });
     });
@@ -1190,7 +1515,7 @@ const Geo = (() => {
     });
   }
 
-  return { haversine, project, buildEdges };
+  return { haversine, project, projectorFor, buildEdges };
 })();
 
 
@@ -1256,6 +1581,8 @@ const State = (() => {
     persona: 'FARMER',
     role: 'OPS',             // FARMER | BUYER | DRIVER | OPS
 
+    liveMode: 'simulated',   // 'live' once a real observation series is backing a metric
+    place: null,             // the searched location currently loaded, if any
     edgeState: {},           // edgeId -> {traff, passable, degraded}
     route: null,             // {path, edges, km, min, waypoints, segments}
     baselineRoute: null,
@@ -1449,19 +1776,36 @@ const Telemetry = (() => {
   /** Derive each plot's value from the field reading. Genuinely-resolved metrics
       (S2 NDVI at 10 m) get their own value at full confidence; coarse metrics get
       the shared-pixel value plus a fixed offset, flagged as downscaled. */
-  function distributeToPlots(metricKey, fieldValue, t){
+  function distributeToPlots(metricKey, fieldValue, t, liveProv){
     const m = METRICS[metricKey];
     if(!m || !m.perPlot) return;
     PLOTS.forEach(plotId => {
       const off = (PLOT_OFFSET[plotId] || {})[metricKey] || 0;
       const v = clamp(fieldValue + off, m.min, m.max);
-      State.pushPlot(plotId, metricKey, {
+      /* A live reading carries the real model's resolution and confidence, not
+         the instrument figures the simulation assumes. An 11 km ECMWF cell is no
+         more able to resolve a 1.4 ha plot than a 9 km SMAP pixel is, so the
+         downscaled flag stays true -- but the label must name what actually
+         produced the number. */
+      State.pushPlot(plotId, metricKey, liveProv ? {
+        v, t,
+        src: liveProv.source,
+        kind: liveProv.kind,
+        detail: liveProv.detail,
+        pixelM: liveProv.resM,
+        pixelId: pixelIdFor(plotId, { perPlot:true, pixelM: liveProv.resM, src: liveProv.source }),
+        confidence: liveProv.confidence,
+        downscaled: liveProv.resM > 1000,
+        live: true
+      } : {
         v, t,
         src: m.src,
+        kind: 'simulated',
         pixelM: m.pixelM,
         pixelId: pixelIdFor(plotId, m),
         confidence: m.confidence,
-        downscaled: m.downscaled
+        downscaled: m.downscaled,
+        live: false
       });
     });
   }
@@ -1514,15 +1858,49 @@ const Telemetry = (() => {
   }
 
   /** Models a high-latency downlink: resolves late, sometimes not at all. */
+  /* Which world each metric is coming from right now. `live` means a real
+     observation series is backing it; `simulated` means the bounded walk. The
+     two coexist per-metric on purpose: NDVI has no keyless point source, so it
+     stays simulated even when everything around it is live, and the UI has to
+     be able to say which is which per tile rather than per app. */
+  function modeFor(key){
+    return Live.ready() && Live.metricAt(key, State.data.clock) !== null ? 'live' : 'simulated';
+  }
+  function mode(){
+    return Live.ready() && Object.keys(METRICS).some(k => modeFor(k) === 'live') ? 'live' : 'simulated';
+  }
+
+  /* Live values win over the walk. An injected excursion still wins over live —
+     otherwise the simulation triggers would do nothing on a real location, and
+     being able to ask "what would a frost do to my order book here?" against a
+     real catchment is the most useful thing this app does. */
+  function readingFor(key){
+    if(!excursions.has(key)){
+      const live = Live.metricAt(key, State.data.clock);
+      if(live) return { v: live.v, prov: live.prov, live: true };
+    }
+    return { v: nextValue(key), prov: null, live: false };
+  }
+
   function fetchWithLatency(src){
     return new Promise((resolve, reject) => {
-      const wait = (src.latency + rnd(-src.jitter, src.jitter)) / State.data.speed;
+      /* Downlink theatre is for the simulation. When a source is carrying real
+         observations, faking 4 s of latency and a 6% loss rate on data already
+         sitting in memory would be inventing a problem to look impressive. */
+      const isLive = Live.ready() && src.metrics.some(k => modeFor(k) === 'live');
+      const wait = isLive
+        ? Math.max(60, 400 / State.data.speed)
+        : (src.latency + rnd(-src.jitter, src.jitter)) / State.data.speed;
       const id = setTimeout(() => {
         timers.delete(id);
-        if(Math.random() < src.loss){ reject(new Error('packet loss')); return; }
-        const packet = {};
-        src.metrics.forEach(k => { packet[k] = nextValue(k); });
-        resolve({ packet, rtt: Math.round(wait * State.data.speed) });
+        if(!isLive && Math.random() < src.loss){ reject(new Error('packet loss')); return; }
+        const packet = {}, prov = {};
+        src.metrics.forEach(k => {
+          const r = readingFor(k);
+          packet[k] = r.v;
+          prov[k] = r.prov;
+        });
+        resolve({ packet, prov, rtt: Math.round(wait * State.data.speed), live: isLive });
       }, Math.max(60, wait));
       timers.add(id);
     });
@@ -1552,7 +1930,7 @@ const Telemetry = (() => {
     links[src.id] = Object.assign({}, links[src.id], { rx:true });
     State.emit('links');
 
-    fetchWithLatency(src).then(({ packet, rtt }) => {
+    fetchWithLatency(src).then(({ packet, prov, rtt, live }) => {
       links[src.id] = Object.assign({}, links[src.id], { rx:false });
       setLink(src.id, 'nominal', rtt);
       /* Pausing mid-flight: this packet left before the pause and resolves after
@@ -1564,9 +1942,10 @@ const Telemetry = (() => {
       if(State.data.paused){ schedule(700); return; }
       const t = State.data.clock;
       Object.keys(packet).forEach(k => {
-        State.push(k, packet[k], t);          // field-level aggregate
-        distributeToPlots(k, packet[k], t);   // per-plot, with provenance
+        State.push(k, packet[k], t);                      // field-level aggregate
+        distributeToPlots(k, packet[k], t, prov && prov[k]); // per-plot, with provenance
       });
+      State.data.liveMode = live ? 'live' : 'simulated';
       State.emit('telemetry', { source:src.id, packet, t });
       EventEngine.evaluate();
       schedule(src.cadence);
@@ -1620,7 +1999,7 @@ const Telemetry = (() => {
     timers.clear();
   }
 
-  return { start, stop, inject, clearInjections, seedHistory, setLink,
+  return { start, stop, inject, clearInjections, seedHistory, setLink, mode, modeFor, readingFor,
            distributeToPlots, pixelPeers, seedFor };
 })();
 
@@ -2382,17 +2761,73 @@ const Views = (() => {
   /* ---------- header ---------- */
   function renderClock(){ el('missionClock').textContent = clockStrFull(State.data.clock); }
 
+  /* The place picker is a search box now, so "rendering" it means seeding the
+     inputs with whatever catchment is loaded rather than painting an option
+     list. REGIONS survives as the offline-capable starting set. */
   function renderRegionPicker(){
-    const html = Object.values(REGIONS).map(r =>
-      `<option value="${esc(r.id)}"${r.id === State.data.regionId ? ' selected' : ''}>${esc(r.name)} · ${esc(r.country)}</option>`
-    ).join('');
-    ['regionSel', 'regionSelM'].forEach(id => {
-      const s = el(id);
-      if(s) s.innerHTML = html;
+    const r = Region.current();
+    if(!r) return;
+    ['placeSearch', 'placeSearchM'].forEach(id => {
+      const n = el(id);
+      if(n && document.activeElement !== n) n.value = r.name;
     });
   }
 
+  /* Where the numbers are coming from, in the header, at all times. This chip is
+     the honesty contract made visible: live, cached-and-how-old, or simulated. */
+  function renderLiveChip(){
+    const chip = el('liveChip');
+    if(!chip) return;
+    const st = Live.statusLine();
+    const map = {
+      live:      { cls:'good',    icon:'✓', text:'Live data' },
+      stale:     { cls:'warning', icon:'▲', text:'Stale data' },
+      cached:    { cls:'warning', icon:'▲', text:'Offline · cached' },
+      simulated: { cls:'idle',    icon:'·', text:'Simulated' }
+    };
+    const m = map[st.mode] || map.simulated;
+    chip.className = `chip ${m.cls} flex-none`;
+    chip.innerHTML = `<span class="chip-icon">${m.icon}</span><span>${esc(m.text)}</span>`;
+    chip.setAttribute('title', st.text);
+  }
+
+  /* Header feed chips.
+
+     In live mode these must name the services actually being polled, not the
+     orbital sources the simulation impersonates. A chip reading "SENTINEL-1
+     LOCK 400ms" while the number underneath came from a GloFAS-derived index
+     would be the most brazen lie on the page. */
+  const LIVE_FEEDS = [
+    { id:'WX',   short:'OPEN-METEO',  label:'Open-Meteo · ECMWF IFS / DWD ICON land-surface fields', metrics:'soil moisture · soil & air temperature · precipitation · ET₀' },
+    { id:'FLOW', short:'GLOFAS',      label:'Copernicus GloFAS river discharge via Open-Meteo',      metrics:'river discharge, feeding the trafficability index' },
+    { id:'GIBS', short:'NASA GIBS',   label:'NASA Global Imagery Browse Services',                   metrics:'SMAP L4 · MODIS NDVI · MODIS true colour imagery' }
+  ];
+
+  function renderLiveLinks(){
+    const p = Live.payload();
+    const st = Live.statusLine();
+    const cls = st.mode === 'live' ? 'nominal' : st.mode === 'stale' ? 'degraded' : 'reacquire';
+    const word = st.mode === 'live' ? 'LIVE' : st.mode === 'stale' ? 'STALE' : 'CACHED';
+    el('linkChips').innerHTML = LIVE_FEEDS.map(f => {
+      const off = f.id === 'FLOW' && p && !p.river;
+      if(off){
+        return `<div class="link-chip" style="opacity:.42" title="${esc(f.label)} — no river reach covers this catchment">
+          <span class="link-dot" style="background:var(--text-muted)"></span>
+          <span>${esc(f.short)}</span><span class="link-lat">N/A</span></div>`;
+      }
+      const satOn = f.id === 'GIBS' ? Sat.activeId() : null;
+      return `<div class="link-chip" title="${esc(f.label)} — ${esc(f.metrics)}">
+        <span class="link-dot ${f.id === 'GIBS' ? (satOn ? 'nominal' : '') : cls}"
+              ${f.id === 'GIBS' && !satOn ? 'style="background:var(--text-muted)"' : ''}></span>
+        <span>${esc(f.short)}</span>
+        <span class="link-lat">${f.id === 'GIBS' ? (satOn ? 'ON' : 'OFF') : word}</span>
+      </div>`;
+    }).join('');
+  }
+
   function renderLinks(){
+    // Live mode polls entirely different services, so it gets its own chips.
+    if(Live.ready()) return renderLiveLinks();
     el('linkChips').innerHTML = Object.values(SOURCES).map(src => {
       const l = State.data.links[src.id] || { status:'reacquire', latency:null };
       // A source with no coverage over the active region is shown greyed and
@@ -2454,6 +2889,49 @@ const Views = (() => {
     }).join(' ');
   }
 
+  /* Provenance for a tile, read from what is ACTUALLY producing the number
+     right now rather than from the metric's simulated instrument.
+
+     This matters more than it looks. When live data is flowing, soil moisture is
+     an ECMWF land-surface model field at ~11 km — not a SMAP retrieval at 9 km.
+     Labelling it "SMAP" because that is what the simulation pretended to use
+     would be precisely the dishonesty this app was built to argue against. So
+     the label follows the source, and the source changes under it. */
+  function provLines(key, m, stale){
+    const live = Live.ready() ? Live.metricAt(key, State.data.clock) : null;
+    const prov = live ? live.prov : null;
+
+    /* When nothing is live, the whole app is a simulation and the header chip
+       says so, so naming the instrument being modelled is fair. When live data
+       IS flowing, a metric without a live source must not sit next to real ones
+       still wearing an instrument's name -- that is the reading a user would
+       most reasonably misinterpret. */
+    const simulatedBesideLive = !prov && Live.ready();
+    const src   = prov ? prov.source
+                : simulatedBesideLive ? 'No live source · modelled'
+                : SOURCES[m.src].short;
+    const resM  = prov ? prov.resM : m.pixelM;
+    const conf  = prov ? prov.confidence : m.confidence;
+    const down  = prov ? resM > 1000 : m.downscaled;
+    const res   = resM >= 1000 ? (resM / 1000) + ' km' : resM + ' m';
+    const kind  = prov ? prov.kind : 'simulated';
+
+    const kindChip = kind === 'modelled' ? '<span class="prov-live">◆ modelled</span>'
+                   : kind === 'derived'  ? '<span class="prov-live">◈ derived</span>'
+                   : '<span class="prov-sim">○ simulated</span>';
+
+    const detail = prov ? prov.detail
+                 : simulatedBesideLive
+                   ? `No keyless point source exists for ${m.label.toLowerCase()}. This value is a bounded random walk; use the ${key === 'ndvi' ? 'MODIS NDVI map layer' : 'map layers'} to check it against real imagery.`
+                   : 'bounded random walk modelling ' + SOURCES[m.src].label;
+
+    return `<div class="tile-src mt-1.5" title="${esc(detail)}">${esc(src)}${simulatedBesideLive ? '' : ' · ' + esc(res) + ' px'}${stale && !simulatedBesideLive ? ' · holding last value' : ''}</div>
+      <div class="tile-src">${kindChip} · conf ${conf.toFixed(2)}</div>
+      ${down
+        ? `<div class="tile-src" style="color:var(--warning-ink)" title="All three plots sit inside one ${esc(res)} cell, so per-plot values are downscaled estimates, not measurements">≈ downscaled to plot</div>`
+        : `<div class="tile-src" style="color:var(--good-ink)" title="The source cell is smaller than a plot, so this resolves per plot">✓ resolves per plot</div>`}`;
+  }
+
   function renderTiles(){
     const d = State.data;
     const W = 150, H = 30;
@@ -2471,7 +2949,7 @@ const Views = (() => {
       // Direction of "good" differs per metric, so colour the delta by meaning.
       const upIsGood = (key === 'moisture' || key === 'ndvi' || key === 'traff');
       const deltaColour = (delta === null || Math.abs(delta) < 1e-9) ? 'var(--text-muted)'
-        : ((delta > 0) === upIsGood ? '#5fd35f' : '#ff8f8f');
+        : ((delta > 0) === upIsGood ? 'var(--good-ink)' : 'var(--critical-ink)');
 
       const link = d.links[m.src];
       const stale = !!(link && link.status !== 'nominal');
@@ -2513,10 +2991,7 @@ const Views = (() => {
           </svg>
         </div>
         ${meter}
-        <div class="tile-src mt-1.5">${esc(SOURCES[m.src].short)} · ${m.pixelM >= 1000 ? (m.pixelM/1000)+' km' : m.pixelM+' m'} px${stale ? ' · holding last value' : ''}</div>
-        ${m.downscaled
-          ? `<div class="tile-src" style="color:#c9a227" title="All plots share one ${(m.pixelM/1000)} km ${m.src} pixel — per-plot values are downscaled estimates, not measurements">≈ downscaled · conf ${m.confidence.toFixed(2)}</div>`
-          : `<div class="tile-src" style="color:#4f8f5f" title="Pixel is smaller than a plot, so this is a direct per-plot measurement">✓ measured · conf ${m.confidence.toFixed(2)}</div>`}
+        ${provLines(key, m, stale)}
       </div>`;
     }).join('');
   }
@@ -2614,7 +3089,7 @@ const Views = (() => {
     const coldIdx = vals.indexOf(Math.min(...vals));
     if(vals[coldIdx] <= 0 && coldIdx !== pts.length - 1){
       out += `<circle cx="${X(coldIdx).toFixed(1)}" cy="${Y(vals[coldIdx]).toFixed(1)}" r="4" fill="var(--critical)" stroke="var(--surface-1)" stroke-width="2"/>`;
-      out += `<text x="${X(coldIdx).toFixed(1)}" y="${(Y(vals[coldIdx])+16).toFixed(1)}" text-anchor="middle" style="fill:#ff6b6b;font-size:10px;font-weight:700">${fmt(vals[coldIdx],1)}°</text>`;
+      out += `<text x="${X(coldIdx).toFixed(1)}" y="${(Y(vals[coldIdx])+16).toFixed(1)}" text-anchor="middle" style="fill:var(--critical-ink);font-size:10px;font-weight:700">${fmt(vals[coldIdx],1)}°</text>`;
     }
 
     // hover layer — hit target spans the full plot height
@@ -2690,6 +3165,15 @@ const Views = (() => {
       </marker>
     </defs>`;
 
+    /* Satellite imagery goes under everything, so the graph stays readable on
+       top of it. Drawn before the roads for painter's-algorithm ordering — SVG
+       has no z-index. */
+    const sat = Sat.tilesFor(Region.current());
+    if(sat.html){
+      out += `<g class="satlayer" aria-hidden="true">${sat.html}</g>`;
+      out += `<g class="satfoot" aria-hidden="true">${Sat.footprintFor(Region.current())}</g>`;
+    }
+
     // roads
     EDGES.forEach(e => {
       const A = NODES[e.a], B = NODES[e.b];
@@ -2697,7 +3181,7 @@ const Views = (() => {
       const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
       const vertical = Math.abs(A.y - B.y) > Math.abs(A.x - B.x);
 
-      let stroke = '#28313d', opacity = 1;
+      let stroke = 'var(--axis)', opacity = 1;
       if(!st.passable){ stroke = 'var(--critical)'; }
       else if(st.degraded){ stroke = 'var(--warning)'; opacity = .75; }
 
@@ -2708,11 +3192,11 @@ const Views = (() => {
 
       const lx = mx + (vertical ? 14 : 0);
       const ly = my + (vertical ? 0 : -8);
-      out += `<text class="road-label" x="${lx}" y="${ly}" text-anchor="middle">${e.id} · ${e.km}km</text>`;
+      out += `<text class="road-label" x="${lx}" y="${ly}" text-anchor="middle">${e.id} · ${fmt(e.km,1)} km</text>`;
       if(!st.passable){
         out += `<text class="blocked-tag" x="${lx}" y="${ly + 11}" text-anchor="middle">✕ IMPASSABLE</text>`;
       } else if(st.degraded){
-        out += `<text x="${lx}" y="${ly + 11}" text-anchor="middle" style="fill:#ffc44d;font-size:8px;font-weight:700">▲ ${fmt(st.traff,0)}%</text>`;
+        out += `<text x="${lx}" y="${ly + 11}" text-anchor="middle" style="fill:var(--warning-ink);font-size:8px;font-weight:700">▲ ${fmt(st.traff,0)}%</text>`;
       }
     });
 
@@ -2784,7 +3268,7 @@ const Views = (() => {
         node.style.color = 'var(--text-muted)';
       } else {
         node.textContent = (val > 0 ? '▲ +' : '▼ ') + fmt(Math.abs(val), decimals) + ' ' + unit + ' vs clear weather';
-        node.style.color = val > 0 ? '#ff8f8f' : '#5fd35f';
+        node.style.color = val > 0 ? 'var(--critical-ink)' : 'var(--good-ink)';
       }
     };
     paint(el('routeKmDelta'),  base ? r.km  - base.km  : 0, 'km',  1);
@@ -2964,10 +3448,162 @@ const Views = (() => {
       const b = el(id);
       if(b) b.innerHTML = `<span class="btn-glyph">»</span><span>×${State.data.speed}</span>`;
     });
-    ['regionSel', 'regionSelM'].forEach(id => {
-      const s = el(id);
-      if(s) s.value = State.data.regionId;
-    });
+    renderRegionPicker();
+    renderLiveChip();
+  }
+
+  function renderSpeedAndPlace(){ renderRegionPicker(); renderLiveChip(); }
+
+  /* ---------- agronomy panel ----------
+     Four decisions, each stated as the call first and the arithmetic second.
+     A grower needs "irrigate, 36 mm" at a glance; the depletion figure that
+     justifies it belongs underneath, not instead of it. */
+
+  function agroUnavailable(reason){
+    return `<div class="agro"><div class="agro-head"><span class="agro-title">Agronomy</span></div>
+      <div class="agro-why">${esc(reason)}</div></div>`;
+  }
+
+  function waterCard(w){
+    if(!w) return '';
+    const pct = w.taw > 0 ? Math.min(100, w.depletion / w.taw * 100) : 0;
+    const markPct = w.taw > 0 ? Math.min(100, w.trigger / w.taw * 100) : 0;
+    const tone = w.call === 'irrigate' ? 'act' : w.call === 'monitor' ? 'warn' : 'ok';
+    const headline = w.call === 'irrigate' ? `Irrigate · ${w.applyMm} mm`
+                   : w.call === 'monitor'  ? 'Monitor' : 'Hold';
+    return `<div class="agro">
+      <div class="agro-head"><span class="agro-title">Water balance</span></div>
+      <div class="agro-call ${tone}">${esc(headline)}</div>
+      <div class="agro-why">${esc(w.why)}</div>
+      <div class="wbar ${tone}" role="img"
+           aria-label="Soil water depletion ${Math.round(pct)} percent of available water; refill point at ${Math.round(markPct)} percent">
+        <i style="width:${pct.toFixed(1)}%"></i>
+        <span class="wbar-mark" style="left:${markPct.toFixed(1)}%"></span>
+      </div>
+      <dl class="agro-rows">
+        <div class="agro-row"><dt>Depletion</dt><dd>${fmt(w.depletion,0)} / ${fmt(w.taw,0)} mm</dd></div>
+        <div class="agro-row"><dt>Rain, 7 d</dt><dd>${w.rain7 === null ? '—' : fmt(w.rain7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>ET₀, 7 d</dt><dd>${w.et7 === null ? '—' : fmt(w.et7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>Balance</dt><dd>${w.balance7 === null ? '—' : (w.balance7 > 0 ? '+' : '') + fmt(w.balance7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>Rain, next 48 h</dt><dd>${w.rain48 === null ? '—' : fmt(w.rain48,1) + ' mm'}</dd></div>
+      </dl>
+      <div class="prov">Derived · FAO-56 over a ${Agronomy.ROOT_DEPTH_MM} mm root zone, assumed mid-texture soil</div>
+    </div>`;
+  }
+
+  function thermalCard(t){
+    if(!t) return '';
+    const tone = t.verdict === 'frost' ? 'act' : t.verdict === 'heat' ? 'warn'
+               : t.verdict === 'marginal' ? 'warn' : 'ok';
+    const headline = t.verdict === 'frost' ? `Frost in ${t.firstFrostIn} h`
+                   : t.verdict === 'heat'  ? `Heat in ${t.firstHeatIn} h`
+                   : t.verdict === 'marginal' ? 'Marginal night' : 'Clear 72 h';
+    const cells = t.hours.map(p => {
+      const cls = p.t <= CFG.THRESH.frostArm ? 'frost'
+                : p.t >= CFG.THRESH.heatArm  ? 'heat'
+                : p.t <= CFG.THRESH.frostClear ? 'marginal' : 'mild';
+      return `<i class="${cls}" title="+${p.h} h · ${fmt(p.t,1)}°C"></i>`;
+    }).join('');
+    return `<div class="agro">
+      <div class="agro-head"><span class="agro-title">Next 72 hours</span></div>
+      <div class="agro-call ${tone}">${esc(headline)}</div>
+      <div class="strip" role="img"
+           aria-label="Hourly air temperature for 72 hours. Minimum ${fmt(t.minC,1)} degrees, maximum ${fmt(t.maxC,1)} degrees, ${t.frostHours} hours at or below freezing.">${cells}</div>
+      <div class="strip-axis"><span>now</span><span>+36 h</span><span>+72 h</span></div>
+      <dl class="agro-rows">
+        <div class="agro-row"><dt>Minimum</dt><dd>${fmt(t.minC,1)} °C</dd></div>
+        <div class="agro-row"><dt>Maximum</dt><dd>${fmt(t.maxC,1)} °C</dd></div>
+        <div class="agro-row"><dt>Hours ≤ ${fmt(CFG.THRESH.frostArm,1)}°C</dt><dd>${t.frostHours}</dd></div>
+      </dl>
+      <div class="prov">2 m air temperature · ECMWF IFS / DWD ICON forecast</div>
+    </div>`;
+  }
+
+  function sprayCard(s){
+    if(!s) return '';
+    const w = s.nextWindow;
+    const tone = !w ? 'act' : w.start === 0 ? 'ok' : 'warn';
+    const headline = !w ? 'No window in 48 h'
+                   : w.start === 0 ? `Spray now · ${w.len} h` : `Wait ${w.start} h · ${w.len} h window`;
+    const cells = s.blocks.map(b =>
+      `<i class="${b.rating}" title="+${b.h} h · wind ${fmt(b.wind,0)} km/h${b.fails.length ? ' · ' + b.fails.join(', ') : ''}"></i>`
+    ).join('');
+    return `<div class="agro">
+      <div class="agro-head"><span class="agro-title">Spray &amp; fieldwork</span></div>
+      <div class="agro-call ${tone}">${esc(headline)}</div>
+      <div class="strip" role="img"
+           aria-label="Spray suitability for the next 48 hours, hour by hour.">${cells}</div>
+      <div class="strip-axis"><span>now</span><span>+24 h</span><span>+48 h</span></div>
+      <dl class="agro-rows">
+        <div class="agro-row"><dt>Good hours</dt><dd>${s.blocks.filter(b => b.rating === 'good').length} / 48</dd></div>
+        <div class="agro-row"><dt>Wind limit</dt><dd>${Agronomy.SPRAY.windMax} km/h</dd></div>
+        <div class="agro-row"><dt>Humidity floor</dt><dd>${Agronomy.SPRAY.rhMin}%</dd></div>
+      </dl>
+      <div class="prov">Conventional limits · wind, gusts, humidity and rain probability</div>
+    </div>`;
+  }
+
+  function gddCard(g){
+    if(!g) return '';
+    return `<div class="agro">
+      <div class="agro-head"><span class="agro-title">Heat units · ${esc(g.crop)}</span></div>
+      <div class="agro-call ok">${fmt(g.rate,1)} GDD/day</div>
+      <div class="agro-why">${fmt(g.total,0)} growing-degree days accumulated over the last ${g.windowDays} days above a ${g.baseTempC}°C base.</div>
+      <dl class="agro-rows">
+        <div class="agro-row"><dt>To maturity</dt><dd>${g.toMaturity ? fmt(g.toMaturity,0) + ' GDD' : '—'}</dd></div>
+        <div class="agro-row"><dt>At this rate</dt><dd>${g.daysAtRate ? '~' + g.daysAtRate + ' days' : '—'}</dd></div>
+      </dl>
+      <div class="prov">Assumes a textbook accumulation for the crop; cultivar varies</div>
+    </div>`;
+  }
+
+  /* Layer switcher plus the sentence that makes the imagery worth showing:
+     how many metres one pixel covers against how wide the catchment is. */
+  function renderSatBar(){
+    const bar = el('satBar');
+    if(!bar) return;
+    const activeId = Sat.activeId();
+    bar.innerHTML =
+      `<span class="tile-src" style="margin-right:2px">NASA imagery</span>` +
+      Sat.LAYERS.map(l => `
+        <button class="satbtn" data-sat="${esc(l.id)}" aria-pressed="${l.id === activeId}"
+                title="${esc(l.product)}">
+          <span class="satdot" aria-hidden="true"></span>${esc(l.label)}
+        </button>`).join('') +
+      (activeId ? `<button class="satbtn" data-sat="" aria-pressed="false">Off</button>` : '');
+
+    const note = el('satNote');
+    if(!note) return;
+    const info = Sat.tilesFor(Region.current()).info;
+    if(!info){ note.hidden = true; note.innerHTML = ''; return; }
+    const span = Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]);
+    const px = info.tilePixelM >= 1000 ? `${info.tilePixelM / 1000} km` : `${info.tilePixelM} m`;
+    const across = (info.tilePixelM / 1000) / Math.max(0.01, span);
+    note.hidden = false;
+    note.innerHTML = `<strong style="color:var(--text-secondary)">${esc(info.layer.label)}</strong> · ` +
+      `${esc(info.layer.product)} · latest granule via NASA GIBS. ` +
+      `One source pixel is ${esc(px)} across; this catchment is ${fmt(span,1)} km origin to depot — ` +
+      (across >= 0.9
+        ? `<strong style="color:var(--warning-ink)">a single pixel covers the whole holding</strong>, which is exactly why per-plot values from this product are estimates, not measurements.`
+        : `about ${fmt(span / (info.tilePixelM / 1000), 0)} pixels across.`);
+  }
+
+  function renderAgronomy(){
+    const host = el('agroGrid');
+    if(!host) return;
+    if(!Live.ready()){
+      host.innerHTML = agroUnavailable(
+        'Agronomy needs a real location. Search for one above — these figures are computed from live forecast data and are not simulated.');
+      return;
+    }
+    const now = State.data.clock;
+    const crop = Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
+    host.innerHTML = [
+      waterCard(Agronomy.water(now)),
+      thermalCard(Agronomy.thermal(now)),
+      sprayCard(Agronomy.spray(now)),
+      gddCard(Agronomy.heatUnits(crop))
+    ].filter(Boolean).join('') || agroUnavailable('No agronomy series available for this location.');
   }
 
   function toggleTable(){
@@ -3044,7 +3680,7 @@ const Views = (() => {
       <div class="mcard">
         <div class="mcard-head"><span class="mcard-title">Harvest window</span><div class="flex-1"></div>
           ${chipHtml(win ? 'critical' : 'good', win ? 'Early harvest' : 'Normal')}</div>
-        <div class="mbig" style="color:${win ? '#ff6b6b' : 'var(--text-primary)'}">${win ? 'CUT NOW' : 'Normal'}</div>
+        <div class="mbig" style="color:${win ? 'var(--critical-ink)' : 'var(--text-primary)'}">${win ? 'CUT NOW' : 'Normal'}</div>
         <div class="mlabel mt-2">${win
           ? 'Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.'
           : 'No change to your usual schedule. Harvest as planned.'}</div>
@@ -3069,11 +3705,11 @@ const Views = (() => {
       return `<div class="mrow">
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:600">${esc(o.crop)} <span class="prov mono">${esc(o.id)}</span></div>
-          <div class="prov">${esc(o.buyer)} · grade ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:#ffc44d">(contracted ${esc(o.baseGrade)})</span>` : ''}</div>
+          <div class="prov">${esc(o.buyer)} · grade ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:var(--warning-ink)">(contracted ${esc(o.baseGrade)})</span>` : ''}</div>
         </div>
         <div style="text-align:right">
           <div class="mval">${o.crates}<span class="prov"> cr</span></div>
-          ${delta ? `<div class="prov" style="color:#ff8f8f">${delta > 0 ? '+' : ''}${delta} vs booked</div>` : `<div class="prov">as booked</div>`}
+          ${delta ? `<div class="prov" style="color:var(--critical-ink)">${delta > 0 ? '+' : ''}${delta} vs booked</div>` : `<div class="prov">as booked</div>`}
         </div>
       </div>`;
     }).join('');
@@ -3122,7 +3758,7 @@ const Views = (() => {
           <div><div class="prov">Distance</div><div class="mval">${r ? fmt(r.km,1) : '—'} km</div></div>
           <div><div class="prov">Drive time</div><div class="mval">${r ? Math.round(r.min) : '—'} min</div></div>
           ${base && r && Math.abs(r.km - base.km) > 0.05
-            ? `<div><div class="prov">vs clear</div><div class="mval" style="color:#ff8f8f">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
+            ? `<div><div class="prov">vs clear</div><div class="mval" style="color:var(--critical-ink)">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
         </div>
       </div>
       ${r && r.fallback ? `<div class="mcard" style="border-color:rgba(208,59,59,.5)">
@@ -3215,7 +3851,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderSatBar, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
@@ -3251,6 +3887,35 @@ const Manual = (() => {
   const nb = s => String(s).replace(/ /g, ' ');       // keep units off a line break
 
   /* ---------- generated tables ---------- */
+
+  /* Generated from Live.PROV, so the manual cannot claim a source the engine
+     does not actually use. */
+  function provenanceTable(){
+    const rows = Object.keys(METRICS).map(k => {
+      const p = Live.provenanceFor(k);
+      const kind = !p ? 'simulated' : p.kind;
+      const chip = kind === 'modelled' ? `<span class="chip warning"><span class="chip-icon">◆</span><span>Modelled</span></span>`
+                 : kind === 'derived'  ? `<span class="chip warning"><span class="chip-icon">◈</span><span>Derived</span></span>`
+                 : `<span class="chip idle"><span class="chip-icon">○</span><span>Simulated</span></span>`;
+      const res = p ? (p.resM >= 1000 ? (p.resM/1000) + ' km' : p.resM + ' m') : '—';
+      return `<tr>
+        <td class="wrap">${esc(METRICS[k].label)}</td>
+        <td class="wrap">${esc(p ? p.source : 'no live source')}</td>
+        <td class="num">${nb(res)}</td>
+        <td>${chip}</td>
+        <td class="wrap" style="font-size:11.5px">${esc(p ? p.detail : 'bounded random walk')}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table>
+      <caption class="sr-only">Every metric, the service that produces it, its resolution and whether it is measured, modelled, derived or simulated</caption>
+      <thead><tr>
+        <th scope="col">Metric</th><th scope="col">Source</th><th scope="col">Resolution</th>
+        <th scope="col">Status</th><th scope="col">How</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+      <p style="font-size:12px;color:var(--text-muted)">Not one of these says
+      <em>measured</em>. None of them is a direct instrument retrieval at plot scale, so none of
+      them gets to claim it.</p>`;
+  }
 
   function feedTable(){
     const rows = Object.keys(SOURCES).map(id => {
@@ -3408,24 +4073,43 @@ const Manual = (() => {
         order, the harvest window returns to normal, the original route is restored.</p></div>`
     },
     {
-      id:'feeds', nav:'The four feeds', title:'The four feeds',
-      render: () => `
-        <p>Each source is modelled with its own cadence, one-way downlink latency and loss rate,
-        so the console behaves like something reading a real high-latency link rather than a
-        local timer. Sentinel-1 is the slow one at ${nb((SOURCES.S1.cadence/1000) + ' s')} between
-        passes — which is why a flood advisory takes a moment to show up.</p>
+      id:'feeds', nav:'Where data comes from', title:'Where the data comes from',
+      render: () => {
+        const on = Live.ready();
+        return `
+        <p>Search for a location and AURA polls services a keyless static page can
+        genuinely reach. There is no API key in this app and no server behind it, which
+        rules a great deal in and a little out.</p>
 
-        ${feedTable()}
+        ${on ? `<div class="note"><p><strong>${esc(Live.statusLine().text)}</strong> for
+        ${esc((Region.current() || {}).name || 'this location')}. Everything below is what is
+        producing the numbers on screen right now.</p></div>` : `<div class="note warn">
+        <p>No location is loaded, so every value on screen is synthetic. Search for a place
+        to switch to real observations.</p></div>`}
 
-        <p>The header chips show live link state for all four. A chip pulsing on
-        <em>reacquire</em> means that source is not currently delivering and the values you are
-        looking at are the last ones that did.</p>
+        ${provenanceTable()}
 
-        <h3>Coverage is not universal</h3>
-        <p>${Region.current() && Region.current().sources.CROP_CASMA
-             ? `The active region (${esc(Region.current().name)}) is inside CONUS, so CROP-CASMA is available and the soil-moisture chip is live.`
-             : `The active region (${esc((Region.current() && Region.current().name) || '—')}) is outside the United States, so CROP-CASMA — a NASA/USDA product covering CONUS only — is greyed out rather than pretending to poll. Soil moisture falls back to SMAP L4 at 9 km.`}
-        Switch regions in the header to watch that chip change.</p>`
+        <h3>What is not here, and why</h3>
+        <ul>
+          <li><strong>Sentinel-1 and Sentinel-2 at 10 m.</strong> Copernicus needs an OAuth
+              client secret, and a secret in a static file is public. That needs a server this
+              app deliberately does not have.</li>
+          <li><strong>A numeric NDVI for your plot.</strong> No keyless point service publishes
+              one. Rather than model it and call it measured, NDVI stays simulated and clearly
+              labelled — and the real MODIS NDVI raster is one click away on the map, so you can
+              check the model against the imagery yourself.</li>
+          <li><strong>A direct SMAP retrieval per plot.</strong> Also unavailable as a point
+              query. The genuine SMAP L4 product is available as imagery, and section 5 shows
+              what its 9 km pixel actually covers.</li>
+        </ul>
+
+        <h3>Offline</h3>
+        <p>"Live data offline" is a contradiction, so what actually happens is this: every
+        successful fetch is cached against its coordinates. Lose the connection and the app
+        serves that cache, with its age stated in the header chip — <em>Offline · cached</em>,
+        and the exact age on hover. A location you have never visited falls back to simulation
+        and says so. The app never presents a stale number as current, and never invents one.</p>`;
+      }
     },
     {
       id:'scope', nav:'Real vs simulated', title:'What is real, and what is not',
@@ -3661,7 +4345,874 @@ const Manual = (() => {
   }
 
   return { open, close, toggle, isOpen, goto, trapFocus, SECTIONS, SCENARIOS,
-           build, thresholdTable, feedTable };   // exposed for the regression harness
+           build, thresholdTable, feedTable, provenanceTable };   // exposed for the regression harness
+})();
+
+
+/* ===================== MODULE 9: LIVE DATA =====================
+
+   Real observations, fetched from services a keyless static page can actually
+   reach. Everything here is chosen against one constraint: no API key, no
+   server, no secret — because this app is a static file and anything else would
+   be a lie about how it deploys.
+
+   WHAT IS REAL AND WHAT IS NOT — the same honesty the rest of the app applies to
+   instrument granularity, applied to provenance:
+
+     soil moisture  ECMWF IFS / DWD ICON land-surface model, 3–9 cm layer.
+                    A MODEL ASSIMILATING satellite observations, not a direct
+                    SMAP retrieval. Reported as `modelled`, ~9–25 km.
+     surface temp   Same models, 0 cm soil temperature. `modelled`.
+     air temp       2 m air temperature. `modelled`, and the one a frost
+                    forecast is genuinely built on.
+     precipitation  Model + radar/gauge assimilation. `modelled`.
+     river flow     GloFAS reforecast/forecast. `modelled`, ~5 km.
+     ET0            FAO-56 Penman-Monteith computed by Open-Meteo. `derived`.
+     trafficability DERIVED HERE from rain, soil moisture and river discharge.
+                    Nobody measures this; it is our index and it says so.
+     NDVI           NO keyless point source exists. Stays MODELLED, and the map
+                    offers the real MODIS/VIIRS NDVI raster instead so the eye
+                    can check the model.
+
+   None of these is SMAP or Sentinel. The genuine NASA satellite products appear
+   in this app as GIBS raster layers (Module 10), where they can be shown at
+   their true resolution rather than dressed up as a point reading.
+
+   OFFLINE. "Live data offline" is a contradiction, so the honest version is
+   cache-last-good: every successful fetch is stored per location and served
+   when the network is gone, labelled with its age. A location never fetched
+   falls back to simulation, labelled as such. The app never invents a number
+   and never presents a stale one as current.                                */
+
+const Live = (() => {
+  const HOST = {
+    forecast: 'https://api.open-meteo.com/v1/forecast',
+    flood:    'https://flood-api.open-meteo.com/v1/flood',
+    geocode:  'https://geocoding-api.open-meteo.com/v1/search',
+  };
+
+  const HOURLY = ['temperature_2m','relative_humidity_2m','precipitation','precipitation_probability',
+                  'wind_speed_10m','wind_gusts_10m','soil_temperature_0cm','soil_moisture_3_to_9cm',
+                  'soil_moisture_0_to_1cm','et0_fao_evapotranspiration','cloud_cover'];
+  const DAILY  = ['temperature_2m_min','temperature_2m_max','precipitation_sum',
+                  'et0_fao_evapotranspiration','precipitation_hours'];
+  const PAST_DAYS = 7, FORECAST_DAYS = 3;
+
+  /* Volumetric water content reference points for a mid-texture agricultural
+     soil. Used only to turn m³/m³ into a stress index and an irrigation
+     deficit; both are labelled derived because the true values need a soil
+     survey this app does not have. */
+  const SOIL = { wilting: 0.12, fieldCapacity: 0.32, saturation: 0.45 };
+
+  const STORE_PREFIX = 'aura-live-';
+  const MAX_AGE_FRESH = 3 * 3600 * 1000;      // under 3 h: current
+  let current = null;                          // the active payload
+  let inflight = null;
+
+  const key = (lat, lon) => `${STORE_PREFIX}${lat.toFixed(3)},${lon.toFixed(3)}`;
+  const online = () => (typeof navigator === 'undefined' ? true : navigator.onLine !== false);
+
+  /* ---------- transport ---------- */
+
+  async function getJSON(url, ms){
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => ctl && ctl.abort(), ms || 12000);
+    try{
+      const res = await fetch(url, ctl ? { signal: ctl.signal } : undefined);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally { clearTimeout(timer); }
+  }
+
+  function forecastUrl(lat, lon){
+    return `${HOST.forecast}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
+           `&current=${HOURLY.join(',')}&hourly=${HOURLY.join(',')}&daily=${DAILY.join(',')}` +
+           `&past_days=${PAST_DAYS}&forecast_days=${FORECAST_DAYS}&timezone=auto`;
+  }
+  function floodUrl(lat, lon){
+    return `${HOST.flood}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
+           `&daily=river_discharge&past_days=${PAST_DAYS}&forecast_days=${FORECAST_DAYS}`;
+  }
+
+  /* ---------- fetch + cache ---------- */
+
+  /** Fetch a location. River discharge is optional: GloFAS has no coverage on
+      small islands and returns nulls, which must degrade one metric rather than
+      fail the whole load. */
+  async function load(lat, lon, label){
+    if(inflight) return inflight;
+    const t0 = Date.now();
+    inflight = (async () => {
+      const wx = await getJSON(forecastUrl(lat, lon));
+      let flood = null;
+      try{ flood = await getJSON(floodUrl(lat, lon), 9000); }catch(e){ flood = null; }
+      const payload = {
+        lat, lon, label: label || '',
+        fetchedAt: Date.now(),
+        elevation: wx.elevation,
+        timezone: wx.timezone,
+        utcOffset: wx.utc_offset_seconds,
+        units: wx.hourly_units || {},
+        hourly: wx.hourly,
+        daily: wx.daily,
+        current: wx.current,
+        river: flood && flood.daily ? flood.daily : null,
+        tookMs: Date.now() - t0
+      };
+      current = payload;
+      persist(payload);
+      return payload;
+    })();
+    try { return await inflight; } finally { inflight = null; }
+  }
+
+  function persist(p){
+    try{
+      // The hourly block is the bulk of it and the whole point of caching, so it
+      // is kept; the raw request metadata is not.
+      localStorage.setItem(key(p.lat, p.lon), JSON.stringify({
+        lat:p.lat, lon:p.lon, label:p.label, fetchedAt:p.fetchedAt, elevation:p.elevation,
+        timezone:p.timezone, utcOffset:p.utcOffset, units:p.units,
+        hourly:p.hourly, daily:p.daily, current:p.current, river:p.river
+      }));
+    }catch(e){ /* quota or private mode: caching is a bonus, not a requirement */ }
+  }
+
+  function restore(lat, lon){
+    try{
+      const raw = localStorage.getItem(key(lat, lon));
+      if(!raw) return null;
+      const p = JSON.parse(raw);
+      if(!p || !p.hourly || !p.hourly.time) return null;
+      current = p;
+      return p;
+    }catch(e){ return null; }
+  }
+
+  /** Try the network, fall back to whatever was cached for this exact location. */
+  async function ensure(lat, lon, label){
+    if(online()){
+      try{ return { payload: await load(lat, lon, label), source:'network' }; }
+      catch(e){
+        const cached = restore(lat, lon);
+        return cached ? { payload: cached, source:'cache', error: e.message }
+                      : { payload: null, source:'none', error: e.message };
+      }
+    }
+    const cached = restore(lat, lon);
+    return cached ? { payload: cached, source:'cache' } : { payload: null, source:'none' };
+  }
+
+  /* ---------- reading the series ---------- */
+
+  const ready = () => !!(current && current.hourly && current.hourly.time);
+  const payload = () => current;
+  const ageMs = () => (current ? Date.now() - current.fetchedAt : Infinity);
+  const isFresh = () => ageMs() < MAX_AGE_FRESH;
+
+  /** Index into the hourly arrays for a wall-clock instant. The series is in the
+      location's local time (timezone=auto), so the epoch is shifted by the
+      location's UTC offset before matching. Returns a fractional index so
+      values interpolate rather than step. */
+  function indexFor(epochMs){
+    if(!ready()) return null;
+    const t = current.hourly.time;
+    const first = Date.parse(t[0] + 'Z') - (current.utcOffset || 0) * 1000;
+    const idx = (epochMs - first) / 3600000;
+    if(!isFinite(idx)) return null;
+    return Math.max(0, Math.min(t.length - 1, idx));
+  }
+
+  function hourlyAt(field, epochMs){
+    if(!ready()) return null;
+    const arr = current.hourly[field];
+    if(!arr) return null;
+    const i = indexFor(epochMs);
+    if(i === null) return null;
+    const lo = Math.floor(i), hi = Math.min(arr.length - 1, lo + 1), f = i - lo;
+    const a = arr[lo], b = arr[hi];
+    if(a === null || a === undefined) return null;
+    if(b === null || b === undefined) return a;
+    return a + (b - a) * f;
+  }
+
+  /** Sum a field over the N hours ending at `epochMs` (rainfall, ET0). */
+  function sumBack(field, epochMs, hours){
+    if(!ready()) return null;
+    const arr = current.hourly[field];
+    if(!arr) return null;
+    const end = indexFor(epochMs);
+    if(end === null) return null;
+    let total = 0, seen = 0;
+    for(let i = Math.max(0, Math.floor(end) - hours + 1); i <= Math.floor(end); i++){
+      if(typeof arr[i] === 'number'){ total += arr[i]; seen++; }
+    }
+    return seen ? total : null;
+  }
+
+  /** River discharge for the day containing `epochMs`, plus where it sits in the
+      window we hold — a percentile is far more meaningful than a raw m³/s a
+      grower has no baseline for. */
+  function river(epochMs){
+    if(!ready() || !current.river || !current.river.river_discharge) return null;
+    const days = current.river.time, vals = current.river.river_discharge;
+    const day = new Date(epochMs).toISOString().slice(0, 10);
+    let i = days.indexOf(day);
+    if(i < 0) i = vals.length - 1;
+    const v = vals[i];
+    if(typeof v !== 'number') return null;
+    const known = vals.filter(x => typeof x === 'number').sort((a, b) => a - b);
+    const rank = known.filter(x => x <= v).length;
+    return { value: v, pct: known.length ? rank / known.length : null,
+             max: known[known.length - 1], min: known[0] };
+  }
+
+  /* ---------- mapping to the app's metric space ---------- */
+
+  /** Root-zone stress, 0 (comfortable) → 1 (at wilting point). Derived, not
+      observed: it is a linear position between wilting point and field capacity
+      for an assumed mid-texture soil. */
+  function stressFrom(vwc){
+    if(vwc === null || vwc === undefined) return null;
+    const span = SOIL.fieldCapacity - SOIL.wilting;
+    return Math.max(0, Math.min(1, (SOIL.fieldCapacity - vwc) / span));
+  }
+
+  /** Trafficability index, 0–100. Ours, and labelled as ours.
+      Three things put a truck in a ditch: saturated ground, recent rain on top
+      of it, and a river that is up. Each is a penalty against a dry-road 100. */
+  function trafficabilityFrom(epochMs){
+    const vwc  = hourlyAt('soil_moisture_0_to_1cm', epochMs);
+    const deep = hourlyAt('soil_moisture_3_to_9cm', epochMs);
+    const rain24 = sumBack('precipitation', epochMs, 24);
+    const rain72 = sumBack('precipitation', epochMs, 72);
+    if(vwc === null && deep === null && rain24 === null) return null;
+
+    const wet = Math.max(vwc === null ? 0 : vwc, deep === null ? 0 : deep);
+    // Saturation penalty: nothing below field capacity, steep above it.
+    const satPen = Math.max(0, (wet - SOIL.fieldCapacity) / (SOIL.saturation - SOIL.fieldCapacity)) * 55;
+    // Rain penalty: fresh water on the surface matters more than last week's.
+    const rainPen = Math.min(30, (rain24 || 0) * 1.6) + Math.min(12, (rain72 || 0) * 0.22);
+    // River penalty: only bites in the top of the range we have seen.
+    const r = river(epochMs);
+    const riverPen = r && r.pct !== null ? Math.max(0, (r.pct - 0.72) / 0.28) * 22 : 0;
+
+    return Math.max(0, Math.min(100, 100 - satPen - rainPen - riverPen));
+  }
+
+  /* Provenance travels with every value. `measured:false` everywhere is
+     deliberate — none of these is a direct instrument retrieval, and the UI
+     must not imply otherwise. */
+  const PROV = {
+    moisture: { source:'ECMWF IFS / DWD ICON', kind:'modelled', detail:'land-surface model, 3–9 cm layer', resM:11000, confidence:0.72 },
+    temp:     { source:'ECMWF IFS / DWD ICON', kind:'modelled', detail:'0 cm soil temperature',           resM:11000, confidence:0.80 },
+    stress:   { source:'derived',              kind:'derived',  detail:'position between wilting point and field capacity', resM:11000, confidence:0.55 },
+    traff:    { source:'derived',              kind:'derived',  detail:'soil water + 24/72 h rain + GloFAS discharge',      resM:11000, confidence:0.50 },
+    ndvi:     { source:'model',                kind:'simulated',detail:'no keyless point source — see the MODIS NDVI layer', resM:250, confidence:0.30 }
+  };
+
+  /** The value for one of the app's five metrics at an instant, or null when
+      this metric has no live source. Telemetry falls back to simulation on null
+      and labels the difference. */
+  function metricAt(metricKey, epochMs){
+    if(!ready()) return null;
+    let v = null;
+    if(metricKey === 'moisture'){
+      const vwc = hourlyAt('soil_moisture_3_to_9cm', epochMs);
+      v = vwc === null ? null : vwc * 100;                 // m³/m³ → % volumetric
+    } else if(metricKey === 'temp'){
+      v = hourlyAt('soil_temperature_0cm', epochMs);
+      if(v === null) v = hourlyAt('temperature_2m', epochMs);
+    } else if(metricKey === 'stress'){
+      v = stressFrom(hourlyAt('soil_moisture_3_to_9cm', epochMs));
+    } else if(metricKey === 'traff'){
+      v = trafficabilityFrom(epochMs);
+    } else {
+      return null;                                          // ndvi: no live source
+    }
+    if(v === null || !isFinite(v)) return null;
+    return { v, prov: PROV[metricKey] };
+  }
+
+  const provenanceFor = k => PROV[k] || null;
+  const soilRefs = () => SOIL;
+
+  /** Human summary of where the current numbers come from and how old they are. */
+  function statusLine(){
+    if(!ready()) return { mode:'simulated', text:'Synthetic telemetry — no location loaded' };
+    const mins = Math.round(ageMs() / 60000);
+    const age = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` :
+                mins < 1440 ? `${Math.round(mins/60)} h ago` : `${Math.round(mins/1440)} d ago`;
+    if(!online())  return { mode:'cached', text:`Offline — last good reading ${age}`, ageMs: ageMs() };
+    if(!isFresh()) return { mode:'stale',  text:`Stale — fetched ${age}`, ageMs: ageMs() };
+    return { mode:'live', text:`Live — fetched ${age}`, ageMs: ageMs() };
+  }
+
+  function clear(){ current = null; }
+
+  return { load, ensure, restore, ready, payload, ageMs, isFresh, online,
+           metricAt, hourlyAt, sumBack, river, stressFrom, trafficabilityFrom,
+           provenanceFor, soilRefs, statusLine, clear,
+           forecastUrl, floodUrl, HOST, SOIL, PROV, indexFor };
+})();
+
+
+/* ===================== MODULE 9b: PLACES =====================
+
+   Worldwide location search, and the catchment synthesis behind it.
+
+   Open-Meteo's geocoder is GeoNames-backed and keyless, so the search box
+   genuinely reaches every populated place on Earth rather than the three
+   hardcoded regions the app shipped with.
+
+   BE CLEAR ABOUT WHAT IS SYNTHESISED. Searching "Kisumu" gives real coordinates,
+   real elevation, a real timezone and real telemetry for that point. It does NOT
+   give real farm boundaries, real roads or a real depot — no open dataset offers
+   those per smallholding. So the catchment around the point is generated: plot
+   positions, the road graph and the river crossing are a plausible layout, laid
+   out deterministically from the coordinates so the same place always produces
+   the same map. The UI says so, and the manual says so.                       */
+
+const Places = (() => {
+  const MAX_RESULTS = 8;
+
+  /* Deterministic 32-bit hash so a place's layout never changes between visits
+     without storing anything. */
+  function hash(str){
+    let h = 2166136261;
+    for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0) / 4294967296;
+  }
+
+  async function search(q){
+    const term = String(q || '').trim();
+    if(term.length < 2) return [];
+    const url = `${Live.HOST.geocode}?name=${encodeURIComponent(term)}&count=${MAX_RESULTS}&language=en&format=json`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('geocoder HTTP ' + res.status);
+    const j = await res.json();
+    return (j.results || []).map(r => ({
+      id: String(r.id),
+      name: r.name,
+      admin: [r.admin1, r.admin2].filter(Boolean)[0] || '',
+      country: r.country || '',
+      countryCode: r.country_code || '',
+      lat: r.latitude,
+      lon: r.longitude,
+      elevation: r.elevation,
+      timezone: r.timezone,
+      population: r.population || null
+    }));
+  }
+
+  /* CROP-CASMA is a NASA/USDA product covering the contiguous United States.
+     Checked against a CONUS bounding box, not just the country code, so Alaska
+     and Hawaii correctly report no coverage. */
+  function conus(lat, lon){
+    return lat >= 24.5 && lat <= 49.4 && lon >= -125.0 && lon <= -66.9;
+  }
+
+  /* Which crops a catchment at this latitude plausibly grows. Latitude bands are
+     a coarse proxy for a real cropping calendar, and are presented as an
+     assumption the user can see rather than a fact. */
+  function cropsFor(lat){
+    const a = Math.abs(lat);
+    if(a < 15) return ['Cassava', 'Tomato', 'Pepper'];
+    if(a < 30) return ['Maize',   'Tomato', 'Pepper'];
+    if(a < 45) return ['Maize',   'Tomato', 'Potato'];
+    return          ['Wheat',   'Potato', 'Soybean'];
+  }
+
+  /* Plot and node layout in kilometres east/north of the searched point. Mirrors
+     the original hand-built topology so every downstream module — routing,
+     backhaul, the ford that floods first — keeps working unchanged. */
+  const LAYOUT = {
+    F1: { e:-1.6, n: 2.9 }, F2: { e: 1.0, n: 1.7 }, F3: { e:-2.4, n:-1.8 },
+    J1: { e: 0.3, n: 1.0 }, XR: { e: 3.9, n: 0.6 }, J2: { e: 1.4, n:-2.4 },
+    DEP:{ e: 6.0, n:-0.3 }, HUB:{ e: 5.6, n:-3.4 }
+  };
+  const HECTARES = [2.1, 1.4, 0.9];
+
+  /** Build a region object for a searched place, shaped exactly like the
+      hand-written REGIONS entries so nothing downstream needs to know the
+      difference. */
+  function catchmentFor(place){
+    const seed = hash(`${place.lat.toFixed(3)},${place.lon.toFixed(3)},${place.name}`);
+    const spin = seed * Math.PI * 2;                 // stable rotation per place
+    const scale = 0.85 + seed * 0.4;                 // 0.85–1.25× catchment size
+    const cos = Math.cos(spin), sin = Math.sin(spin);
+    const kmPerDegLat = 110.574;
+    const kmPerDegLon = 111.320 * Math.cos(place.lat * Math.PI / 180) || 1e-6;
+    const crops = cropsFor(place.lat);
+
+    const nodes = {};
+    Object.keys(LAYOUT).forEach(id => {
+      const { e, n } = LAYOUT[id];
+      const E = (e * cos - n * sin) * scale;
+      const N = (e * sin + n * cos) * scale;
+      nodes[id] = {
+        lat: place.lat + N / kmPerDegLat,
+        lon: place.lon + E / kmPerDegLon,
+        name: id === 'DEP' ? 'Depot' : id === 'HUB' ? 'Buyer Hub'
+            : id === 'XR' ? 'Ford X-1' : id === 'J1' ? 'Jct N' : id === 'J2' ? 'Jct S'
+            : `Plot ${id.replace('F', 'F-')}`,
+        kind: id.startsWith('F') && id !== 'DEP' ? 'farm'
+            : id === 'DEP' ? 'depot' : id === 'HUB' ? 'hub' : 'jct'
+      };
+      if(id === 'XR') nodes[id].sub = 'river crossing';
+      if(id === 'DEP') nodes[id].sub = 'cold store';
+    });
+    ['F1','F2','F3'].forEach((id, i) => { nodes[id].crop = crops[i]; nodes[id].ha = HECTARES[i]; });
+
+    const label = [place.name, place.admin].filter(Boolean).join(' · ');
+    return {
+      id: `geo:${place.lat.toFixed(3)},${place.lon.toFixed(3)}`,
+      name: label,
+      country: place.country,
+      synthesised: true,                    // the flag the UI reads to say so
+      place,
+      centre: { lat: place.lat, lon: place.lon },
+      sources: { SMAP:true, CROP_CASMA: conus(place.lat, place.lon), S1:true, S2:true },
+      // Climate seeds are only the simulation fallback; live data overrides them.
+      climate: { temp:22, moisture:28, ndvi:0.6, stress:0.3, traff:88 },
+      hubName: `${place.name} Market`,
+      depotName: `${place.name} Depot`,
+      nodes
+    };
+  }
+
+  return { search, catchmentFor, cropsFor, conus, hash, LAYOUT };
+})();
+
+
+/* ===================== MODULE 9c: AGRONOMY =====================
+
+   The four things a grower actually acts on, computed from the live series.
+   Every one of these is a decision with a cost attached: irrigate or don't,
+   harvest tonight or tomorrow, spray this afternoon or wait, and how far into
+   the season the crop actually is.
+
+   These are advisory. The arithmetic is standard (FAO-56 water balance, GDD
+   with a crop base temperature) but the inputs are modelled, and a real
+   irrigation decision needs a soil survey and a flow meter. Labelled throughout.
+*/
+
+const Agronomy = (() => {
+  const ROOT_DEPTH_MM = 300;       // effective root zone for shallow-rooted row crops
+  const ALLOWED_DEPLETION = 0.45;  // FAO-56 p-value: refill before this fraction is gone
+
+  /** Soil water balance and an irrigate / hold call. */
+  function water(epochMs){
+    if(!Live.ready()) return null;
+    const vwc = Live.hourlyAt('soil_moisture_3_to_9cm', epochMs);
+    if(vwc === null) return null;
+    const S = Live.soilRefs();
+
+    const taw = (S.fieldCapacity - S.wilting) * ROOT_DEPTH_MM;      // total available water, mm
+    const available = Math.max(0, (vwc - S.wilting) * ROOT_DEPTH_MM);
+    const depletion = Math.max(0, taw - available);
+    const trigger = taw * ALLOWED_DEPLETION;
+
+    const rain7  = Live.sumBack('precipitation', epochMs, 168);
+    const et7    = Live.sumBack('et0_fao_evapotranspiration', epochMs, 168);
+    const rain48 = Live.sumBack('precipitation', epochMs + 48 * 3600000, 48);   // forecast ahead
+
+    let call, why;
+    if(depletion < trigger * 0.5){
+      call = 'hold'; why = 'Root zone is comfortably wet.';
+    } else if(depletion < trigger){
+      call = 'monitor'; why = `Depletion ${Math.round(depletion)} mm of ${Math.round(trigger)} mm allowed.`;
+    } else if((rain48 || 0) >= depletion * 0.8){
+      call = 'hold'; why = `${fmt(rain48,1)} mm forecast in 48 h covers the ${Math.round(depletion)} mm deficit.`;
+    } else {
+      call = 'irrigate'; why = `Depletion ${Math.round(depletion)} mm exceeds the ${Math.round(trigger)} mm refill point.`;
+    }
+
+    return {
+      vwc, taw, available, depletion, trigger,
+      applyMm: call === 'irrigate' ? Math.round(depletion) : 0,
+      rain7, et7, rain48,
+      balance7: (rain7 === null || et7 === null) ? null : rain7 - et7,
+      call, why
+    };
+  }
+
+  /** The next 72 h of temperature, framed as the decision: is there a frost or a
+      heat event coming, and how long have I got? */
+  function thermal(epochMs){
+    if(!Live.ready()) return null;
+    const out = { hours: [], minC: Infinity, maxC: -Infinity,
+                  frostHours: 0, heatHours: 0, firstFrostIn: null, firstHeatIn: null };
+    for(let h = 0; h <= 72; h++){
+      const t = Live.hourlyAt('temperature_2m', epochMs + h * 3600000);
+      if(t === null) continue;
+      out.hours.push({ h, t });
+      if(t < out.minC) out.minC = t;
+      if(t > out.maxC) out.maxC = t;
+      if(t <= CFG.THRESH.frostArm){ out.frostHours++; if(out.firstFrostIn === null) out.firstFrostIn = h; }
+      if(t >= CFG.THRESH.heatArm){  out.heatHours++;  if(out.firstHeatIn  === null) out.firstHeatIn  = h; }
+    }
+    if(!out.hours.length) return null;
+    if(!isFinite(out.minC)) out.minC = null;
+    if(!isFinite(out.maxC)) out.maxC = null;
+    out.verdict = out.firstFrostIn !== null ? 'frost'
+                : out.firstHeatIn  !== null ? 'heat'
+                : out.minC !== null && out.minC <= CFG.THRESH.frostClear ? 'marginal' : 'clear';
+    return out;
+  }
+
+  /* Spray suitability. The limits are conventional agricultural practice:
+     drift above ~15 km/h, poor retention below ~40% humidity, and rain within
+     the hour after application washes the product off. */
+  const SPRAY = { windOk: 15, windMax: 20, gustMax: 28, rhMin: 40, rainProbMax: 30 };
+
+  function spray(epochMs){
+    if(!Live.ready()) return null;
+    const blocks = [];
+    for(let h = 0; h < 48; h++){
+      const at   = epochMs + h * 3600000;
+      const wind = Live.hourlyAt('wind_speed_10m', at);
+      const gust = Live.hourlyAt('wind_gusts_10m', at);
+      const rh   = Live.hourlyAt('relative_humidity_2m', at);
+      const pop  = Live.hourlyAt('precipitation_probability', at);
+      if(wind === null) continue;
+
+      const fails = [];
+      if(wind > SPRAY.windMax)             fails.push('wind');
+      if(gust !== null && gust > SPRAY.gustMax) fails.push('gusts');
+      if(rh !== null && rh < SPRAY.rhMin)  fails.push('too dry');
+      if(pop !== null && pop > SPRAY.rainProbMax) fails.push('rain risk');
+
+      const marginal = !fails.length && (wind > SPRAY.windOk || (pop !== null && pop > 15));
+      blocks.push({ h, at, wind, gust, rh, pop,
+                    rating: fails.length ? 'no' : marginal ? 'marginal' : 'good',
+                    fails });
+    }
+    if(!blocks.length) return null;
+    // The next usable run of hours, which is the thing worth surfacing.
+    let best = null, run = null;
+    blocks.forEach(b => {
+      if(b.rating === 'good'){
+        run = run || { start: b.h, len: 0 };
+        run.len++;
+        if(!best || run.len > best.len) best = { start: run.start, len: run.len };
+      } else run = null;
+    });
+    return { blocks, nextWindow: best };
+  }
+
+  /** Growing-degree days against the crop's base temperature, from the daily
+      series we hold. Short-window by design: the forecast call carries 7 past
+      days, so this reports recent accumulation and a rate, not a whole season —
+      a season total would need a planting date and a longer archive fetch. */
+  function heatUnits(cropName){
+    if(!Live.ready()) return null;
+    const crop = CROPS[cropName];
+    if(!crop || crop.baseTempC === undefined) return null;
+    const d = Live.payload().daily;
+    if(!d || !d.temperature_2m_min) return null;
+
+    let total = 0, days = 0;
+    const series = [];
+    d.time.forEach((day, i) => {
+      const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
+      if(typeof lo !== 'number' || typeof hi !== 'number') return;
+      const gdd = Math.max(0, (lo + hi) / 2 - crop.baseTempC);
+      total += gdd; days++;
+      series.push({ day, gdd, cumulative: total });
+    });
+    if(!days) return null;
+    const rate = total / days;
+    return {
+      crop: cropName, baseTempC: crop.baseTempC, windowDays: days,
+      total, rate, series,
+      toMaturity: crop.gddToMaturity || null,
+      daysAtRate: crop.gddToMaturity && rate > 0 ? Math.round(crop.gddToMaturity / rate) : null
+    };
+  }
+
+  return { water, thermal, spray, heatUnits, ROOT_DEPTH_MM, ALLOWED_DEPLETION, SPRAY };
+})();
+
+
+/* ===================== MODULE 10: SATELLITE IMAGERY =====================
+
+   Real NASA imagery under the vector map, from GIBS (Global Imagery Browse
+   Services) — keyless, CORS-open, and carrying the actual products this app
+   used to only name: SMAP L4 root-zone soil moisture, MODIS NDVI, MODIS true
+   colour.
+
+   THE POINT OF SHOWING THESE IS THE PIXEL SIZE. A 9 km SMAP cell drawn over a
+   7 km catchment covers the whole thing in roughly one square. That is not a
+   rendering limitation to apologise for — it is the single most important fact
+   about the data, and every dashboard that resamples it into a smooth gradient
+   is hiding it. So the tiles are drawn unsmoothed, and the layer legend states
+   the metres-per-pixel next to the catchment's own span.
+
+   `time=default` asks GIBS for the most recent granule, which is what a user
+   wants and avoids shipping a date table that goes stale. Zoom is clamped per
+   layer: the TileMatrixSet name carries the maximum level, and asking beyond it
+   returns 400 rather than an upscaled tile.                                  */
+
+const Sat = (() => {
+  const BASE = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
+
+  const LAYERS = [
+    { id:'truecolor', label:'True colour', product:'MODIS Terra · ~250 m',
+      gibs:'MODIS_Terra_CorrectedReflectance_TrueColor',
+      /* Daily imagery is built swath by swath as the satellite comes round, so
+         "today" is a half-finished mosaic and renders black over any longitude
+         the sensor has not reached yet. Yesterday is always complete. Composite
+         products (NDVI 16-day, SMAP L4) do not have this problem: their
+         `default` already points at the last finished granule. */
+      lagDays:1,
+      tms:'GoogleMapsCompatible_Level9', maxZ:9, ext:'jpg', resM:250, opacity:1 },
+    { id:'ndvi', label:'Canopy NDVI', product:'MODIS Terra 16-day · ~250 m',
+      gibs:'MODIS_Terra_L3_NDVI_16Day',
+      tms:'GoogleMapsCompatible_Level9', maxZ:9, ext:'png', resM:250, opacity:0.88 },
+    { id:'smap', label:'Root-zone moisture', product:'SMAP L4 · ~9 km',
+      gibs:'SMAP_L4_Analyzed_Root_Zone_Soil_Moisture',
+      tms:'GoogleMapsCompatible_Level6', maxZ:6, ext:'png', resM:9000, opacity:0.82 }
+  ];
+
+  let activeId = null;                       // null = vector map only
+  let failed = {};                           // layer id -> true once a tile 404s
+
+  const layer = id => LAYERS.find(l => l.id === id) || null;
+  const active = () => layer(activeId);
+
+  /** GIBS date for a layer: `default` (the latest finished granule) unless the
+      product needs a lag, in which case an explicit ISO date. */
+  function timeFor(l){
+    if(!l.lagDays) return 'default';
+    const d = new Date(Date.now() - l.lagDays * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+
+  const url = (l, z, x, y) => `${BASE}/${l.gibs}/default/${timeFor(l)}/${l.tms}/${z}/${y}/${x}.${l.ext}`;
+
+  /* Web Mercator tile helpers. */
+  const lon2x = (lon, n) => (lon + 180) / 360 * n;
+  const lat2y = (lat, n) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+  const x2lon = (x, n) => x / n * 360 - 180;
+  const y2lat = (y, n) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+
+  /** The zoom that covers the catchment in a handful of tiles without exceeding
+      the layer's maximum. Coarse products simply cannot go deep, which is the
+      honest reason a SMAP overlay looks blocky. */
+  function zoomFor(l, bounds){
+    const spanLon = Math.max(1e-6, bounds.maxLon - bounds.minLon);
+    for(let z = l.maxZ; z >= 1; z--){
+      const n = 2 ** z;
+      if((spanLon / 360) * n <= 3) return z;        // ≤3 tiles across
+    }
+    return 1;
+  }
+
+  /** SVG <image> elements covering the catchment, positioned through the very
+      same projector the road graph uses. */
+  function tilesFor(region){
+    const l = active();
+    if(!l || failed[l.id] || !region) return { html:'', info:null };
+    const to = Geo.projectorFor(region);
+    const b = to.bounds;
+    // A little margin so the raster reaches the edges of the drawn area.
+    const padLat = (b.maxLat - b.minLat) * 0.15 || 0.01;
+    const padLon = (b.maxLon - b.minLon) * 0.15 || 0.01;
+    const box = { minLat:b.minLat - padLat, maxLat:b.maxLat + padLat,
+                  minLon:b.minLon - padLon, maxLon:b.maxLon + padLon };
+
+    const z = zoomFor(l, box), n = 2 ** z;
+    const x0 = Math.floor(lon2x(box.minLon, n)), x1 = Math.floor(lon2x(box.maxLon, n));
+    const y0 = Math.floor(lat2y(box.maxLat, n)), y1 = Math.floor(lat2y(box.minLat, n));
+
+    let html = '';
+    let count = 0;
+    for(let x = x0; x <= x1; x++){
+      for(let y = y0; y <= y1; y++){
+        if(x < 0 || y < 0 || x >= n || y >= n) continue;
+        const nw = to(y2lat(y, n), x2lon(x, n));
+        const se = to(y2lat(y + 1, n), x2lon(x + 1, n));
+        const w = se.x - nw.x, h = se.y - nw.y;
+        if(!(w > 0) || !(h > 0)) continue;
+        html += `<image href="${esc(url(l, z, x, y))}" x="${nw.x.toFixed(2)}" y="${nw.y.toFixed(2)}" ` +
+                `width="${w.toFixed(2)}" height="${h.toFixed(2)}" preserveAspectRatio="none" ` +
+                `opacity="${l.opacity}" style="image-rendering:pixelated" ` +
+                `data-sat-tile="${l.id}"/>`;
+        count++;
+      }
+    }
+    // Ground resolution at this zoom and latitude, for the legend.
+    const midLat = (box.minLat + box.maxLat) / 2;
+    const mPerPx = 156543.03392 * Math.cos(midLat * Math.PI / 180) / (2 ** z);
+    return { html, info: { layer:l, z, tiles:count, mPerPx, tilePixelM: l.resM } };
+  }
+
+  /** The true footprint of one source pixel, drawn over the catchment. This is
+      the honest-scope argument made visual: for SMAP the square swallows every
+      plot. */
+  function footprintFor(region){
+    const l = active();
+    if(!l || !region || l.resM < 1000) return '';
+    const to = Geo.projectorFor(region);
+    const c = region.centre;
+    const dLat = (l.resM / 2) / 110574;
+    const dLon = (l.resM / 2) / (111320 * Math.cos(c.lat * Math.PI / 180) || 1e-6);
+    const nw = to(c.lat + dLat, c.lon - dLon);
+    const se = to(c.lat - dLat, c.lon + dLon);
+    const w = Math.abs(se.x - nw.x), h = Math.abs(se.y - nw.y);
+    return `<rect class="pixel-footprint" x="${Math.min(nw.x,se.x).toFixed(1)}" y="${Math.min(nw.y,se.y).toFixed(1)}" ` +
+           `width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>` +
+           `<text class="pixel-label" x="${(Math.min(nw.x,se.x) + 5).toFixed(1)}" y="${(Math.min(nw.y,se.y) + 13).toFixed(1)}">` +
+           `one ${l.resM >= 1000 ? (l.resM/1000) + ' km' : l.resM + ' m'} pixel</text>`;
+  }
+
+  function set(id){
+    activeId = (id === activeId || !id) ? null : id;
+    State.emit('sat', { layer: activeId });
+    return activeId;
+  }
+  const refresh = () => State.emit('sat', { layer: activeId });
+  const markFailed = id => { failed[id] = true; };
+  const reset = () => { failed = {}; };
+
+  return { LAYERS, set, active, activeId: () => activeId, tilesFor, footprintFor,
+           refresh, markFailed, reset, url, timeFor, zoomFor, BASE,
+           lon2x, lat2y, x2lon, y2lat };
+})();
+
+
+/* ===================== MODULE 9d: SEARCH UI =====================
+
+   One combobox, mirrored into the desktop header and the mobile sheet. Both
+   copies share this module's state, so whichever one the user reaches, the app
+   behaves identically.
+
+   Debounced at 280 ms because the geocoder is a public free service and one
+   request per keystroke would be rude. In-flight requests are sequenced so a
+   slow response for "ki" can never overwrite the results for "kisumu". */
+
+const Search = (() => {
+  const DEBOUNCE = 280;
+  const boxes = [
+    { input:'placeSearch',  results:'placeResults',  geo:'placeGeo'  },
+    { input:'placeSearchM', results:'placeResultsM', geo:'placeGeoM' }
+  ];
+  let timer = null, generation = 0, results = [], active = -1, onPick = () => {};
+
+  const flag = cc => (cc && cc.length === 2)
+    ? String.fromCodePoint(...[...cc.toUpperCase()].map(c => 0x1f1e6 + c.charCodeAt(0) - 65))
+    : '🌐';
+
+  function suggestions(){
+    return Object.keys(REGIONS).map(id => ({
+      builtin: id,
+      name: REGIONS[id].name,
+      admin: '',
+      country: REGIONS[id].country,
+      countryCode: id.startsWith('ghana') ? 'GH' : id.startsWith('nigeria') ? 'NG' : 'US',
+      lat: REGIONS[id].centre.lat, lon: REGIONS[id].centre.lon
+    }));
+  }
+
+  function render(list, heading, message){
+    results = list || [];
+    active = -1;
+    const html = message
+      ? `<div class="res-empty">${esc(message)}</div>`
+      : (heading ? `<div class="res-head">${esc(heading)}</div>` : '') +
+        results.map((r, i) => `
+          <button class="res" role="option" aria-selected="false" data-pick="${i}">
+            <span class="res-flag" aria-hidden="true">${flag(r.countryCode)}</span>
+            <span class="res-name">${esc(r.name)}</span>
+            <span class="res-sub">${esc([r.admin, r.country].filter(Boolean).join(', '))}</span>
+          </button>`).join('');
+    boxes.forEach(b => {
+      const box = el(b.results);
+      if(!box) return;
+      box.innerHTML = html;
+      box.hidden = false;
+      const combo = box.parentNode;
+      if(combo && combo.setAttribute) combo.setAttribute('aria-expanded', 'true');
+    });
+  }
+
+  function close(){
+    boxes.forEach(b => {
+      const box = el(b.results);
+      if(!box) return;
+      box.hidden = true;
+      const combo = box.parentNode;
+      if(combo && combo.setAttribute) combo.setAttribute('aria-expanded', 'false');
+    });
+    active = -1;
+  }
+
+  function highlight(delta){
+    if(!results.length) return;
+    active = (active + delta + results.length) % results.length;
+    boxes.forEach(b => {
+      const box = el(b.results);
+      if(!box || box.hidden) return;
+      (box.querySelectorAll ? box.querySelectorAll('[data-pick]') : []).forEach((n, i) =>
+        n.setAttribute('aria-selected', String(i === active)));
+    });
+  }
+
+  async function run(term){
+    const gen = ++generation;
+    if(!term || term.trim().length < 2){ render(suggestions(), 'Suggested catchments'); return; }
+    render([], null, 'Searching…');
+    try{
+      const hits = await Places.search(term);
+      if(gen !== generation) return;                     // a newer query won
+      if(!hits.length){ render([], null, `Nothing found for "${term}".`); return; }
+      render(hits, 'Locations');
+    }catch(e){
+      if(gen !== generation) return;
+      render([], null, Live.online()
+        ? 'Search unavailable right now. Previously visited locations still work offline.'
+        : 'Offline — search needs a connection. Cached locations still work.');
+    }
+  }
+
+  function onInput(value){
+    boxes.forEach(b => { const i = el(b.input); if(i && i.value !== value) i.value = value; });
+    clearTimeout(timer);
+    timer = setTimeout(() => run(value), DEBOUNCE);
+  }
+
+  function pick(i){
+    const r = results[i];
+    if(!r) return;
+    close();
+    boxes.forEach(b => { const n = el(b.input); if(n) n.value = r.name; });
+    onPick(r);
+  }
+
+  /** Browser geolocation, used only on an explicit tap. Never on load. */
+  function locate(){
+    if(typeof navigator === 'undefined' || !navigator.geolocation){
+      render([], null, 'This browser cannot report a location.');
+      return;
+    }
+    render([], null, 'Locating…');
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude:lat, longitude:lon } = pos.coords;
+      close();
+      onPick({ name:`${fmt(lat,3)}, ${fmt(lon,3)}`, admin:'Your location', country:'', countryCode:'',
+               lat, lon, elevation:null, timezone:null });
+    }, err => {
+      render([], null, err && err.code === 1
+        ? 'Location permission denied.'
+        : 'Could not get a location fix.');
+    }, { enableHighAccuracy:false, timeout:10000, maximumAge:600000 });
+  }
+
+  const setHandler = fn => { onPick = fn; };
+
+  return { run, onInput, pick, close, locate, highlight, setHandler, suggestions,
+           current: () => results, activeIndex: () => active, flag, boxes, DEBOUNCE };
 })();
 
 
@@ -3693,6 +5244,8 @@ const Manual = (() => {
 
   /* --- first paint --- */
   Views.renderRegionPicker();
+  Views.renderSatBar();
+  Views.renderAgronomy();
   Views.renderTriggers();
   Views.renderQuickReplies();
   Views.renderLinks();
@@ -3710,6 +5263,8 @@ const Manual = (() => {
 
   /* --- state -> view bindings (views never mutate state) --- */
   State.on('telemetry',      () => { Views.renderTiles(); Views.renderThermal(); Views.renderTable(); Views.renderHero(); });
+  State.on('sat',            () => { Views.renderMap(); Views.renderSatBar(); });
+  State.on('live',           () => { Views.renderLiveChip(); Views.renderAgronomy(); });
   State.on('telemetry:loss', () => { Views.renderTiles(); });
   State.on('links',   Views.renderLinks);
   State.on('alerts',  () => { Views.renderHero(); Views.renderPosture(); Views.renderTiles(); });
@@ -3726,9 +5281,14 @@ const Manual = (() => {
   State.on('orders',    Views.renderRolePanes);
 
   /* --- mission clock --- */
+  let agroTick = 0;
   const clockTimer = setInterval(() => {
     if(!State.data.paused) State.data.clock += 1000 * State.data.speed;
     Views.renderClock();
+    // The agronomy cards are a function of the mission clock, so they move when
+    // it does -- but they are the most expensive render on the page, so not
+    // every second.
+    if(++agroTick % 10 === 0){ Views.renderAgronomy(); Views.renderLiveChip(); }
   }, 1000);
 
   /* --- controls ---
@@ -3762,6 +5322,25 @@ const Manual = (() => {
 
   el('btnTable').addEventListener('click', Views.toggleTable);
 
+  /* --- satellite layer switcher --- */
+  el('satBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-sat]');
+    if(!b) return;
+    Sat.set(b.dataset.sat || null);
+  });
+  /* A tile that 404s means this product has no granule over this catchment —
+     common for polar or ocean-adjacent locations. Say so once and drop the
+     layer rather than leaving broken images on the map. */
+  document.addEventListener('error', e => {
+    const t = e.target;
+    if(t && t.dataset && t.dataset.satTile){
+      Sat.markFailed(t.dataset.satTile);
+      Log.add('info', 'Imagery unavailable',
+        'That NASA product has no recent granule covering this location. Falling back to the vector map.');
+      Sat.set(null);
+    }
+  }, true);
+
   /* --- mobile simulation sheet --- */
   el('fabSim').addEventListener('click', () => Views.openSheet(true));
   el('simClose').addEventListener('click', () => Views.openSheet(false));
@@ -3794,29 +5373,113 @@ const Manual = (() => {
     }
   });
 
-  /* --- region switching: rebuild the graph and re-seed, then repaint --- */
-  function onRegionChange(e){
+  /* --- location switching -------------------------------------------------
+     One path for all three ways in: a built-in region, a geocoded place, or the
+     browser's own position. Each rebuilds the graph, loads live data for the new
+     coordinates, and repaints. Telemetry is stopped across the swap so a packet
+     in flight for the old catchment cannot land in the new one. */
+
+  async function goToLocation(pick){
     Telemetry.stop();
     State.data.alerts.clear();
     Telemetry.clearInjections();
-    const r = seedRegion(e.target.value);
+    Live.clear();
+
+    let region;
+    if(pick.builtin){
+      region = seedRegion(pick.builtin);
+      State.data.place = null;
+    } else {
+      const place = { name:pick.name, admin:pick.admin || '', country:pick.country || '',
+                      countryCode:pick.countryCode || '', lat:pick.lat, lon:pick.lon,
+                      elevation:pick.elevation, timezone:pick.timezone };
+      region = Places.catchmentFor(place);
+      REGIONS[region.id] = region;                  // so Region.load() can find it
+      State.data.place = place;
+      seedRegion(region.id);
+    }
+
+    Views.renderLiveChip();
+    Log.add('info', 'Location changed', `Loading live observations for ${region.name}…`);
+
+    const centre = region.centre;
+    const res = await Live.ensure(centre.lat, centre.lon, region.name);
+
+    if(res.payload){
+      // Re-seed so the first paint uses real values rather than climate defaults.
+      Telemetry.seedHistory();
+      Dispatch.refreshEdges();
+      const route = Dispatch.buildRoute();
+      State.commit({ route, baselineRoute: route, prevRoutePoints: null });
+      Scoring.recompute();
+    }
+
     Views.renderLinks(); Views.renderTiles(); Views.renderThermal();
     Views.renderMap(); Views.renderHero(); Views.renderPosture(); Views.renderTable();
+    Views.renderAgronomy(); Views.renderRolePanes(); Views.syncControls();
+    Views.renderRegionPicker(); Views.renderLiveChip();
+    Sat.refresh();
     State.emit('alerts');
-    Log.add('info', 'Region changed',
-      `Now monitoring ${r.name}, ${r.country}. Graph rebuilt from WGS-84 coordinates; ` +
-      `advisories cleared and telemetry re-seeded to local climate baselines.`);
-    Console.post('BOT', `Switched monitoring to ${r.name}, ${r.country}. Road network rebuilt from real coordinates — ${EDGES.length} segments, catchment ${fmt(Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]),1)} km origin-to-depot straight line.`, {
-      kv:`SMAP ${r.sources.SMAP?'✓':'✗'} · CROP-CASMA ${r.sources.CROP_CASMA?'✓':'✗ (CONUS only)'}\nSentinel-1 ${r.sources.S1?'✓':'✗'} · Sentinel-2 ${r.sources.S2?'✓':'✗'}`
-    });
-    Views.renderRegionPicker();
-    Views.syncControls();
-    Views.renderRolePanes();
+
+    const st = Live.statusLine();
+    const w = res.payload ? Agronomy.water(State.data.clock) : null;
+    if(res.payload){
+      Log.add(res.source === 'cache' ? 'warning' : 'good',
+        res.source === 'cache' ? 'Serving cached observations' : 'Live observations loaded',
+        `${region.name}${region.country ? ', ' + region.country : ''} — ${st.text}. ` +
+        (region.synthesised
+          ? 'Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.'
+          : 'Built-in demo catchment.'));
+      Console.post('BOT',
+        `Now monitoring ${region.name}${region.country ? ', ' + region.country : ''}. ` +
+        `${st.text}. Soil moisture and temperature are ECMWF/DWD land-surface model output, ` +
+        `trafficability is derived from rain and river discharge, NDVI has no keyless point source and stays modelled.`, {
+        kv: `elev ${fmt(Live.payload().elevation,0)} m · ${esc(Live.payload().timezone || 'UTC')}
+` +
+            `catchment ${fmt(Geo.haversine(NODES[ROUTE_ORIGIN], NODES[ROUTE_DEST]),1)} km origin→depot · ${EDGES.length} segments
+` +
+            (w ? `water: ${w.call}${w.applyMm ? ' ' + w.applyMm + ' mm' : ''}` : '')
+      });
+    } else {
+      Log.add('warning', 'No live data',
+        `Could not reach the observation services and nothing is cached for ${region.name}. ` +
+        `Falling back to simulated telemetry, labelled as such.`);
+      Console.post('BOT',
+        `I could not load real observations for ${region.name} and have nothing cached for it. ` +
+        `Everything you see is simulated until the connection returns — the header chip says so.`);
+    }
+
     Telemetry.start();
   }
-  ['regionSel','regionSelM'].forEach(id => {
-    const s = el(id);
-    if(s) s.addEventListener('change', onRegionChange);
+
+  Search.setHandler(pick => { goToLocation(pick).catch(err => {
+    Log.add('critical', 'Location failed', String(err && err.message || err));
+  }); });
+
+  /* --- search wiring: both copies share one module --- */
+  Search.boxes.forEach(b => {
+    const input = el(b.input), box = el(b.results), geo = el(b.geo);
+    if(input){
+      input.addEventListener('input', e => Search.onInput(e.target.value));
+      input.addEventListener('focus', () => Search.run(input.value));
+      input.addEventListener('keydown', e => {
+        if(e.key === 'ArrowDown'){ e.preventDefault(); Search.highlight(1); }
+        else if(e.key === 'ArrowUp'){ e.preventDefault(); Search.highlight(-1); }
+        else if(e.key === 'Enter'){
+          e.preventDefault();
+          Search.pick(Search.activeIndex() >= 0 ? Search.activeIndex() : 0);
+        } else if(e.key === 'Escape'){ Search.close(); }
+      });
+    }
+    if(box) box.addEventListener('click', e => {
+      const btn = e.target.closest('[data-pick]');
+      if(btn) Search.pick(Number(btn.dataset.pick));
+    });
+    if(geo) geo.addEventListener('click', Search.locate);
+  });
+  // A click anywhere else dismisses the result list.
+  document.addEventListener('click', e => {
+    if(!e.target.closest || !e.target.closest('.search')) Search.close();
   });
 
   /* --- chat --- */

@@ -84,15 +84,43 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(/^aura-v\d+$/.test(v[1]), `CACHE_VERSION ${JSON.stringify(v && v[1])} does not match aura-vN`);
     });
 
-    test('activate purges every cache except the current version', () => {
-      assert.includes(sw, 'k !== CACHE_VERSION', 'stale caches are never deleted, so old shells linger forever');
+    test('activate purges caches from older versions', () =>
+      assert.includes(sw, 'keys.filter(k => !k.startsWith(CACHE_VERSION))',
+        'stale caches are never deleted, so old shells linger forever'));
+
+    test('runtime caches are keyed off the shell version', () => {
+      // Otherwise a deploy leaves last version's observations behind and the
+      // activate purge cannot find them.
+      assert.includes(sw, "CACHE_VERSION + '-data'", 'data cache not versioned');
+      assert.includes(sw, "CACHE_VERSION + '-tiles'", 'tile cache not versioned');
     });
 
     test('fetch handler ignores non-GET requests', () =>
       assert.includes(sw, "req.method !== 'GET'", 'non-GET requests would be cached'));
 
-    test('fetch handler never caches cross-origin responses', () =>
-      assert.includes(sw, 'url.origin !== self.location.origin', 'cross-origin responses could enter the cache'));
+    test('only allowlisted cross-origin hosts are cached', () => {
+      assert.includes(sw, 'url.origin !== self.location.origin', 'unlisted cross-origin responses could be cached');
+      const data = sw.match(/const DATA_HOSTS\s*=\s*\[([^\]]+)\]/);
+      const tiles = sw.match(/const TILE_HOSTS\s*=\s*\[([^\]]+)\]/);
+      assert.ok(data && tiles, 'host allowlists not declared');
+      const hosts = [...(data[1] + tiles[1]).matchAll(/'([^']+)'/g)].map(m => m[1]);
+      const ALLOWED = ['api.open-meteo.com','flood-api.open-meteo.com','geocoding-api.open-meteo.com','gibs.earthdata.nasa.gov'];
+      assert.deepEqual(hosts.filter(h => !ALLOWED.includes(h)), [], 'the worker caches an undeclared host');
+    });
+
+    test('observations are network-first and imagery is cache-first', () => {
+      // Backwards would be a real failure: a grower would act on yesterday's
+      // soil moisture, and immutable tiles would be re-fetched every paint.
+      const dataBlock = sw.slice(sw.indexOf('DATA_HOSTS.includes'), sw.indexOf('TILE_HOSTS.includes'));
+      const tileBlock = sw.slice(sw.indexOf('TILE_HOSTS.includes'));
+      assert.less(dataBlock.indexOf('await fetch(req)'), dataBlock.indexOf('cache.match(req)'),
+        'observation requests hit the cache before the network');
+      assert.less(tileBlock.indexOf('cache.match(req)'), tileBlock.indexOf('await fetch(req)'),
+        'imagery requests hit the network before the cache');
+    });
+
+    test('the tile cache is bounded', () =>
+      assert.includes(sw, 'TILE_LIMIT', 'imagery would grow without limit on disk'));
 
     test('navigation requests fall back to the cached shell', () =>
       assert.includes(sw, "req.mode === 'navigate'", 'deep links would 404 offline'));
@@ -119,12 +147,23 @@ module.exports = ({ suite, test, assert }) => {
     test('display is a standalone mode', () =>
       assert.includes(['standalone', 'fullscreen', 'minimal-ui'], mf.display, 'display mode would open in a browser tab'));
 
-    test('theme_color matches the meta tag in the shell', () => {
+    test('theme_color matches the light-scheme meta tag in the shell', () => {
+      // Two theme-color metas now: one per colour scheme. The manifest carries a
+      // single value, and it must be the light one -- that is what an installer
+      // paints the splash and task switcher with before any scheme is known.
       const { markup } = readSource();
-      const meta = markup.match(/<meta name="theme-color" content="([^"]+)"/);
-      assert.ok(meta, 'no theme-color meta tag');
-      assert.equal(meta[1].toLowerCase(), mf.theme_color.toLowerCase(),
+      const metas = [...markup.matchAll(/<meta name="theme-color" content="([^"]+)"(?:\s+media="([^"]+)")?/g)];
+      assert.greater(metas.length, 0, 'no theme-color meta tag');
+      const light = metas.find(m => !m[2] || m[2].includes('light')) || metas[0];
+      assert.equal(light[1].toLowerCase(), mf.theme_color.toLowerCase(),
         'manifest and meta tag disagree, so the status bar colour changes on install');
+    });
+
+    test('a theme-color is declared for each colour scheme', () => {
+      const { markup } = readSource();
+      const metas = [...markup.matchAll(/<meta name="theme-color"[^>]*>/g)].map(m => m[0]);
+      assert.ok(metas.some(m => m.includes('light')), 'no light-scheme theme colour');
+      assert.ok(metas.some(m => m.includes('dark')), 'no dark-scheme theme colour');
     });
 
     mf.icons.forEach(icon => {
@@ -186,10 +225,32 @@ module.exports = ({ suite, test, assert }) => {
       assert.notIncludes(css, 'fonts.googleapis', 'remote webfont');
     });
 
-    test('no fetch/XHR call is made to a remote host', () => {
+    /* The app DOES call the network now. What must stay true is narrower and
+       more important: every host it reaches is keyless and declared, no
+       credential ever appears in the source, and the shell still boots and
+       renders with every one of them unreachable. */
+    test('every remote host called is on the declared allowlist', () => {
       const { script } = readSource();
-      const calls = [...script.matchAll(/fetch\(\s*['"`](https?:)?\/\//g)].map(m => m[0]);
-      assert.deepEqual(calls, [], 'the app claims to make no network calls');
+      const ALLOWED = [
+        'api.open-meteo.com', 'flood-api.open-meteo.com', 'geocoding-api.open-meteo.com',
+        'gibs.earthdata.nasa.gov',
+      ];
+      const hosts = [...new Set([...script.matchAll(/https:\/\/([a-z0-9.-]+)/g)].map(m => m[1]))];
+      const rogue = hosts.filter(h => !ALLOWED.includes(h));
+      assert.deepEqual(rogue, [], 'an undeclared host is being contacted');
+    });
+
+    test('no API key, token or secret is embedded in the source', () => {
+      const { script } = readSource();
+      const suspicious = [...script.matchAll(/(api[_-]?key|access[_-]?token|client[_-]?secret|bearer)\s*[:=]\s*['"][^'"]{8,}/gi)];
+      assert.deepEqual(suspicious.map(m => m[0].slice(0, 40)), [],
+        'a credential in a static file is public — this app must stay keyless');
+    });
+
+    test('every declared host is reached over https', () => {
+      const { script } = readSource();
+      assert.deepEqual([...script.matchAll(/http:\/\/(?!localhost)[a-z0-9.-]+/g)].map(m => m[0]), [],
+        'plaintext http request');
     });
 
     test('the service worker registers only over http(s)', () => {

@@ -436,17 +436,50 @@ module.exports = ({ suite, test, assert }) => {
       const h = fresh();
       h.app.Region.load('usa-fresno');
       h.app.Manual.open();
-      const doc = h.document.getElementById('manualDoc').innerHTML;
-      assert.includes(doc, 'Fresno', 'the manual still describes the previous region');
-      assert.includes(doc, 'CROP-CASMA is available', 'CONUS coverage not reflected for a US region');
+      assert.includes(h.document.getElementById('manualDoc').innerHTML, 'Fresno',
+        'the manual still describes the previous region');
     });
 
-    test('outside CONUS the manual says CROP-CASMA does not cover the region', () => {
+    test('with nothing loaded the manual says every value is synthetic', () => {
       const h = fresh();
-      h.app.Region.load('ghana-eastern');
       h.app.Manual.open();
       const doc = h.document.getElementById('manualDoc').innerHTML;
-      assert.includes(doc, 'CONUS only', 'the coverage caveat is missing outside the US');
+      assert.includes(doc, 'synthetic', 'the manual does not warn that nothing is live');
+    });
+
+    /* The provenance table is generated from Live.PROV, so it cannot drift from
+       what the engine actually uses -- which is the whole reason it is generated. */
+    test('the provenance table names the real source of every metric', () => {
+      const h = fresh();
+      const table = h.app.Manual.provenanceTable();
+      Object.keys(h.app.METRICS).forEach(k => {
+        const p = h.app.Live.provenanceFor(k);
+        assert.includes(table, p ? p.source : 'no live source',
+          `the manual does not state where ${k} comes from`);
+      });
+    });
+
+    test('the manual never claims any metric is a direct measurement', () => {
+      const h = fresh();
+      const table = h.app.Manual.provenanceTable();
+      assert.notIncludes(table, '>Measured<',
+        'the manual claims a measurement the data cannot support');
+    });
+
+    test('the manual explains why Sentinel and a numeric NDVI are absent', () => {
+      const h = fresh();
+      h.app.Manual.open();
+      const doc = h.document.getElementById('manualDoc').innerHTML;
+      assert.includes(doc, 'client secret', 'does not explain why Copernicus is unavailable');
+      assert.includes(doc, 'No keyless point service', 'does not explain why NDVI stays modelled');
+    });
+
+    test('the manual states what offline actually means', () => {
+      const h = fresh();
+      h.app.Manual.open();
+      const doc = h.document.getElementById('manualDoc').innerHTML;
+      assert.includes(doc, 'contradiction', 'the manual does not confront "live data offline"');
+      assert.includes(doc, 'never presents a stale number as current', 'the cache contract is not stated');
     });
 
     test('opening and closing repeatedly leaks no errors', () => {
