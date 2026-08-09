@@ -384,7 +384,7 @@ function boot(opts = {}) {
 
   const PROBE = `
 ;globalThis.__AURA__ = {
-  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Console, EventEngine, Views, Manual, Live, Places, Agronomy, Sat, Search,
+  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Console, EventEngine, Views, Manual, Live, Places, Agronomy, Sat, Search, I18n,
   CFG, SOURCES, METRICS, CROPS, REGIONS, EDGE_SPEC, PEOPLE, SEV, MAP_VIEW,
   DEFAULT_REGION, PLOTS, ROUTE_ORIGIN, ROUTE_DEST,
   get NODES(){ return NODES; }, get EDGES(){ return EDGES; }, get REGION(){ return REGION; },

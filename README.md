@@ -85,6 +85,32 @@ It generates its tables from the running configuration — the provenance table 
 `Live.PROV`, thresholds from `CFG.THRESH`, crop sensitivities from `CROPS` — so it cannot
 drift from the code, and a test fails if it ever disagrees.
 
+## Languages
+
+Twelve languages, chosen for speaker count weighted toward where smallholder
+agriculture actually is:
+
+English · 中文（简体）· हिन्दी · Español · Français · العربية · বাংলা · Português ·
+Русский · Bahasa Indonesia · Kiswahili · اردو
+
+Pick one from the 🌐 control in the header. Arabic and Urdu flip the whole layout
+right-to-left; the map, the mission clock and the monospace readouts stay
+left-to-right, because geography is not mirrored and a clock that reorders its
+digits is unreadable. Numbers and dates go through `Intl` with the active locale,
+so Spanish shows `19,3` where English shows `19.3`. Place-name search asks the
+geocoder in your language too.
+
+**These translations are machine-produced and have not been reviewed by native
+speakers.** The app says so, in the language you are reading, via a badge on any
+unreviewed locale. Before this reaches real growers, the catalogues in `i18n/`
+should be reviewed — they are plain JSON keyed by the English source string, so a
+reviewer needs no tooling and no build step.
+
+English is embedded in the app and is the fallback for any string a catalogue
+lacks, so a missing or partial translation degrades to correct English rather
+than to a blank or a raw key. Catalogues are precached by the service worker: a
+farmer who set the app to Kiswahili and then lost signal keeps Kiswahili.
+
 ## Roles
 
 Below 1024px a bottom tab bar switches between Farmer, Buyer, Driver and Ops views. Each
@@ -100,17 +126,18 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 467 checks, no dependencies, no network
-node tests/run.js live -v      # filter by file, list every check
+node tests/run.js              # 601 checks, no dependencies, no network
+node tests/run.js i18n -v      # filter by file, list every check
 ```
 
-Four groups: **151 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
-downscaling, intent matching), **76 live** (fetch and cache, metric mapping, geocoding,
-catchment synthesis, agronomy, satellite tiling), **145 control-reachability** (every
-referenced element exists, every trigger names a real code path, every quick reply
-resolves to an intent, the manual's numbers match the engine), and **95 PWA asset
-integrity** (precache completeness, icon dimensions, cache strategy, no embedded
-credential).
+Five groups: **151 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
+downscaling, intent matching), **77 live** (fetch and cache, metric mapping, geocoding,
+catchment synthesis, agronomy, satellite tiling), **125 i18n** (engine, every catalogue's
+completeness and placeholder integrity, RTL layout, and a guard against shadowing the
+translator), **148 control-reachability** (every referenced element exists, every trigger
+names a real code path, every quick reply resolves to an intent, the manual's numbers
+match the engine), and **100 PWA asset integrity** (precache completeness, icon
+dimensions, cache strategy, no embedded credential).
 
 `tests/harness.js` boots the shipped inline script in a `vm` context against a stub DOM,
 with a seeded PRNG, a virtual clock and a stubbed network — so the code under test is the

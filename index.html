@@ -651,6 +651,73 @@ body{
 }
 .res-empty{ padding:12px 10px; font-size:12px; color:var(--text-muted); }
 
+/* ---------- language picker ---------- */
+.langwrap{ position:relative; }
+.langmenu{
+  position:absolute; top:calc(100% + 6px); inset-inline-end:0; z-index:85;
+  min-width:210px; max-height:min(60vh,430px); overflow-y:auto;
+  background:var(--surface-1); border:1px solid var(--hairline-2);
+  border-radius:var(--r-md); box-shadow:0 18px 44px rgba(0,0,0,.22); padding:5px;
+}
+.langmenu[hidden]{ display:none; }
+.langopt{
+  display:flex; align-items:baseline; gap:9px; width:100%; text-align:start;
+  padding:8px 10px; border-radius:var(--r-sm); cursor:pointer;
+  background:transparent; border:1px solid transparent; font-family:var(--font-sans);
+  color:var(--text-secondary);
+}
+.langopt:hover{ background:var(--surface-2); border-color:var(--hairline); color:var(--text-primary); }
+.langopt[aria-selected="true"]{ background:var(--series1-wash); border-color:var(--info-line); color:var(--info-ink); }
+.langopt:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+.langopt .endo{ font-size:13px; font-weight:650; }
+.langopt .exo{ font-size:11px; color:var(--text-muted); flex:1; text-align:end; }
+/* An endonym must render in its own script's natural direction even inside an
+   LTR menu, and vice versa. */
+.langopt[data-dir="rtl"] .endo{ direction:rtl; unicode-bidi:isolate; }
+.langopt[data-dir="ltr"] .endo{ direction:ltr; unicode-bidi:isolate; }
+
+.tr-badge{
+  display:inline-flex; align-items:center; gap:5px; margin-inline-start:6px;
+  padding:1px 7px; border-radius:999px; font-size:9.5px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase;
+  background:var(--warning-wash); color:var(--warning-ink); border:1px solid var(--warning-line);
+}
+
+/* ---------- right-to-left ----------
+   The stylesheet is written with logical properties where it matters, so this
+   block only has to handle the things that are genuinely physical. */
+[dir="rtl"] .search-icon{ left:auto; right:10px; }
+[dir="rtl"] .search-input{ padding-left:34px; padding-right:28px; }
+[dir="rtl"] .search-geo{ right:auto; left:6px; }
+[dir="rtl"] .fab{ right:auto; left:16px; }
+[dir="rtl"] .newpill{ left:auto; right:50%; transform:translateX(50%); }
+[dir="rtl"] .logrow{ border-left:none; border-right:2px solid transparent; }
+[dir="rtl"] .logrow.critical{ border-right-color:var(--critical); }
+[dir="rtl"] .logrow.warning { border-right-color:var(--warning); }
+[dir="rtl"] .logrow.serious { border-right-color:var(--serious); }
+[dir="rtl"] .logrow.good    { border-right-color:var(--good); }
+[dir="rtl"] .logrow.info    { border-right-color:var(--series-1); }
+[dir="rtl"] .doc .note{ border-left:none; border-right:2px solid var(--series-1); border-radius:9px 0 0 9px; }
+[dir="rtl"] .doc .note.warn{ border-right-color:var(--warning); }
+[dir="rtl"] .doc ul{ padding-left:0; padding-right:18px; }
+[dir="rtl"] .doc ol.steps li{ padding:0 34px 14px 0; border-left:none; border-right:1px solid var(--hairline);
+                              margin-left:0; margin-right:11px; }
+[dir="rtl"] .doc ol.steps li::before{ left:auto; right:-11px; }
+[dir="rtl"] .manual-toc{ border-right:none; border-left:1px solid var(--hairline); }
+[dir="rtl"] .rolebtn[aria-selected="true"]::before{ left:22%; right:22%; }
+
+/* Geography is not mirrored. A map, a chart and a route diagram mean the same
+   thing everywhere, so they stay LTR inside an RTL page. Same for the mission
+   clock and monospace readouts, which would otherwise reorder their digits. */
+[dir="rtl"] #fieldMap,
+[dir="rtl"] .thermal-wrap,
+[dir="rtl"] svg{ direction:ltr; }
+[dir="rtl"] .mono,
+[dir="rtl"] .tnum,
+[dir="rtl"] #missionClock,
+[dir="rtl"] .link-lat,
+[dir="rtl"] .msg-time{ direction:ltr; unicode-bidi:isolate; }
+
 /* ---------- satellite layers ---------- */
 .satbar{
   display:flex; gap:6px; align-items:center; flex-wrap:wrap;
@@ -903,7 +970,7 @@ body{
     <div class="hidden md:block h-8 w-px" style="background:var(--hairline)"></div>
 
     <div class="flex items-center gap-2 flex-none">
-      <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)">Mission Clock</span>
+      <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)" data-i18n>Mission Clock</span>
       <span id="missionClock" class="mono tnum text-[13px] font-semibold">--:--:--</span>
       <span class="text-[9px]" style="color:var(--text-muted)">UTC</span>
     </div>
@@ -930,6 +997,14 @@ body{
 
     <!-- The one control that must survive every role and both breakpoints, so it
          lives in the header rather than the tab bar or the simulation sheet. -->
+    <div class="langwrap flex-none">
+      <button id="btnLang" class="toggle" aria-haspopup="listbox" aria-expanded="false"
+              aria-controls="langMenu" title="Language" aria-label="Choose language">
+        <span aria-hidden="true">🌐</span><span id="langLabel" class="wide-only">&nbsp;English</span>
+      </button>
+      <div id="langMenu" class="langmenu" role="listbox" aria-label="Language" hidden></div>
+    </div>
+
     <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
             title="Manual (?)" aria-label="Open the manual">
       <span aria-hidden="true">📖</span><span class="wide-only">&nbsp;Manual</span>
@@ -953,15 +1028,15 @@ body{
     <!-- HERO + KPI ROW -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title">Field Readiness</span>
-        <span class="panel-sub">Composite index · 4 orbital sources</span>
+        <span class="panel-title" data-i18n>Field Readiness</span>
+        <span class="panel-sub" data-i18n>Composite index · 4 orbital sources</span>
         <div class="flex-1"></div>
-        <button id="btnTable" class="toggle" aria-pressed="false" aria-controls="tableView">Table view</button>
+        <button id="btnTable" class="toggle" aria-pressed="false" aria-controls="tableView" data-i18n>Table view</button>
       </div>
 
       <div class="p-4 flex flex-wrap items-end gap-x-8 gap-y-3" style="border-bottom:1px solid var(--hairline)">
         <div>
-          <div class="text-[10px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)">Operational Readiness</div>
+          <div class="text-[10px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)"  data-i18n>Operational Readiness</div>
           <div class="flex items-baseline">
             <span id="heroValue" class="hero-value">—</span><span class="hero-unit">/100</span>
           </div>
@@ -971,7 +1046,7 @@ body{
           <div id="heroNote" class="text-[11px] max-w-[340px]" style="color:var(--text-secondary)">Awaiting first downlink…</div>
         </div>
         <div class="flex-1 min-w-[130px] pb-1">
-          <div class="text-[9px] tracking-[.1em] uppercase mb-1.5" style="color:var(--text-muted)">Active advisories</div>
+          <div class="text-[9px] tracking-[.1em] uppercase mb-1.5" style="color:var(--text-muted)"  data-i18n>Active advisories</div>
           <div id="alertCount" class="text-[22px] font-semibold tnum">0</div>
         </div>
       </div>
@@ -996,8 +1071,8 @@ body{
     <!-- AGRONOMY: the four decisions a grower actually acts on -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title">Field Decisions</span>
-        <span class="panel-sub">Irrigation · frost window · spray · heat units</span>
+        <span class="panel-title" data-i18n>Field Decisions</span>
+        <span class="panel-sub" data-i18n>Irrigation · frost window · spray · heat units</span>
         <div class="flex-1"></div>
         <span id="agroProv" class="prov"></span>
       </div>
@@ -1007,8 +1082,8 @@ body{
     <!-- THERMAL CHART -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title">Thermal Infrared</span>
-        <span class="panel-sub">Surface temperature · frost &amp; heatwave forecasting</span>
+        <span class="panel-title" data-i18n>Thermal Infrared</span>
+        <span class="panel-sub" data-i18n>Surface temperature · frost &amp; heatwave forecasting</span>
         <div class="flex-1"></div>
         <span id="thermalChip" class="chip good"><span class="chip-icon">✓</span><span>Above frost floor</span></span>
       </div>
@@ -1025,8 +1100,8 @@ body{
     <div id="mapHome">
     <div class="panel" id="mapPanel">
       <div class="panel-head">
-        <span class="panel-title">Micro-Logistics Grid</span>
-        <span class="panel-sub">Derived trafficability · live routing</span>
+        <span class="panel-title" data-i18n>Micro-Logistics Grid</span>
+        <span class="panel-sub" data-i18n>Derived trafficability · live routing</span>
         <div class="flex-1"></div>
         <span id="routeChip" class="chip good"><span class="chip-icon">✓</span><span>Primary route clear</span></span>
       </div>
@@ -1065,9 +1140,9 @@ body{
 
       <div class="panel">
         <div class="panel-head">
-          <span class="panel-title">Event Simulation</span>
+          <span class="panel-title" data-i18n>Event Simulation</span>
           <div class="flex-1"></div>
-          <span class="panel-sub">Injects telemetry</span>
+          <span class="panel-sub" data-i18n>Injects telemetry</span>
         </div>
         <div class="p-3 flex flex-col gap-2">
           <div id="triggerButtons" class="flex flex-col gap-2"></div>
@@ -1085,7 +1160,7 @@ body{
 
       <div class="panel flex flex-col">
         <div class="panel-head">
-          <span class="panel-title">Event Log</span>
+          <span class="panel-title" data-i18n>Event Log</span>
           <div class="flex-1"></div>
           <span id="logCount" class="panel-sub">0 entries</span>
         </div>
@@ -1160,7 +1235,7 @@ body{
   <div class="sheet-panel">
     <div class="sheet-grab" aria-hidden="true"></div>
     <div class="flex items-center gap-2 mb-3">
-      <span id="simSheetTitle" class="panel-title">Event Simulation</span>
+      <span id="simSheetTitle" class="panel-title" data-i18n>Event Simulation</span>
       <div class="flex-1"></div>
       <button id="simClose" class="toggle" aria-label="Close simulation controls">Close</button>
     </div>
@@ -1201,8 +1276,8 @@ body{
   <button id="manualScrim" class="manual-scrim" tabindex="-1" aria-label="Close the manual"></button>
   <div class="manual-panel">
     <div class="manual-head">
-      <span id="manualTitle" class="panel-title">Manual</span>
-      <span class="panel-sub wide-only">How AURA-AgriNet reads the sky and acts on it</span>
+      <span id="manualTitle" class="panel-title" data-i18n>Manual</span>
+      <span class="panel-sub wide-only" data-i18n>How AURA-AgriNet reads the sky and acts on it</span>
       <div class="flex-1"></div>
       <button id="manualClose" class="toggle" aria-label="Close the manual">Close</button>
     </div>
@@ -1218,19 +1293,19 @@ body{
 <!-- ══════════════════════ MOBILE TAB BAR ══════════════════════ -->
 <nav class="tabbar" role="tablist" aria-label="Role">
   <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">🌱</span><span>Farmer</span>
+    <span class="rb-glyph" aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
     <span class="rb-badge hidden" data-badge="FARMER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="BUYER" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">📦</span><span>Buyer</span>
+    <span class="rb-glyph" aria-hidden="true">📦</span><span data-i18n>Buyer</span>
     <span class="rb-badge hidden" data-badge="BUYER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="DRIVER" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">🚚</span><span>Driver</span>
+    <span class="rb-glyph" aria-hidden="true">🚚</span><span data-i18n>Driver</span>
     <span class="rb-badge hidden" data-badge="DRIVER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="OPS" aria-selected="true">
-    <span class="rb-glyph" aria-hidden="true">🛰</span><span>Ops</span>
+    <span class="rb-glyph" aria-hidden="true">🛰</span><span data-i18n>Ops</span>
   </button>
 </nav>
 
@@ -1498,7 +1573,7 @@ const Geo = (() => {
       const pt = to(n.lat, n.lon);
       out[id] = Object.assign({}, n, {
         id, x: pt.x, y: pt.y,                      // screen y grows downward
-        sub: n.sub || (n.crop ? `${n.crop} · ${n.ha} ha` : '')
+        sub: n.sub || (n.crop ? `${t(n.crop)} · ${n.ha} ha` : '')
       });
     });
     return out;
@@ -1694,17 +1769,18 @@ const State = (() => {
 
 /* ===================== HELPERS ===================== */
 
+/* Every number the UI prints goes through here, so switching language changes
+   decimal separators and digit shaping everywhere at once rather than in the
+   handful of places someone remembered. */
 function fmt(v, d){
-  if(v === null || v === undefined || Number.isNaN(v)) return '—';
-  return Number(v).toFixed(d === undefined ? 1 : d);
+  if(v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) return '—';
+  return I18n.num(Number(v), d === undefined ? 0 : d);
 }
 function clockStr(ms){
-  const d = new Date(ms);
-  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0');
+  return I18n.time(ms, { hour:'2-digit', minute:'2-digit' });
 }
 function clockStrFull(ms){
-  const d = new Date(ms);
-  return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0') + ':' + String(d.getUTCSeconds()).padStart(2,'0');
+  return I18n.time(ms);
 }
 function esc(s){
   return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -1940,10 +2016,10 @@ const Telemetry = (() => {
          packet is dropped, not queued: on resume the next downlink is seconds
          away and carries fresher data than this one. */
       if(State.data.paused){ schedule(700); return; }
-      const t = State.data.clock;
+      const stamp = State.data.clock;
       Object.keys(packet).forEach(k => {
-        State.push(k, packet[k], t);                      // field-level aggregate
-        distributeToPlots(k, packet[k], t, prov && prov[k]); // per-plot, with provenance
+        State.push(k, packet[k], stamp);                      // field-level aggregate
+        distributeToPlots(k, packet[k], stamp, prov && prov[k]); // per-plot, with provenance
       });
       State.data.liveMode = live ? 'live' : 'simulated';
       State.emit('telemetry', { source:src.id, packet, t });
@@ -1971,10 +2047,10 @@ const Telemetry = (() => {
     State.data.clock = now;
     let last = {};
     for(let i = CFG.CHART_POINTS; i >= 1; i--){
-      const t = now - i * 60000;
+      const stamp = now - i * 60000;
       const restore = State.data.clock;
-      State.data.clock = t;
-      Object.keys(METRICS).forEach(k => { last[k] = nextValue(k); State.push(k, last[k], t); });
+      State.data.clock = stamp;
+      Object.keys(METRICS).forEach(k => { last[k] = nextValue(k); State.push(k, last[k], stamp); });
       State.data.clock = restore;
     }
     Object.keys(METRICS).forEach(k => distributeToPlots(k, last[k], now));
@@ -2780,10 +2856,10 @@ const Views = (() => {
     if(!chip) return;
     const st = Live.statusLine();
     const map = {
-      live:      { cls:'good',    icon:'✓', text:'Live data' },
-      stale:     { cls:'warning', icon:'▲', text:'Stale data' },
-      cached:    { cls:'warning', icon:'▲', text:'Offline · cached' },
-      simulated: { cls:'idle',    icon:'·', text:'Simulated' }
+      live:      { cls:'good',    icon:'✓', text:t('Live data') },
+      stale:     { cls:'warning', icon:'▲', text:t('Stale data') },
+      cached:    { cls:'warning', icon:'▲', text:t('Offline · cached') },
+      simulated: { cls:'idle',    icon:'·', text:t('Simulated') }
     };
     const m = map[st.mode] || map.simulated;
     chip.className = `chip ${m.cls} flex-none`;
@@ -2908,7 +2984,7 @@ const Views = (() => {
        most reasonably misinterpret. */
     const simulatedBesideLive = !prov && Live.ready();
     const src   = prov ? prov.source
-                : simulatedBesideLive ? 'No live source · modelled'
+                : simulatedBesideLive ? t('No live source · modelled')
                 : SOURCES[m.src].short;
     const resM  = prov ? prov.resM : m.pixelM;
     const conf  = prov ? prov.confidence : m.confidence;
@@ -2916,9 +2992,9 @@ const Views = (() => {
     const res   = resM >= 1000 ? (resM / 1000) + ' km' : resM + ' m';
     const kind  = prov ? prov.kind : 'simulated';
 
-    const kindChip = kind === 'modelled' ? '<span class="prov-live">◆ modelled</span>'
-                   : kind === 'derived'  ? '<span class="prov-live">◈ derived</span>'
-                   : '<span class="prov-sim">○ simulated</span>';
+    const kindChip = kind === 'modelled' ? `<span class="prov-live">◆ ${esc(t('modelled'))}</span>`
+                   : kind === 'derived'  ? `<span class="prov-live">◈ ${esc(t('derived'))}</span>`
+                   : `<span class="prov-sim">○ ${esc(t('simulated'))}</span>`;
 
     const detail = prov ? prov.detail
                  : simulatedBesideLive
@@ -2928,8 +3004,8 @@ const Views = (() => {
     return `<div class="tile-src mt-1.5" title="${esc(detail)}">${esc(src)}${simulatedBesideLive ? '' : ' · ' + esc(res) + ' px'}${stale && !simulatedBesideLive ? ' · holding last value' : ''}</div>
       <div class="tile-src">${kindChip} · conf ${conf.toFixed(2)}</div>
       ${down
-        ? `<div class="tile-src" style="color:var(--warning-ink)" title="All three plots sit inside one ${esc(res)} cell, so per-plot values are downscaled estimates, not measurements">≈ downscaled to plot</div>`
-        : `<div class="tile-src" style="color:var(--good-ink)" title="The source cell is smaller than a plot, so this resolves per plot">✓ resolves per plot</div>`}`;
+        ? `<div class="tile-src" style="color:var(--warning-ink)" title="All three plots sit inside one ${esc(res)} cell, so per-plot values are downscaled estimates, not measurements">≈ ${esc(t('downscaled to plot'))}</div>`
+        : `<div class="tile-src" style="color:var(--good-ink)" title="The source cell is smaller than a plot, so this resolves per plot">✓ ${esc(t('resolves per plot'))}</div>`}`;
   }
 
   function renderTiles(){
@@ -2962,7 +3038,7 @@ const Views = (() => {
         const limit = key === 'traff' ? 100 : 45;
         const floor = key === 'traff' ? CFG.THRESH.traffArm : CFG.THRESH.moistArm;
         const pct = Math.max(2, Math.min(100, (v / limit) * 100));
-        meter = `<div class="meter-track mt-2" role="img" aria-label="${esc(m.label)} ${fmt(v,m.decimals)} against a floor of ${floor}">
+        meter = `<div class="meter-track mt-2" role="img" aria-label="${esc(t(m.label))} ${fmt(v,m.decimals)} against a floor of ${floor}">
                    <div class="meter-fill" style="width:${pct.toFixed(1)}%;background:${colour}"></div>
                  </div>
                  <div class="tile-src mt-1">floor ${floor}${esc(m.unit)}</div>`;
@@ -2977,8 +3053,8 @@ const Views = (() => {
 
       return `<div class="${tileCls}" data-key="${key}">
         <div class="flex items-start justify-between gap-2">
-          <span class="tile-label">${esc(m.label)}</span>
-          <span class="chip ${sev}" style="padding:1px 6px"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(statusWord(key, sev))}</span></span>
+          <span class="tile-label">${esc(t(m.label))}</span>
+          <span class="chip ${sev}" style="padding:1px 6px"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(t(statusWord(key, sev)))}</span></span>
         </div>
         <div class="flex items-end justify-between gap-2 mt-1.5 ${stale ? 'stale' : ''}">
           <div>
@@ -3408,7 +3484,7 @@ const Views = (() => {
   // intent:   moisture/order/route   frost/ndvi/route   ndvi/route/backhaul   status
   function renderQuickReplies(){
     const list = QUICK[State.data.persona] || QUICK.FARMER;
-    el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(q)}</button>`).join('');
+    el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(t(q))}</button>`).join('');
   }
 
   /* ---------- trigger panel ---------- */
@@ -3423,11 +3499,11 @@ const Views = (() => {
   /* Painted into BOTH the desktop panel and the mobile sheet. Clicks are handled
      by one delegated listener on document, so neither copy needs its own wiring. */
   function renderTriggers(){
-    const html = TRIGGERS.map(t => `
-      <button class="btn ${t.cls}" data-trigger="${t.id}">
-        <span class="btn-glyph">${t.glyph}</span>
-        <span class="flex-1">${esc(t.label)}</span>
-        <span class="mono" style="color:var(--text-muted);font-size:10px;font-weight:500">${esc(t.note)}</span>
+    const html = TRIGGERS.map(tr => `
+      <button class="btn ${tr.cls}" data-trigger="${tr.id}">
+        <span class="btn-glyph">${tr.glyph}</span>
+        <span class="flex-1">${esc(t(tr.label))}</span>
+        <span class="mono" style="color:var(--text-muted);font-size:10px;font-weight:500">${esc(t(tr.note))}</span>
       </button>`).join('');
     ['triggerButtons', 'triggerButtonsMobile'].forEach(id => {
       const host = el(id);
@@ -3460,7 +3536,7 @@ const Views = (() => {
      justifies it belongs underneath, not instead of it. */
 
   function agroUnavailable(reason){
-    return `<div class="agro"><div class="agro-head"><span class="agro-title">Agronomy</span></div>
+    return `<div class="agro"><div class="agro-head"><span class="agro-title">${esc(t('Agronomy'))}</span></div>
       <div class="agro-why">${esc(reason)}</div></div>`;
   }
 
@@ -3469,10 +3545,10 @@ const Views = (() => {
     const pct = w.taw > 0 ? Math.min(100, w.depletion / w.taw * 100) : 0;
     const markPct = w.taw > 0 ? Math.min(100, w.trigger / w.taw * 100) : 0;
     const tone = w.call === 'irrigate' ? 'act' : w.call === 'monitor' ? 'warn' : 'ok';
-    const headline = w.call === 'irrigate' ? `Irrigate · ${w.applyMm} mm`
-                   : w.call === 'monitor'  ? 'Monitor' : 'Hold';
+    const headline = w.call === 'irrigate' ? t('Irrigate · {mm} mm', { mm: fmt(w.applyMm, 0) })
+                   : w.call === 'monitor'  ? t('Monitor') : t('Hold');
     return `<div class="agro">
-      <div class="agro-head"><span class="agro-title">Water balance</span></div>
+      <div class="agro-head"><span class="agro-title">${esc(t('Water balance'))}</span></div>
       <div class="agro-call ${tone}">${esc(headline)}</div>
       <div class="agro-why">${esc(w.why)}</div>
       <div class="wbar ${tone}" role="img"
@@ -3481,39 +3557,39 @@ const Views = (() => {
         <span class="wbar-mark" style="left:${markPct.toFixed(1)}%"></span>
       </div>
       <dl class="agro-rows">
-        <div class="agro-row"><dt>Depletion</dt><dd>${fmt(w.depletion,0)} / ${fmt(w.taw,0)} mm</dd></div>
-        <div class="agro-row"><dt>Rain, 7 d</dt><dd>${w.rain7 === null ? '—' : fmt(w.rain7,1) + ' mm'}</dd></div>
-        <div class="agro-row"><dt>ET₀, 7 d</dt><dd>${w.et7 === null ? '—' : fmt(w.et7,1) + ' mm'}</dd></div>
-        <div class="agro-row"><dt>Balance</dt><dd>${w.balance7 === null ? '—' : (w.balance7 > 0 ? '+' : '') + fmt(w.balance7,1) + ' mm'}</dd></div>
-        <div class="agro-row"><dt>Rain, next 48 h</dt><dd>${w.rain48 === null ? '—' : fmt(w.rain48,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('Depletion'))}</dt><dd>${fmt(w.depletion,0)} / ${fmt(w.taw,0)} mm</dd></div>
+        <div class="agro-row"><dt>${esc(t('Rain, 7 d'))}</dt><dd>${w.rain7 === null ? '—' : fmt(w.rain7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('ET₀, 7 d'))}</dt><dd>${w.et7 === null ? '—' : fmt(w.et7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('Balance'))}</dt><dd>${w.balance7 === null ? '—' : (w.balance7 > 0 ? '+' : '') + fmt(w.balance7,1) + ' mm'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('Rain, next 48 h'))}</dt><dd>${w.rain48 === null ? '—' : fmt(w.rain48,1) + ' mm'}</dd></div>
       </dl>
       <div class="prov">Derived · FAO-56 over a ${Agronomy.ROOT_DEPTH_MM} mm root zone, assumed mid-texture soil</div>
     </div>`;
   }
 
-  function thermalCard(t){
+  function thermalCard(th){
     if(!t) return '';
-    const tone = t.verdict === 'frost' ? 'act' : t.verdict === 'heat' ? 'warn'
-               : t.verdict === 'marginal' ? 'warn' : 'ok';
-    const headline = t.verdict === 'frost' ? `Frost in ${t.firstFrostIn} h`
-                   : t.verdict === 'heat'  ? `Heat in ${t.firstHeatIn} h`
-                   : t.verdict === 'marginal' ? 'Marginal night' : 'Clear 72 h';
-    const cells = t.hours.map(p => {
+    const tone = th.verdict === 'frost' ? 'act' : th.verdict === 'heat' ? 'warn'
+               : th.verdict === 'marginal' ? 'warn' : 'ok';
+    const headline = th.verdict === 'frost' ? t('Frost in {h} h', { h: th.firstFrostIn })
+                   : th.verdict === 'heat'  ? t('Heat in {h} h', { h: th.firstHeatIn })
+                   : th.verdict === 'marginal' ? t('Marginal night') : t('Clear 72 h');
+    const cells = th.hours.map(p => {
       const cls = p.t <= CFG.THRESH.frostArm ? 'frost'
                 : p.t >= CFG.THRESH.heatArm  ? 'heat'
                 : p.t <= CFG.THRESH.frostClear ? 'marginal' : 'mild';
       return `<i class="${cls}" title="+${p.h} h · ${fmt(p.t,1)}°C"></i>`;
     }).join('');
     return `<div class="agro">
-      <div class="agro-head"><span class="agro-title">Next 72 hours</span></div>
+      <div class="agro-head"><span class="agro-title">${esc(t('Next 72 hours'))}</span></div>
       <div class="agro-call ${tone}">${esc(headline)}</div>
       <div class="strip" role="img"
-           aria-label="Hourly air temperature for 72 hours. Minimum ${fmt(t.minC,1)} degrees, maximum ${fmt(t.maxC,1)} degrees, ${t.frostHours} hours at or below freezing.">${cells}</div>
+           aria-label="Hourly air temperature for 72 hours. Minimum ${fmt(th.minC,1)} degrees, maximum ${fmt(th.maxC,1)} degrees, ${th.frostHours} hours at or below freezing.">${cells}</div>
       <div class="strip-axis"><span>now</span><span>+36 h</span><span>+72 h</span></div>
       <dl class="agro-rows">
-        <div class="agro-row"><dt>Minimum</dt><dd>${fmt(t.minC,1)} °C</dd></div>
-        <div class="agro-row"><dt>Maximum</dt><dd>${fmt(t.maxC,1)} °C</dd></div>
-        <div class="agro-row"><dt>Hours ≤ ${fmt(CFG.THRESH.frostArm,1)}°C</dt><dd>${t.frostHours}</dd></div>
+        <div class="agro-row"><dt>${esc(t('Minimum'))}</dt><dd>${fmt(th.minC,1)} °C</dd></div>
+        <div class="agro-row"><dt>${esc(t('Maximum'))}</dt><dd>${fmt(th.maxC,1)} °C</dd></div>
+        <div class="agro-row"><dt>Hours ≤ ${fmt(CFG.THRESH.frostArm,1)}°C</dt><dd>${th.frostHours}</dd></div>
       </dl>
       <div class="prov">2 m air temperature · ECMWF IFS / DWD ICON forecast</div>
     </div>`;
@@ -3523,21 +3599,22 @@ const Views = (() => {
     if(!s) return '';
     const w = s.nextWindow;
     const tone = !w ? 'act' : w.start === 0 ? 'ok' : 'warn';
-    const headline = !w ? 'No window in 48 h'
-                   : w.start === 0 ? `Spray now · ${w.len} h` : `Wait ${w.start} h · ${w.len} h window`;
+    const headline = !w ? t('No window in 48 h')
+                   : w.start === 0 ? t('Spray now · {len} h', { len: w.len })
+                   : t('Wait {start} h · {len} h window', { start: w.start, len: w.len });
     const cells = s.blocks.map(b =>
       `<i class="${b.rating}" title="+${b.h} h · wind ${fmt(b.wind,0)} km/h${b.fails.length ? ' · ' + b.fails.join(', ') : ''}"></i>`
     ).join('');
     return `<div class="agro">
-      <div class="agro-head"><span class="agro-title">Spray &amp; fieldwork</span></div>
+      <div class="agro-head"><span class="agro-title">${esc(t('Spray & fieldwork'))}</span></div>
       <div class="agro-call ${tone}">${esc(headline)}</div>
       <div class="strip" role="img"
            aria-label="Spray suitability for the next 48 hours, hour by hour.">${cells}</div>
       <div class="strip-axis"><span>now</span><span>+24 h</span><span>+48 h</span></div>
       <dl class="agro-rows">
-        <div class="agro-row"><dt>Good hours</dt><dd>${s.blocks.filter(b => b.rating === 'good').length} / 48</dd></div>
-        <div class="agro-row"><dt>Wind limit</dt><dd>${Agronomy.SPRAY.windMax} km/h</dd></div>
-        <div class="agro-row"><dt>Humidity floor</dt><dd>${Agronomy.SPRAY.rhMin}%</dd></div>
+        <div class="agro-row"><dt>${esc(t('Good hours'))}</dt><dd>${s.blocks.filter(b => b.rating === 'good').length} / 48</dd></div>
+        <div class="agro-row"><dt>${esc(t('Wind limit'))}</dt><dd>${Agronomy.SPRAY.windMax} km/h</dd></div>
+        <div class="agro-row"><dt>${esc(t('Humidity floor'))}</dt><dd>${Agronomy.SPRAY.rhMin}%</dd></div>
       </dl>
       <div class="prov">Conventional limits · wind, gusts, humidity and rain probability</div>
     </div>`;
@@ -3546,12 +3623,12 @@ const Views = (() => {
   function gddCard(g){
     if(!g) return '';
     return `<div class="agro">
-      <div class="agro-head"><span class="agro-title">Heat units · ${esc(g.crop)}</span></div>
-      <div class="agro-call ok">${fmt(g.rate,1)} GDD/day</div>
-      <div class="agro-why">${fmt(g.total,0)} growing-degree days accumulated over the last ${g.windowDays} days above a ${g.baseTempC}°C base.</div>
+      <div class="agro-head"><span class="agro-title">${esc(t('Heat units'))} · ${esc(t(g.crop))}</span></div>
+      <div class="agro-call ok">${esc(t('{n} GDD/day', { n: fmt(g.rate,1) }))}</div>
+      <div class="agro-why">${esc(t('{total} growing-degree days accumulated over the last {days} days above a {base}°C base.', { total: fmt(g.total,0), days: g.windowDays, base: g.baseTempC }))}</div>
       <dl class="agro-rows">
-        <div class="agro-row"><dt>To maturity</dt><dd>${g.toMaturity ? fmt(g.toMaturity,0) + ' GDD' : '—'}</dd></div>
-        <div class="agro-row"><dt>At this rate</dt><dd>${g.daysAtRate ? '~' + g.daysAtRate + ' days' : '—'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('To maturity'))}</dt><dd>${g.toMaturity ? fmt(g.toMaturity,0) + ' GDD' : '—'}</dd></div>
+        <div class="agro-row"><dt>${esc(t('At this rate'))}</dt><dd>${g.daysAtRate ? '~' + g.daysAtRate + ' days' : '—'}</dd></div>
       </dl>
       <div class="prov">Assumes a textbook accumulation for the crop; cultivar varies</div>
     </div>`;
@@ -3559,6 +3636,36 @@ const Views = (() => {
 
   /* Layer switcher plus the sentence that makes the imagery worth showing:
      how many metres one pixel covers against how wide the catchment is. */
+  function renderLangMenu(){
+    const menu = el('langMenu');
+    if(!menu) return;
+    const cur = I18n.lang();
+    menu.innerHTML = I18n.LANGS.map(l => `
+      <button class="langopt" role="option" data-lang="${esc(l.code)}"
+              aria-selected="${l.code === cur}" dir="${esc(l.dir)}" data-dir="${esc(l.dir)}"
+              lang="${esc(l.locale)}">
+        <span class="endo">${esc(l.endonym)}</span>
+        <span class="exo">${esc(t(l.name))}</span>
+      </button>`).join('');
+    const label = el('langLabel');
+    if(label) label.innerHTML = '&nbsp;' + esc(I18n.current().endonym);
+    const btn = el('btnLang');
+    if(btn) btn.setAttribute('aria-expanded', String(!menu.hidden));
+  }
+
+  /* A visible statement of how complete the active translation is. An app that
+     argues about confidence in its data does not get to be vague about
+     confidence in its own words. */
+  function translationBadge(){
+    if(I18n.lang() === 'en') return '';
+    const cov = I18n.coverage();
+    const pct = cov === null ? null : Math.round(cov * 100);
+    if(I18n.reviewed() && (pct === null || pct >= 100)) return '';
+    return `<span class="tr-badge" title="${esc(t('Machine translation, not reviewed by a native speaker. Untranslated text is shown in English.'))}">
+      ${pct !== null && pct < 100 ? esc(t('{pct}% translated', { pct })) : esc(t('Unreviewed translation'))}
+    </span>`;
+  }
+
   function renderSatBar(){
     const bar = el('satBar');
     if(!bar) return;
@@ -3567,8 +3674,8 @@ const Views = (() => {
       `<span class="tile-src" style="margin-right:2px">NASA imagery</span>` +
       Sat.LAYERS.map(l => `
         <button class="satbtn" data-sat="${esc(l.id)}" aria-pressed="${l.id === activeId}"
-                title="${esc(l.product)}">
-          <span class="satdot" aria-hidden="true"></span>${esc(l.label)}
+                title="${esc(t(l.product))}">
+          <span class="satdot" aria-hidden="true"></span>${esc(t(l.label))}
         </button>`).join('') +
       (activeId ? `<button class="satbtn" data-sat="" aria-pressed="false">Off</button>` : '');
 
@@ -3604,6 +3711,29 @@ const Views = (() => {
       sprayCard(Agronomy.spray(now)),
       gddCard(Agronomy.heatUnits(crop))
     ].filter(Boolean).join('') || agroUnavailable('No agronomy series available for this location.');
+  }
+
+  /* Everything on screen is generated, so a language change is a full repaint
+     rather than a walk over DOM text nodes. */
+  /* Static markup carries data-i18n and its English text. Translating in place
+     keeps the shell readable in the source and means a missing catalogue leaves
+     correct English rather than an empty element. The original English is
+     stashed on first pass so switching languages twice cannot compound. */
+  function translateStatic(){
+    document.querySelectorAll('[data-i18n]').forEach(n => {
+      if(!n.dataset.i18nSrc) n.dataset.i18nSrc = n.textContent;
+      n.textContent = t(n.dataset.i18nSrc);
+    });
+  }
+
+  function repaintAll(){
+    translateStatic();
+    renderLangMenu(); renderRegionPicker(); renderLiveChip(); renderLinks();
+    renderTiles(); renderThermal(); renderTable(); renderHero(); renderPosture();
+    renderClock(); renderMap(); renderSatBar(); renderAgronomy();
+    renderTriggers(); renderQuickReplies(); renderLog(); renderChat();
+    renderRolePanes(); syncControls(); placeMap();
+    if(Manual.isOpen()) Manual.build();
   }
 
   function toggleTable(){
@@ -3662,7 +3792,7 @@ const Views = (() => {
       return `<div class="${cls}">
         <div class="flex items-center justify-between gap-2">
           <div><div style="font-size:14px;font-weight:650">${esc(n.name)}</div>
-            <div class="prov">${esc(n.crop)} · ${n.ha} ha</div></div>
+            <div class="prov">${esc(t(n.crop))} · ${n.ha} ha</div></div>
           ${chipHtml(sev, sev === 'good' ? 'Healthy' : sev === 'warning' ? 'Watch' : 'Act now')}
         </div>
         <div class="grid grid-cols-3 gap-2 mt-2.5">
@@ -3704,7 +3834,7 @@ const Views = (() => {
       const delta = o.crates - o.baseCrates;
       return `<div class="mrow">
         <div style="min-width:0">
-          <div style="font-size:13px;font-weight:600">${esc(o.crop)} <span class="prov mono">${esc(o.id)}</span></div>
+          <div style="font-size:13px;font-weight:600">${esc(t(o.crop))} <span class="prov mono">${esc(o.id)}</span></div>
           <div class="prov">${esc(o.buyer)} · grade ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:var(--warning-ink)">(contracted ${esc(o.baseGrade)})</span>` : ''}</div>
         </div>
         <div style="text-align:right">
@@ -3833,8 +3963,8 @@ const Views = (() => {
       State.data.persona = role;
       State.data.channel = role;
       const sel = el('personaSel'); if(sel) sel.value = role;
-      document.querySelectorAll('[data-channel]').forEach(t =>
-        t.setAttribute('aria-selected', String(t.dataset.channel === role)));
+      document.querySelectorAll('[data-channel]').forEach(tab =>
+        tab.setAttribute('aria-selected', String(tab.dataset.channel === role)));
       renderQuickReplies();
       renderChat();
     }
@@ -3851,7 +3981,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderSatBar, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderSatBar, renderLangMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
@@ -3883,7 +4013,7 @@ const Manual = (() => {
   let lastFocus = null;
   let spy = null;
 
-  const t  = k => CFG.THRESH[k];
+  const thr = k => CFG.THRESH[k];   // NOT `t` — that is the translator
   const nb = s => String(s).replace(/ /g, ' ');       // keep units off a line break
 
   /* ---------- generated tables ---------- */
@@ -3899,7 +4029,7 @@ const Manual = (() => {
                  : `<span class="chip idle"><span class="chip-icon">○</span><span>Simulated</span></span>`;
       const res = p ? (p.resM >= 1000 ? (p.resM/1000) + ' km' : p.resM + ' m') : '—';
       return `<tr>
-        <td class="wrap">${esc(METRICS[k].label)}</td>
+        <td class="wrap">${esc(t(METRICS[k].label))}</td>
         <td class="wrap">${esc(p ? p.source : 'no live source')}</td>
         <td class="num">${nb(res)}</td>
         <td>${chip}</td>
@@ -3928,7 +4058,7 @@ const Manual = (() => {
       return `<tr>
         <td class="wrap"><strong style="color:var(--text-primary)">${esc(s.short)}</strong><br>
             <span style="color:var(--text-muted);font-size:11px">${esc(s.label)}</span></td>
-        <td class="wrap">${ms.map(m => esc(m.label)).join(', ')}</td>
+        <td class="wrap">${ms.map(m => esc(t(m.label))).join(', ')}</td>
         <td class="num">${nb((s.cadence/1000).toFixed(0) + ' s')}</td>
         <td class="num">${nb('~' + (s.latency/1000).toFixed(1) + ' s')}</td>
         <td class="num">${res}</td>
@@ -3950,7 +4080,7 @@ const Manual = (() => {
         ? `<span class="chip warning"><span class="chip-icon">▲</span><span>Downscaled</span></span>`
         : `<span class="chip good"><span class="chip-icon">✓</span><span>Measured</span></span>`;
       return `<tr>
-        <td class="wrap">${esc(m.label)}</td>
+        <td class="wrap">${esc(t(m.label))}</td>
         <td class="num">${nb(px)}</td>
         <td class="num">${m.confidence.toFixed(2)}</td>
         <td>${m.perPlot ? verdict : '<span style="color:var(--text-muted)">Field level</span>'}</td>
@@ -3975,12 +4105,12 @@ const Manual = (() => {
       ['Canopy vigour',      'ndviArm',  'ndviClear',  '',   'at or below', 2]
     ];
     const rows = spec.map(([label, armK, clearK, unit, dir, ticks]) => {
-      const gap = Math.abs(t(clearK) - t(armK));
+      const gap = Math.abs(thr(clearK) - thr(armK));
       const dec = unit === '' ? 2 : 1;
       return `<tr>
         <td class="wrap">${esc(label)}</td>
-        <td class="num">${nb(t(armK).toFixed(dec) + unit)}</td>
-        <td class="num">${nb(t(clearK).toFixed(dec) + unit)}</td>
+        <td class="num">${nb(thr(armK).toFixed(dec) + unit)}</td>
+        <td class="num">${nb(thr(clearK).toFixed(dec) + unit)}</td>
         <td class="num">${nb(gap.toFixed(dec) + unit)}</td>
         <td class="num">${ticks}</td>
         <td class="wrap" style="font-size:11.5px">arms ${esc(dir)} the first figure</td>
@@ -3998,9 +4128,9 @@ const Manual = (() => {
     const rows = Object.keys(CROPS).map(c => {
       const grown = Region.plotsGrowing(c).map(p => (NODES[p] && NODES[p].name) || p);
       return `<tr>
-        <td class="wrap">${esc(c)}</td>
+        <td class="wrap">${esc(t(c))}</td>
         <td class="num">${CROPS[c].frostSensitivity.toFixed(2)}</td>
-        <td class="wrap" style="font-size:11.5px">${esc(CROPS[c].note)}</td>
+        <td class="wrap" style="font-size:11.5px">${esc(t(CROPS[c].note))}</td>
         <td class="wrap" style="font-size:11.5px">${grown.length ? esc(grown.join(', ')) : '—'}</td>
       </tr>`;
     }).join('');
@@ -4034,8 +4164,8 @@ const Manual = (() => {
     return SCENARIOS.map(s => `
       <div class="scn">
         <div class="scn-txt">
-          <div class="scn-title">${esc(s.title)}</div>
-          <div class="scn-desc">${esc(s.what)}</div>
+          <div class="scn-title">${esc(t(s.title))}</div>
+          <div class="scn-desc">${esc(t(s.what))}</div>
         </div>
         <button class="scn-go" data-trigger="${esc(s.id)}" data-manual-run="1">Run it ▸</button>
       </div>`).join('');
@@ -4149,7 +4279,7 @@ const Manual = (() => {
 
         <ol class="steps">
           <li><strong>Arm test.</strong> Surface temperature at or below
-              <code>${t('frostArm').toFixed(1)}°C</code>. One qualifying downlink is enough —
+              <code>${thr('frostArm').toFixed(1)}°C</code>. One qualifying downlink is enough —
               frost is not something to wait out for confirmation.</li>
           <li><strong>Which plots.</strong> Per-plot temperature decides. Only plots actually at
               or below the floor count; if none individually qualify, all plots are treated as hit.</li>
@@ -4160,7 +4290,7 @@ const Manual = (() => {
           <li><strong>Downstream.</strong> The harvest window moves to <code>EARLY</code>, and the
               farmer, buyer and driver each get the part of the story that concerns them.</li>
           <li><strong>Release.</strong> Once temperature reaches
-              <code>${t('frostClear').toFixed(1)}°C</code>, the rule clears: crates are reinstated,
+              <code>${thr('frostClear').toFixed(1)}°C</code>, the rule clears: crates are reinstated,
               the contracted grade is restored, and the harvest window returns to normal.</li>
         </ol>
 
@@ -4187,8 +4317,8 @@ const Manual = (() => {
           <li><strong>The depot</strong> is the cold store and the route's destination; the
               <strong>hub</strong> is the buyer.</li>
           <li><strong>Segments</strong> darken as trafficability falls. Below
-              <code>${t('edgeDegraded')}%</code> a segment is degraded; at or below
-              <code>${t('edgeImpassable')}%</code> it is impassable and routing refuses to use it.</li>
+              <code>${thr('edgeDegraded')}%</code> a segment is degraded; at or below
+              <code>${thr('edgeImpassable')}%</code> it is impassable and routing refuses to use it.</li>
         </ul>
 
         <h3>The route is timed, not just measured</h3>
@@ -4253,12 +4383,12 @@ const Manual = (() => {
   function build(){
     el('manualToc').innerHTML = SECTIONS.map((s, i) => `
       <button class="toc-link" data-goto="${s.id}" aria-current="${i === 0}">
-        <span class="toc-num">${String(i + 1).padStart(2,'0')}</span><span>${esc(s.nav)}</span>
+        <span class="toc-num">${String(i + 1).padStart(2,'0')}</span><span>${esc(t(s.nav))}</span>
       </button>`).join('');
 
     el('manualDoc').innerHTML = SECTIONS.map((s, i) => `
       <section id="mn-${s.id}" aria-labelledby="mnh-${s.id}">
-        <h2 id="mnh-${s.id}"><span class="h2-kicker">Section ${i + 1} of ${SECTIONS.length}</span>${esc(s.title)}</h2>
+        <h2 id="mnh-${s.id}"><span class="h2-kicker">Section ${i + 1} of ${SECTIONS.length}</span>${esc(t(s.title))}</h2>
         ${s.render()}
       </section>`).join('');
   }
@@ -4516,11 +4646,11 @@ const Live = (() => {
       values interpolate rather than step. */
   function indexFor(epochMs){
     if(!ready()) return null;
-    const t = current.hourly.time;
-    const first = Date.parse(t[0] + 'Z') - (current.utcOffset || 0) * 1000;
+    const times = current.hourly.time;
+    const first = Date.parse(times[0] + 'Z') - (current.utcOffset || 0) * 1000;
     const idx = (epochMs - first) / 3600000;
     if(!isFinite(idx)) return null;
-    return Math.max(0, Math.min(t.length - 1, idx));
+    return Math.max(0, Math.min(times.length - 1, idx));
   }
 
   function hourlyAt(field, epochMs){
@@ -4687,7 +4817,7 @@ const Places = (() => {
   async function search(q){
     const term = String(q || '').trim();
     if(term.length < 2) return [];
-    const url = `${Live.HOST.geocode}?name=${encodeURIComponent(term)}&count=${MAX_RESULTS}&language=en&format=json`;
+    const url = `${Live.HOST.geocode}?name=${encodeURIComponent(term)}&count=${MAX_RESULTS}&language=${encodeURIComponent(I18n.lang())}&format=json`;
     const res = await fetch(url);
     if(!res.ok) throw new Error('geocoder HTTP ' + res.status);
     const j = await res.json();
@@ -4844,13 +4974,13 @@ const Agronomy = (() => {
     const out = { hours: [], minC: Infinity, maxC: -Infinity,
                   frostHours: 0, heatHours: 0, firstFrostIn: null, firstHeatIn: null };
     for(let h = 0; h <= 72; h++){
-      const t = Live.hourlyAt('temperature_2m', epochMs + h * 3600000);
-      if(t === null) continue;
-      out.hours.push({ h, t });
-      if(t < out.minC) out.minC = t;
-      if(t > out.maxC) out.maxC = t;
-      if(t <= CFG.THRESH.frostArm){ out.frostHours++; if(out.firstFrostIn === null) out.firstFrostIn = h; }
-      if(t >= CFG.THRESH.heatArm){  out.heatHours++;  if(out.firstHeatIn  === null) out.firstHeatIn  = h; }
+      const temp = Live.hourlyAt('temperature_2m', epochMs + h * 3600000);
+      if(temp === null) continue;
+      out.hours.push({ h, t: temp });
+      if(temp < out.minC) out.minC = temp;
+      if(temp > out.maxC) out.maxC = temp;
+      if(temp <= CFG.THRESH.frostArm){ out.frostHours++; if(out.firstFrostIn === null) out.firstFrostIn = h; }
+      if(temp >= CFG.THRESH.heatArm){  out.heatHours++;  if(out.firstHeatIn  === null) out.firstHeatIn  = h; }
     }
     if(!out.hours.length) return null;
     if(!isFinite(out.minC)) out.minC = null;
@@ -4933,6 +5063,185 @@ const Agronomy = (() => {
 
   return { water, thermal, spray, heatUnits, ROOT_DEPTH_MM, ALLOWED_DEPLETION, SPRAY };
 })();
+
+
+/* ===================== MODULE 11: INTERNATIONALISATION =====================
+
+   ENGLISH IS THE KEY. `t('Soil moisture')` looks up that exact English string in
+   the active catalogue and returns the translation, or the English itself if
+   there is none. Three properties follow, and they are why this approach beats a
+   table of abstract ids like `tile.moisture.label`:
+
+     - The app is readable. Call sites still say what they render.
+     - A missing translation degrades to correct English rather than to a raw key
+       leaking onto the screen, which is the usual failure of id-based schemes.
+     - Deleting a string from the UI cannot leave a stale entry behind that
+       silently keeps passing.
+
+   Catalogues live in i18n/<lang>.json and load on demand. English is embedded,
+   so the app is fully functional with the entire i18n directory missing — which
+   is also what happens on a first offline launch in a language never opened.
+
+   DIRECTION. Arabic and Urdu are right-to-left. That is a layout change, not a
+   string change: the document direction flips, and the stylesheet uses logical
+   properties so padding, borders and flex order follow. The two things that must
+   NOT flip are the map (geography is not mirrored) and the mission clock and
+   other latin-numeral readouts, which are isolated explicitly.
+
+   NUMBERS AND DATES go through Intl with the active locale, so a Bengali reader
+   sees ৩৬ মিমি and a German reader sees 36,0 mm without either being special
+   cased.                                                                      */
+
+const I18n = (() => {
+  /* Ordered roughly by speakers, weighted toward where smallholder agriculture
+     is. `dir` drives document direction; `locale` drives Intl. */
+  const LANGS = [
+    { code:'en', locale:'en',    dir:'ltr', name:'English',          endonym:'English' },
+    { code:'zh', locale:'zh-CN', dir:'ltr', name:'Chinese',          endonym:'中文（简体）' },
+    { code:'hi', locale:'hi-IN', dir:'ltr', name:'Hindi',            endonym:'हिन्दी' },
+    { code:'es', locale:'es',    dir:'ltr', name:'Spanish',          endonym:'Español' },
+    { code:'fr', locale:'fr',    dir:'ltr', name:'French',           endonym:'Français' },
+    { code:'ar', locale:'ar',    dir:'rtl', name:'Arabic',           endonym:'العربية' },
+    { code:'bn', locale:'bn-BD', dir:'ltr', name:'Bengali',          endonym:'বাংলা' },
+    { code:'pt', locale:'pt-BR', dir:'ltr', name:'Portuguese',       endonym:'Português' },
+    { code:'ru', locale:'ru',    dir:'ltr', name:'Russian',          endonym:'Русский' },
+    { code:'id', locale:'id',    dir:'ltr', name:'Indonesian',       endonym:'Bahasa Indonesia' },
+    { code:'sw', locale:'sw',    dir:'ltr', name:'Swahili',          endonym:'Kiswahili' },
+    { code:'ur', locale:'ur-PK', dir:'rtl', name:'Urdu',             endonym:'اردو' }
+  ];
+
+  const STORE_KEY = 'aura-lang';
+  let code = 'en';
+  let dict = {};
+  let meta = { coverage: 1, reviewed: false };
+  const missing = new Set();          // strings with no translation, for the badge
+  const loaded = new Map();           // code -> {dict, meta}
+
+  const langFor = c => LANGS.find(l => l.code === c) || LANGS[0];
+  const current = () => langFor(code);
+  const dir = () => current().dir;
+  const isRTL = () => dir() === 'rtl';
+
+  /** Translate. `vars` fills {placeholders} in whichever language won, so word
+      order can differ between languages without the call site caring. */
+  function t(s, vars){
+    if(s === null || s === undefined) return '';
+    const key = String(s);
+    let out = (code !== 'en' && Object.prototype.hasOwnProperty.call(dict, key)) ? dict[key] : key;
+    if(code !== 'en' && !Object.prototype.hasOwnProperty.call(dict, key)) missing.add(key);
+    if(vars){
+      out = out.replace(/\{(\w+)\}/g, (m, name) =>
+        (vars[name] === undefined || vars[name] === null) ? m : String(vars[name]));
+    }
+    return out;
+  }
+
+  /** True when this exact string has a translation in the active language. Used
+      by the manual to badge sections it is showing in English. */
+  const has = s => code === 'en' || Object.prototype.hasOwnProperty.call(dict, String(s));
+
+  /* ---------- locale-aware formatting ---------- */
+
+  function num(v, decimals){
+    if(v === null || v === undefined || !isFinite(v)) return '—';
+    try{
+      return new Intl.NumberFormat(current().locale, {
+        minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0
+      }).format(v);
+    }catch(e){ return Number(v).toFixed(decimals || 0); }
+  }
+
+  function time(ms, opts){
+    try{
+      return new Intl.DateTimeFormat(current().locale, Object.assign(
+        { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'UTC' }, opts || {}
+      )).format(new Date(ms));
+    }catch(e){ return new Date(ms).toISOString().slice(11, 19); }
+  }
+
+  function date(ms, opts){
+    try{
+      return new Intl.DateTimeFormat(current().locale, Object.assign(
+        { day:'numeric', month:'short', timeZone:'UTC' }, opts || {})).format(new Date(ms));
+    }catch(e){ return new Date(ms).toISOString().slice(0, 10); }
+  }
+
+  /** "in 6 hours" / "6 h ago", in the active language, without a phrase table. */
+  function relative(deltaMs){
+    const abs = Math.abs(deltaMs);
+    const unit = abs < 3600000 ? 'minute' : abs < 86400000 ? 'hour' : 'day';
+    const div  = unit === 'minute' ? 60000 : unit === 'hour' ? 3600000 : 86400000;
+    try{
+      return new Intl.RelativeTimeFormat(current().locale, { numeric:'auto' })
+        .format(Math.round(deltaMs / div), unit);
+    }catch(e){ return Math.round(abs / div) + ' ' + unit; }
+  }
+
+  /* ---------- loading ---------- */
+
+  async function fetchCatalogue(c){
+    if(c === 'en') return { dict:{}, meta:{ coverage:1, reviewed:true } };
+    if(loaded.has(c)) return loaded.get(c);
+    const res = await fetch(`i18n/${c}.json`);
+    if(!res.ok) throw new Error('catalogue HTTP ' + res.status);
+    const j = await res.json();
+    const entry = { dict: j.strings || {}, meta: j.meta || {} };
+    loaded.set(c, entry);
+    return entry;
+  }
+
+  /** Switch language. Falls back to English rather than leaving the UI in a
+      half-translated state if the catalogue cannot be fetched. */
+  async function set(c){
+    const lang = langFor(c);
+    try{
+      const entry = await fetchCatalogue(lang.code);
+      code = lang.code; dict = entry.dict; meta = entry.meta;
+    }catch(e){
+      code = 'en'; dict = {}; meta = { coverage:1, reviewed:true };
+      throw e;
+    } finally {
+      missing.clear();
+      apply();
+      try{ localStorage.setItem(STORE_KEY, code); }catch(e2){}
+      State.emit('lang', { code });
+    }
+    return code;
+  }
+
+  /** Put the choice on the document so CSS and assistive tech both see it. */
+  function apply(){
+    const el = typeof document !== 'undefined' && document.documentElement;
+    if(!el) return;
+    el.setAttribute('lang', current().locale);
+    el.setAttribute('dir', dir());
+  }
+
+  /** The language to start in: an explicit past choice, else the browser's, else
+      English. Never guessed from the searched location — where a field is has
+      nothing to do with what its owner reads. */
+  function initial(){
+    try{
+      const saved = localStorage.getItem(STORE_KEY);
+      if(saved && LANGS.some(l => l.code === saved)) return saved;
+    }catch(e){}
+    const nav = (typeof navigator !== 'undefined' && (navigator.language || '')) || '';
+    const base = nav.toLowerCase().split('-')[0];
+    return LANGS.some(l => l.code === base) ? base : 'en';
+  }
+
+  const coverage = () => (code === 'en' ? 1 : (meta.coverage === undefined ? null : meta.coverage));
+  const reviewed = () => (code === 'en' ? true : !!meta.reviewed);
+  const missingList = () => [...missing];
+
+  return { LANGS, t, has, num, time, date, relative, set, apply, initial,
+           lang: () => code, current, dir, isRTL, coverage, reviewed, missingList,
+           STORE_KEY, langFor };
+})();
+
+/* Shorthand. `t` is used several hundred times; a five-character name keeps the
+   call sites readable, which is the entire point of English-as-key. */
+const t = (s, vars) => I18n.t(s, vars);
 
 
 /* ===================== MODULE 10: SATELLITE IMAGERY =====================
@@ -5242,7 +5551,19 @@ const Search = (() => {
     State.data.role = 'FARMER';
   }
 
+  /* --- language, before anything paints ---
+     Applied synchronously so direction and locale are correct on the very first
+     frame; the catalogue arrives a moment later and triggers a repaint. */
+  const startLang = I18n.initial();
+  I18n.apply();
+  if(startLang !== 'en'){
+    I18n.set(startLang)
+      .then(() => Views.repaintAll())
+      .catch(() => { /* stays English, which is a complete UI */ });
+  }
+
   /* --- first paint --- */
+  Views.renderLangMenu();
   Views.renderRegionPicker();
   Views.renderSatBar();
   Views.renderAgronomy();
@@ -5322,6 +5643,33 @@ const Search = (() => {
 
   el('btnTable').addEventListener('click', Views.toggleTable);
 
+  /* --- language --- */
+  el('btnLang').addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = el('langMenu');
+    menu.hidden = !menu.hidden;
+    Views.renderLangMenu();
+  });
+  el('langMenu').addEventListener('click', async e => {
+    const b = e.target.closest('[data-lang]');
+    if(!b) return;
+    el('langMenu').hidden = true;
+    try{
+      await I18n.set(b.dataset.lang);
+    }catch(err){
+      Log.add('warning', 'Language unavailable',
+        'That translation could not be loaded, so the interface stayed in English.');
+    }
+    Views.repaintAll();
+  });
+  document.addEventListener('click', e => {
+    if(!e.target.closest || !e.target.closest('.langwrap')){
+      const m = el('langMenu');
+      if(m && !m.hidden){ m.hidden = true; Views.renderLangMenu(); }
+    }
+  });
+  State.on('lang', () => Views.renderLangMenu());
+
   /* --- satellite layer switcher --- */
   el('satBar').addEventListener('click', e => {
     const b = e.target.closest('[data-sat]');
@@ -5332,9 +5680,9 @@ const Search = (() => {
      common for polar or ocean-adjacent locations. Say so once and drop the
      layer rather than leaving broken images on the map. */
   document.addEventListener('error', e => {
-    const t = e.target;
-    if(t && t.dataset && t.dataset.satTile){
-      Sat.markFailed(t.dataset.satTile);
+    const node = e.target;
+    if(node && node.dataset && node.dataset.satTile){
+      Sat.markFailed(node.dataset.satTile);
       Log.add('info', 'Imagery unavailable',
         'That NASA product has no recent granule covering this location. Falling back to the vector map.');
       Sat.set(null);
@@ -5414,6 +5762,7 @@ const Search = (() => {
       Scoring.recompute();
     }
 
+    Views.translateStatic();
     Views.renderLinks(); Views.renderTiles(); Views.renderThermal();
     Views.renderMap(); Views.renderHero(); Views.renderPosture(); Views.renderTable();
     Views.renderAgronomy(); Views.renderRolePanes(); Views.syncControls();
@@ -5505,7 +5854,7 @@ const Search = (() => {
 
   document.querySelectorAll('[data-channel]').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('[data-channel]').forEach(t => t.setAttribute('aria-selected','false'));
+      document.querySelectorAll('[data-channel]').forEach(tab => tab.setAttribute('aria-selected','false'));
       tab.setAttribute('aria-selected','true');
       State.commit({ channel: tab.dataset.channel });
       Views.renderChat();
