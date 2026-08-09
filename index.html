@@ -447,6 +447,168 @@ body{
   background:var(--series1-wash); color:#6fa9ee;
   font-size:14px; font-weight:700; letter-spacing:.03em; cursor:pointer;
 }
+
+/* ==========================================================================
+   MANUAL
+   A layer over the console rather than a route: the reader is mid-demo and
+   should land back exactly where they left. Two columns on desktop -- fixed
+   contents, scrolling prose -- collapsing to a chip strip over full-bleed
+   prose on a phone. Reading measure is capped at 68ch inside a wide panel
+   rather than letting the text run the full 1080px.
+   ========================================================================== */
+/* Tailwind here is a locally built, content-scanned stylesheet with no build step
+   in the repo, so a class it was not built with simply does not exist. `sm:inline`
+   is one of those. Hence a plain rule rather than a utility that would silently
+   never apply. */
+.wide-only{ display:none; }
+@media (min-width:640px){ .wide-only{ display:inline; } }
+
+.manual{ position:fixed; inset:0; z-index:70; display:grid; place-items:center; padding:22px; }
+.manual[hidden]{ display:none; }
+.manual-scrim{
+  position:absolute; inset:0; border:none; padding:0; cursor:default;
+  background:rgba(3,5,8,.72); backdrop-filter:blur(4px);
+  animation:mscrim .15s ease;
+}
+.manual-panel{
+  position:relative; display:flex; flex-direction:column;
+  width:min(1080px,100%); height:min(86vh,860px);
+  background:var(--surface-1); border:1px solid var(--hairline-2);
+  border-radius:16px; overflow:hidden;
+  box-shadow:0 26px 74px rgba(0,0,0,.62);
+  animation:mpanel .18s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes mscrim{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes mpanel{ from{ opacity:0; transform:scale(.985) translateY(7px) } to{ opacity:1; transform:none } }
+
+.manual-head{
+  display:flex; align-items:center; gap:10px; flex:none;
+  padding:13px 16px; border-bottom:1px solid var(--hairline);
+  background:var(--surface-1);
+}
+.manual-body{ display:grid; grid-template-columns:216px minmax(0,1fr); flex:1; min-height:0; }
+
+.manual-toc{
+  border-right:1px solid var(--hairline); overflow-y:auto;
+  padding:12px 10px; display:flex; flex-direction:column; gap:2px;
+}
+.toc-link{
+  display:flex; align-items:baseline; gap:9px; width:100%; text-align:left;
+  padding:8px 10px; border-radius:8px;
+  border:1px solid transparent; background:transparent; cursor:pointer;
+  color:var(--text-muted); font-size:12px; font-weight:600; line-height:1.35;
+  font-family:var(--font-sans); transition:color .15s ease, background .15s ease;
+}
+.toc-link:hover{ color:var(--text-secondary); background:var(--surface-2); }
+.toc-link[aria-current="true"]{
+  background:var(--series1-wash); border-color:rgba(57,135,229,.42); color:#6fa9ee;
+}
+.toc-link:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+.toc-num{ font-family:var(--font-mono); font-size:10px; opacity:.7; flex:none; }
+
+.manual-scroll{ overflow-y:auto; scroll-behavior:smooth; padding:6px 30px 62px; }
+@media (prefers-reduced-motion: reduce){ .manual-scroll{ scroll-behavior:auto; } }
+
+/* ---------- manual prose ---------- */
+/* Centred, not left-aligned: with no right-hand rail to fill it, a 68ch column
+   pinned left leaves a third of the panel visibly empty. */
+.doc{ max-width:68ch; margin:0 auto; }
+.doc section{ padding-top:26px; }
+.doc h2{
+  font-size:19px; font-weight:650; letter-spacing:-.01em; margin:0 0 4px;
+  color:var(--text-primary); scroll-margin-top:12px;
+}
+.doc .h2-kicker{
+  display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--series-1); margin-bottom:7px;
+}
+.doc h3{
+  font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--text-secondary); margin:22px 0 8px;
+}
+.doc p{ font-size:13.5px; line-height:1.68; color:var(--text-secondary); margin:0 0 12px; }
+.doc p strong{ color:var(--text-primary); font-weight:650; }
+.doc em{ color:var(--text-primary); font-style:normal; font-weight:650; }
+.doc ul{ margin:0 0 13px; padding-left:18px; }
+.doc li{ font-size:13.5px; line-height:1.62; color:var(--text-secondary); margin-bottom:6px; }
+.doc li::marker{ color:var(--text-muted); }
+.doc code{
+  font-family:var(--font-mono); font-size:12px; padding:1px 5px; border-radius:5px;
+  background:var(--surface-3); border:1px solid var(--hairline); color:var(--text-primary);
+}
+.doc hr{ border:none; border-top:1px solid var(--hairline); margin:26px 0 0; }
+
+/* A pull-quote for the honest-scope claims -- the paragraphs a reader should
+   not skim past. */
+.doc .note{
+  border-left:2px solid var(--series-1); background:var(--series1-wash);
+  border-radius:0 9px 9px 0; padding:11px 14px; margin:0 0 14px;
+}
+.doc .note p:last-child{ margin-bottom:0; }
+.doc .note.warn{ border-left-color:var(--warning); background:var(--warning-wash); }
+
+/* Step chain for the advisory walkthrough. */
+.doc ol.steps{ list-style:none; counter-reset:step; margin:0 0 14px; padding:0; }
+.doc ol.steps li{
+  counter-increment:step; position:relative; padding:0 0 14px 34px; margin:0;
+  border-left:1px solid var(--hairline); margin-left:11px;
+}
+.doc ol.steps li:last-child{ border-left-color:transparent; padding-bottom:0; }
+.doc ol.steps li::before{
+  content:counter(step); position:absolute; left:-11px; top:0;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--surface-3); border:1px solid var(--hairline-2);
+  color:var(--text-secondary); font-family:var(--font-mono); font-size:10px; font-weight:700;
+  display:grid; place-items:center;
+}
+
+/* Tables generated from live constants. */
+.doc .tablewrap{ overflow-x:auto; margin:0 0 14px; border:1px solid var(--hairline); border-radius:10px; }
+.doc table{ width:100%; border-collapse:collapse; font-size:12px; }
+.doc th, .doc td{ padding:8px 11px; text-align:left; border-bottom:1px solid var(--hairline); white-space:nowrap; }
+.doc thead th{
+  font-size:9.5px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--text-muted); font-weight:700; background:var(--surface-2);
+}
+.doc tbody tr:last-child td{ border-bottom:none; }
+.doc td.num{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; color:var(--text-primary); }
+.doc td.wrap{ white-space:normal; min-width:180px; color:var(--text-secondary); }
+
+/* Scenario cards -- each carries a real data-trigger, so the delegated handler
+   in boot() fires the same rule path the console buttons do. */
+.doc .scn{
+  display:flex; align-items:flex-start; gap:12px;
+  border:1px solid var(--hairline); border-radius:11px;
+  background:var(--surface-2); padding:12px 13px; margin-bottom:9px;
+}
+.doc .scn-txt{ flex:1; min-width:0; }
+.doc .scn-title{ font-size:13px; font-weight:650; color:var(--text-primary); margin-bottom:3px; }
+.doc .scn-desc{ font-size:12px; line-height:1.55; color:var(--text-secondary); }
+.doc .scn-go{
+  flex:none; align-self:center;
+  padding:9px 13px; border-radius:9px; cursor:pointer;
+  border:1px solid rgba(57,135,229,.45); background:var(--series1-wash); color:#6fa9ee;
+  font-size:11.5px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  font-family:var(--font-sans); transition:background .15s ease;
+}
+.doc .scn-go:hover{ background:rgba(57,135,229,.2); }
+.doc .scn-go:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+
+@media (max-width:859px){
+  .manual{ padding:0; }
+  .manual-panel{ width:100%; height:100%; border-radius:0; border:none; }
+  .manual-body{ grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+  .manual-toc{
+    flex-direction:row; overflow-x:auto; overflow-y:hidden; gap:6px;
+    border-right:none; border-bottom:1px solid var(--hairline);
+    padding:9px 12px; scrollbar-width:none;
+  }
+  .manual-toc::-webkit-scrollbar{ display:none; }
+  .toc-link{ width:auto; flex:none; white-space:nowrap; border-color:var(--hairline); background:var(--surface-2); }
+  .manual-scroll{ padding:4px 18px calc(48px + env(safe-area-inset-bottom, 0px)); }
+  .doc .scn{ flex-direction:column; align-items:stretch; }
+  .doc .scn-go{ align-self:stretch; min-height:44px; }
+}
 </style>
 </head>
 <body>
@@ -484,6 +646,13 @@ body{
     </div>
 
     <div class="flex-1"></div>
+
+    <!-- The one control that must survive every role and both breakpoints, so it
+         lives in the header rather than the tab bar or the simulation sheet. -->
+    <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
+            title="Manual (?)" aria-label="Open the manual">
+      <span aria-hidden="true">📖</span><span class="wide-only">&nbsp;Manual</span>
+    </button>
 
     <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite" aria-label="Satellite downlink status"></div>
   </div>
@@ -718,6 +887,27 @@ body{
       land on the next downlink — up to ~13 s for Sentinel-1. Raise the speed to
       compress the wait.
     </p>
+  </div>
+</div>
+
+<!-- ══════════════════════ MANUAL ══════════════════════
+     Shell only. Contents and prose are rendered by Module 7b on first open, so
+     nothing here costs anything at boot. -->
+<div id="manualLayer" class="manual" role="dialog" aria-modal="true" aria-labelledby="manualTitle" hidden>
+  <button id="manualScrim" class="manual-scrim" tabindex="-1" aria-label="Close the manual"></button>
+  <div class="manual-panel">
+    <div class="manual-head">
+      <span id="manualTitle" class="panel-title">Manual</span>
+      <span class="panel-sub wide-only">How AURA-AgriNet reads the sky and acts on it</span>
+      <div class="flex-1"></div>
+      <button id="manualClose" class="toggle" aria-label="Close the manual">Close</button>
+    </div>
+    <div class="manual-body">
+      <nav id="manualToc" class="manual-toc" aria-label="Manual contents"></nav>
+      <div id="manualScroll" class="manual-scroll" tabindex="-1">
+        <div id="manualDoc" class="doc"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1365,6 +1555,13 @@ const Telemetry = (() => {
     fetchWithLatency(src).then(({ packet, rtt }) => {
       links[src.id] = Object.assign({}, links[src.id], { rx:false });
       setLink(src.id, 'nominal', rtt);
+      /* Pausing mid-flight: this packet left before the pause and resolves after
+         it. Applying it would break the promise the pause log makes -- values are
+         held AND no autonomous action fires -- because the evaluate() below can
+         arm an advisory against telemetry the operator has already frozen. The
+         packet is dropped, not queued: on resume the next downlink is seconds
+         away and carries fresher data than this one. */
+      if(State.data.paused){ schedule(700); return; }
       const t = State.data.clock;
       Object.keys(packet).forEach(k => {
         State.push(k, packet[k], t);          // field-level aggregate
@@ -1374,8 +1571,9 @@ const Telemetry = (() => {
       EventEngine.evaluate();
       schedule(src.cadence);
     }).catch(() => {
-      const was = links[src.id] && links[src.id].status;
       links[src.id] = Object.assign({}, links[src.id], { rx:false });
+      if(State.data.paused){ schedule(700); return; }
+      const was = links[src.id] && links[src.id].status;
       setLink(src.id, (was === 'degraded' || was === 'reacquire') ? 'reacquire' : 'degraded');
       State.emit('telemetry:loss', { source:src.id });
       schedule(src.cadence * 0.55);
@@ -2733,7 +2931,7 @@ const Views = (() => {
   const TRIGGERS = [
     { id:'FROST_EVENT',      label:'Trigger frost event',        glyph:'❄', cls:'c-crit', note:'−3.4°C excursion' },
     { id:'HEATWAVE',         label:'Trigger heatwave',           glyph:'☀', cls:'c-ser',  note:'+38.6°C excursion' },
-    { id:'FLOOD_SATURATION', label:'Trigger flood / saturation', glyph:'≋', cls:'c-crit', note:'SAR 41% · reroutes' },
+    { id:'FLOOD_SATURATION', label:'Trigger flood / saturation', glyph:'≋', cls:'c-crit', note:'SAR 57% · reroutes' },
     { id:'SOIL_STRESS',      label:'Trigger drought stress',     glyph:'◷', cls:'c-warn', note:'moisture 16.5%' },
     { id:'SIGNAL_LOSS',      label:'Simulate downlink loss',     glyph:'⚡', cls:'c-warn', note:'all four sources' },
     { id:'RESTORE',          label:'Restore nominal',            glyph:'✓', cls:'c-good', note:'converge all' }
@@ -3027,6 +3225,446 @@ const Views = (() => {
 })();
 
 
+/* ===================== MODULE 7b: MANUAL =====================
+
+   A manual that restates the code is wrong the first time someone edits the
+   code. So this one QUOTES it: the feed table is generated from SOURCES and
+   METRICS, every threshold is read from CFG.THRESH, the crop sensitivities come
+   from CROPS, and the coverage note asks Region which sources actually reach the
+   active catchment. Change `frostArm` and section 7 changes with it. Nothing in
+   here hardcodes a number the engine also knows.
+
+   Two consequences worth stating:
+     - Section 6's scenario buttons carry the real `data-trigger` attribute, so
+       the delegated handler in boot() fires them through EventEngine exactly as
+       the console buttons do. The manual cannot demonstrate a path the app does
+       not have.
+     - Rendering is lazy and re-runs on every open, so a reader who opens it
+       twenty minutes in sees the live region and current thresholds, not a
+       snapshot taken at boot.                                               */
+
+const Manual = (() => {
+  let lastFocus = null;
+  let spy = null;
+
+  const t  = k => CFG.THRESH[k];
+  const nb = s => String(s).replace(/ /g, ' ');       // keep units off a line break
+
+  /* ---------- generated tables ---------- */
+
+  function feedTable(){
+    const rows = Object.keys(SOURCES).map(id => {
+      const s = SOURCES[id];
+      const ms = s.metrics.map(k => METRICS[k]).filter(Boolean);
+      const px = ms.length ? ms[0].pixelM : null;
+      const res = px === null ? '—'
+                : px >= 1000 ? `${nb((px/1000) + ' km')}`
+                : `${nb(px + ' m')}`;
+      return `<tr>
+        <td class="wrap"><strong style="color:var(--text-primary)">${esc(s.short)}</strong><br>
+            <span style="color:var(--text-muted);font-size:11px">${esc(s.label)}</span></td>
+        <td class="wrap">${ms.map(m => esc(m.label)).join(', ')}</td>
+        <td class="num">${nb((s.cadence/1000).toFixed(0) + ' s')}</td>
+        <td class="num">${nb('~' + (s.latency/1000).toFixed(1) + ' s')}</td>
+        <td class="num">${res}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table>
+      <caption class="sr-only">Orbital sources, what each measures, and how often it lands</caption>
+      <thead><tr>
+        <th scope="col">Source</th><th scope="col">Measures</th>
+        <th scope="col">Cadence</th><th scope="col">Downlink</th><th scope="col">Ground pixel</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function granularityTable(){
+    const rows = Object.keys(METRICS).map(k => {
+      const m = METRICS[k];
+      const px = m.pixelM >= 1000 ? (m.pixelM/1000) + ' km' : m.pixelM + ' m';
+      const verdict = m.downscaled
+        ? `<span class="chip warning"><span class="chip-icon">▲</span><span>Downscaled</span></span>`
+        : `<span class="chip good"><span class="chip-icon">✓</span><span>Measured</span></span>`;
+      return `<tr>
+        <td class="wrap">${esc(m.label)}</td>
+        <td class="num">${nb(px)}</td>
+        <td class="num">${m.confidence.toFixed(2)}</td>
+        <td>${m.perPlot ? verdict : '<span style="color:var(--text-muted)">Field level</span>'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table>
+      <caption class="sr-only">Instrument resolution against the confidence each metric is reported at</caption>
+      <thead><tr>
+        <th scope="col">Metric</th><th scope="col">Ground pixel</th>
+        <th scope="col">Confidence</th><th scope="col">Per plot</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  /* Arm/clear pairs with the gap between them made explicit — the gap IS the
+     hysteresis, and it is the reason the dashboard cannot flap. */
+  function thresholdTable(){
+    const spec = [
+      ['Frost',              'frostArm', 'frostClear', '°C', 'at or below', 1],
+      ['Heatwave',           'heatArm',  'heatClear',  '°C', 'at or above', 2],
+      ['Road saturation',    'traffArm', 'traffClear', '%',  'at or below', 1],
+      ['Root-zone moisture', 'moistArm', 'moistClear', '%',  'at or below', 2],
+      ['Canopy vigour',      'ndviArm',  'ndviClear',  '',   'at or below', 2]
+    ];
+    const rows = spec.map(([label, armK, clearK, unit, dir, ticks]) => {
+      const gap = Math.abs(t(clearK) - t(armK));
+      const dec = unit === '' ? 2 : 1;
+      return `<tr>
+        <td class="wrap">${esc(label)}</td>
+        <td class="num">${nb(t(armK).toFixed(dec) + unit)}</td>
+        <td class="num">${nb(t(clearK).toFixed(dec) + unit)}</td>
+        <td class="num">${nb(gap.toFixed(dec) + unit)}</td>
+        <td class="num">${ticks}</td>
+        <td class="wrap" style="font-size:11.5px">arms ${esc(dir)} the first figure</td>
+      </tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table>
+      <caption class="sr-only">Arm and clear thresholds for each rule, with the hysteresis gap between them</caption>
+      <thead><tr>
+        <th scope="col">Rule</th><th scope="col">Arms at</th><th scope="col">Clears at</th>
+        <th scope="col">Gap</th><th scope="col">Downlinks</th><th scope="col">Direction</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+  function cropTable(){
+    const rows = Object.keys(CROPS).map(c => {
+      const grown = Region.plotsGrowing(c).map(p => (NODES[p] && NODES[p].name) || p);
+      return `<tr>
+        <td class="wrap">${esc(c)}</td>
+        <td class="num">${CROPS[c].frostSensitivity.toFixed(2)}</td>
+        <td class="wrap" style="font-size:11.5px">${esc(CROPS[c].note)}</td>
+        <td class="wrap" style="font-size:11.5px">${grown.length ? esc(grown.join(', ')) : '—'}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table>
+      <caption class="sr-only">Crop frost sensitivity and which plots grow each crop</caption>
+      <thead><tr>
+        <th scope="col">Crop</th><th scope="col">Frost sensitivity</th>
+        <th scope="col">Why</th><th scope="col">Grown on</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  /* ---------- scenarios ----------
+     `data-trigger` is the real attribute the boot() delegate listens for, so
+     these buttons and the console buttons run identical code. */
+  const SCENARIOS = [
+    { id:'FROST_EVENT', title:'Frost on the tomato plot',
+      what:'Drops surface temperature to −3.4°C. Watch the order book: the tomato and pepper orders are cut, the cassava order is not, because a frost takes the canopy and cassava keeps its tuber.' },
+    { id:'FLOOD_SATURATION', title:'Flooded ford, forced reroute',
+      what:'Pushes SAR trafficability to 57%, which is enough to put the river crossing below the impassable floor while the southern detour holds. The map redraws the route around it and the driver is told why.' },
+    { id:'SOIL_STRESS', title:'Drought stress',
+      what:'Takes root-zone moisture to 16.5% and NDVI down with it, so you should see two advisories arm, not one — canopy vigour follows the water. Both need two consecutive downlinks below the floor first; one dip is not a drought.' },
+    { id:'HEATWAVE', title:'Heatwave',
+      what:'Pushes surface temperature to 38.6°C. Quantities are untouched; the cold chain is engaged instead, because heat is a transport problem here, not a yield one.' },
+    { id:'SIGNAL_LOSS', title:'Lose the downlink',
+      what:'Drops all four sources to reacquisition. Nothing is invented to fill the gap — the last known values are held and visibly marked stale.' },
+    { id:'RESTORE', title:'Return to nominal',
+      what:'Converges every metric back toward its regional baseline. Advisories clear one at a time as each metric crosses its release threshold, and the withdrawn crates come back.' }
+  ];
+
+  function scenarioCards(){
+    return SCENARIOS.map(s => `
+      <div class="scn">
+        <div class="scn-txt">
+          <div class="scn-title">${esc(s.title)}</div>
+          <div class="scn-desc">${esc(s.what)}</div>
+        </div>
+        <button class="scn-go" data-trigger="${esc(s.id)}" data-manual-run="1">Run it ▸</button>
+      </div>`).join('');
+  }
+
+  /* ---------- sections ---------- */
+
+  const SECTIONS = [
+    {
+      id:'what', nav:'What it does', title:'What AURA-AgriNet does',
+      render: () => `
+        <p>Four satellite feeds land every few seconds. A set of rules watches them. When a
+        reading crosses a threshold and stays there, the app does not simply colour a tile
+        red — it <em>changes the plan</em>: it revises buyer orders, moves the harvest window,
+        and reroutes the delivery driver around roads that are no longer passable.</p>
+
+        <p>That last step is the whole point. Plenty of dashboards can tell you it is about
+        to freeze. This one works out which plots are affected, which crops grow there, how
+        badly each of those crops minds a frost, and how many crates therefore have to come
+        off tonight's order — then tells the farmer, the buyer and the driver each the part
+        that concerns them.</p>
+
+        <h3>The loop, in three steps</h3>
+        <ol class="steps">
+          <li><strong>Ingest.</strong> Each source downlinks on its own cadence, with realistic
+              latency and occasional packet loss. A dropped packet holds the last value and says so.</li>
+          <li><strong>Detect.</strong> Five rules evaluate on every tick. Each has separate arm and
+              clear thresholds and a debounce, so a value hovering on a boundary cannot flap the console.</li>
+          <li><strong>Act.</strong> An armed rule runs consequences — order revisions, harvest window,
+              cold chain, rerouting — and briefs the affected people in the chat.</li>
+        </ol>
+
+        <div class="note"><p>Every advisory is reversible. When telemetry crosses back past the
+        release threshold, the rule releases and its actions are undone: the crates go back on the
+        order, the harvest window returns to normal, the original route is restored.</p></div>`
+    },
+    {
+      id:'feeds', nav:'The four feeds', title:'The four feeds',
+      render: () => `
+        <p>Each source is modelled with its own cadence, one-way downlink latency and loss rate,
+        so the console behaves like something reading a real high-latency link rather than a
+        local timer. Sentinel-1 is the slow one at ${nb((SOURCES.S1.cadence/1000) + ' s')} between
+        passes — which is why a flood advisory takes a moment to show up.</p>
+
+        ${feedTable()}
+
+        <p>The header chips show live link state for all four. A chip pulsing on
+        <em>reacquire</em> means that source is not currently delivering and the values you are
+        looking at are the last ones that did.</p>
+
+        <h3>Coverage is not universal</h3>
+        <p>${Region.current() && Region.current().sources.CROP_CASMA
+             ? `The active region (${esc(Region.current().name)}) is inside CONUS, so CROP-CASMA is available and the soil-moisture chip is live.`
+             : `The active region (${esc((Region.current() && Region.current().name) || '—')}) is outside the United States, so CROP-CASMA — a NASA/USDA product covering CONUS only — is greyed out rather than pretending to poll. Soil moisture falls back to SMAP L4 at 9 km.`}
+        Switch regions in the header to watch that chip change.</p>`
+    },
+    {
+      id:'scope', nav:'Real vs simulated', title:'What is real, and what is not',
+      render: () => `
+        <div class="note warn"><p><strong>Every telemetry reading in this app is synthetic.</strong>
+        No network call is made to NASA, ESA or anyone else. The numbers come from a bounded
+        random walk around a per-region climate baseline.</p></div>
+
+        <p>What is real is everything downstream of the numbers: the Dijkstra pathfinding, the
+        haversine distances, the map projection, the hysteresis on every rule, the crop-aware
+        order arithmetic, and the offline shell. Road distances are <em>derived</em> — great-circle
+        distance multiplied by a road sinuosity factor — rather than typed in. The coordinates are
+        real WGS-84 points near real towns; <code>Ford X-1</code> is not a real crossing.</p>
+
+        <h3>The part most demos get wrong</h3>
+        <p>Instrument resolution differs by three orders of magnitude across these four feeds, and
+        that difference decides what you are allowed to claim.</p>
+
+        ${granularityTable()}
+
+        <p>Sentinel-2 resolves 10 m pixels, so a 1.4 ha plot covers roughly 140 of them: NDVI for
+        that plot is a <em>measurement</em>. SMAP's finest routine product is about 9 km, which is
+        some 5,800 times the area of the same plot — all three plots sit inside one pixel. Per-plot
+        soil moisture is therefore an <em>estimate</em>, derived from the shared pixel plus a fixed
+        offset standing in for soil type and slope.</p>
+
+        <div class="note"><p>This is why plot cards label soil moisture
+        <code>≈ downscaled · conf 0.55</code> and NDVI <code>✓ measured</code>. Showing three
+        different soil-moisture figures for three plots without that label would imply three
+        independent measurements that no instrument in orbit took.</p></div>`
+    },
+    {
+      id:'action', nav:'Advisory → action', title:'How an advisory becomes an action',
+      render: () => `
+        <p>Take the frost rule end to end. Every number below is read live from the running
+        configuration, so it is what the engine will actually do.</p>
+
+        <ol class="steps">
+          <li><strong>Arm test.</strong> Surface temperature at or below
+              <code>${t('frostArm').toFixed(1)}°C</code>. One qualifying downlink is enough —
+              frost is not something to wait out for confirmation.</li>
+          <li><strong>Which plots.</strong> Per-plot temperature decides. Only plots actually at
+              or below the floor count; if none individually qualify, all plots are treated as hit.</li>
+          <li><strong>Which crops.</strong> The affected plots resolve to the crops grown there.
+              An order for a crop grown on no affected plot is left completely alone.</li>
+          <li><strong>How much.</strong> The base cut is 28%, scaled by that crop's frost
+              sensitivity. The order is re-marked grade B and flagged as revised.</li>
+          <li><strong>Downstream.</strong> The harvest window moves to <code>EARLY</code>, and the
+              farmer, buyer and driver each get the part of the story that concerns them.</li>
+          <li><strong>Release.</strong> Once temperature reaches
+              <code>${t('frostClear').toFixed(1)}°C</code>, the rule clears: crates are reinstated,
+              the contracted grade is restored, and the harvest window returns to normal.</li>
+        </ol>
+
+        <h3>Why cassava is treated differently</h3>
+        ${cropTable()}
+        <p>A frost destroys a tomato crop's fruiting canopy. Cassava is a root crop — the canopy
+        dies but the tuber survives in the ground — so it takes roughly a third of the cut. An
+        earlier version applied one flat percentage to every order, which meant a frost on the
+        tomato plot also cut the cassava order by 28%. It was wrong in a way that looked
+        perfectly reasonable on screen.</p>`
+    },
+    {
+      id:'map', nav:'Map and route', title:'Reading the map and the route',
+      render: () => `
+        <p>The map is a live projection of the active region's real coordinates, not a picture.
+        Longitude is scaled by the cosine of the centre latitude so the catchment is not stretched
+        east-west — negligible in Ghana, a 20% correction at Fresno.</p>
+
+        <h3>What the shapes mean</h3>
+        <ul>
+          <li><strong>Plots</strong> are the origins — each labelled with its crop and area.</li>
+          <li><strong>Junctions</strong> connect segments. <code>Ford X-1</code> is the river
+              crossing in every region, and it is the one that fails first.</li>
+          <li><strong>The depot</strong> is the cold store and the route's destination; the
+              <strong>hub</strong> is the buyer.</li>
+          <li><strong>Segments</strong> darken as trafficability falls. Below
+              <code>${t('edgeDegraded')}%</code> a segment is degraded; at or below
+              <code>${t('edgeImpassable')}%</code> it is impassable and routing refuses to use it.</li>
+        </ul>
+
+        <h3>The route is timed, not just measured</h3>
+        <p>Dijkstra minimises <em>drive time</em>, not distance. Effective speed falls with
+        trafficability, so a longer detour on good road legitimately beats a short one through mud.
+        Each segment's own flood susceptibility is applied to the mean SAR reading, which is why
+        the ford degrades far faster than the road beside it.</p>
+
+        <div class="note warn"><p>If every path to the depot is blocked, the app does not quietly
+        route through a flooded ford. It computes the best available path, marks the route as a
+        <em>fallback</em>, and says so — sending a driver into a river is a worse failure than
+        admitting there is no way through.</p></div>
+
+        <p>The return leg is planned too: rather than run empty, the driver is offered a backhaul
+        pickup on the way back from the depot.</p>`
+    },
+    {
+      id:'try', nav:'Try it', title:'Try it — six scenarios',
+      render: () => `
+        <p>Each button below fires the same code path the console's trigger panel does. They
+        inject a telemetry excursion and let the normal rule path run, so the effect lands on the
+        <em>next downlink</em> — up to about ${nb((SOURCES.S1.cadence/1000) + ' s')} for anything
+        Sentinel-1 carries. Raise the simulation speed to compress the wait.</p>
+
+        <p>Running a scenario closes the manual so you can watch it land.</p>
+
+        ${scenarioCards()}
+
+        <div class="note"><p>Nothing here is a canned animation. Each button changes a number in
+        the feed; everything you then see — the advisory, the order revision, the reroute, the
+        chat briefing — is the engine reacting to that number.</p></div>`
+    },
+    {
+      id:'thresholds', nav:'Thresholds', title:'Threshold reference',
+      render: () => `
+        <p>Every rule arms on one figure and clears on a different one. The gap between them is
+        the hysteresis, and it is what stops a reading sitting on a boundary from arming and
+        clearing the same advisory on alternate downlinks.</p>
+
+        ${thresholdTable()}
+
+        <p>The <em>downlinks</em> column is the debounce: how many consecutive qualifying readings
+        are required before the rule acts. Frost and road saturation act on the first one because
+        both are immediately costly to ignore. Moisture, NDVI and heat wait for two, because a
+        single dip is noise.</p>
+
+        <h3>Composite readiness</h3>
+        <p>The headline number weights four sub-scores: temperature 32%, soil moisture 25%,
+        trafficability 25%, NDVI 18%. Temperature is penalised at both ends — a gradual ramp
+        toward frost and another toward heat, taking whichever is worse — so readiness declines
+        as conditions approach a threshold rather than cliff-edging the moment one is crossed.</p>
+
+        <hr>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:14px">Values on this page are
+        read from the running configuration each time the manual opens. If a threshold is changed
+        in the code, this table changes with it.</p>`
+    }
+  ];
+
+  /* ---------- render ---------- */
+
+  function build(){
+    el('manualToc').innerHTML = SECTIONS.map((s, i) => `
+      <button class="toc-link" data-goto="${s.id}" aria-current="${i === 0}">
+        <span class="toc-num">${String(i + 1).padStart(2,'0')}</span><span>${esc(s.nav)}</span>
+      </button>`).join('');
+
+    el('manualDoc').innerHTML = SECTIONS.map((s, i) => `
+      <section id="mn-${s.id}" aria-labelledby="mnh-${s.id}">
+        <h2 id="mnh-${s.id}"><span class="h2-kicker">Section ${i + 1} of ${SECTIONS.length}</span>${esc(s.title)}</h2>
+        ${s.render()}
+      </section>`).join('');
+  }
+
+  /* Scroll-spy. IntersectionObserver rather than a scroll handler so it costs
+     nothing while the reader is idle. The root is the scroll container, and the
+     band is the top third of it, so a heading becomes "current" as it settles
+     into reading position rather than the instant it appears. */
+  function startSpy(){
+    stopSpy();
+    if(typeof IntersectionObserver !== 'function') return;
+    const root = el('manualScroll');
+    spy = new IntersectionObserver(entries => {
+      entries.filter(e => e.isIntersecting).forEach(e => setCurrent(e.target.id.replace('mn-','')));
+    }, { root, rootMargin:'0px 0px -66% 0px', threshold:0 });
+    SECTIONS.forEach(s => { const n = document.getElementById('mn-' + s.id); if(n) spy.observe(n); });
+  }
+  function stopSpy(){ if(spy){ spy.disconnect(); spy = null; } }
+
+  function setCurrent(id){
+    document.querySelectorAll('[data-goto]').forEach(b =>
+      b.setAttribute('aria-current', String(b.dataset.goto === id)));
+  }
+
+  /* Deliberately NOT scrollIntoView. That walks every scrollable ancestor, and
+     `overflow:hidden` boxes are still scrollable programmatically -- so it
+     scrolled .manual-panel too and pushed the header and Close button out of
+     sight. Only the prose column should move. */
+  function goto(id){
+    const node = document.getElementById('mn-' + id);
+    const root = el('manualScroll');
+    if(!node || !root) return;
+    setCurrent(id);
+    const top = node.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop;
+    if(root.scrollTo) root.scrollTo({ top, behavior:'smooth' });
+    else root.scrollTop = top;
+  }
+
+  /* ---------- open / close ---------- */
+
+  const isOpen = () => !el('manualLayer').hidden;
+
+  function open(){
+    if(isOpen()) return;
+    lastFocus = document.activeElement;
+    build();                       // rebuilt on every open, so live values are current
+    el('manualLayer').hidden = false;
+    document.body.style.overflow = 'hidden';       // scroll lock behind the layer
+    const btn = el('btnManual');
+    if(btn) btn.setAttribute('aria-expanded','true');
+    el('manualScroll').scrollTop = 0;
+    setCurrent(SECTIONS[0].id);
+    startSpy();
+    el('manualClose').focus();
+    State.emit('manual', { open:true });
+  }
+
+  function close(){
+    if(!isOpen()) return;
+    stopSpy();
+    el('manualLayer').hidden = true;
+    document.body.style.overflow = '';
+    const btn = el('btnManual');
+    if(btn) btn.setAttribute('aria-expanded','false');
+    if(lastFocus && lastFocus.focus) lastFocus.focus();
+    lastFocus = null;
+    State.emit('manual', { open:false });
+  }
+
+  const toggle = () => (isOpen() ? close() : open());
+
+  /* Focus trap. The layer is aria-modal, but that is a promise to assistive
+     tech, not an enforcement — Tab still walks into the console behind it
+     unless the cycle is closed by hand. */
+  function trapFocus(e){
+    if(e.key !== 'Tab' || !isOpen()) return;
+    const focusable = [el('manualClose'),
+                       ...document.querySelectorAll('[data-goto]'),
+                       ...document.querySelectorAll('[data-manual-run]')].filter(Boolean);
+    if(!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  }
+
+  return { open, close, toggle, isOpen, goto, trapFocus, SECTIONS, SCENARIOS,
+           build, thresholdTable, feedTable };   // exposed for the regression harness
+})();
+
+
 /* ===================== MODULE 8: BOOTSTRAP ===================== */
 
 (function boot(){
@@ -3102,6 +3740,9 @@ const Views = (() => {
     btn.classList.add('armed');
     setTimeout(() => btn.classList.remove('armed'), 900);
     EventEngine.fire(btn.dataset.trigger);
+    // A scenario fired from the manual gets out of the reader's way so they can
+    // watch it land. Console buttons keep their panel open.
+    if(btn.dataset.manualRun) Manual.close();
   });
 
   function togglePause(){
@@ -3127,8 +3768,30 @@ const Views = (() => {
   el('simSheet').addEventListener('click', e => {          // tap the scrim to dismiss
     if(e.target.id === 'simSheet') Views.openSheet(false);
   });
+
+  /* --- manual --- */
+  el('btnManual').addEventListener('click', Manual.toggle);
+  el('manualClose').addEventListener('click', Manual.close);
+  el('manualScrim').addEventListener('click', Manual.close);
+  el('manualToc').addEventListener('click', e => {
+    const b = e.target.closest('[data-goto]');
+    if(b) Manual.goto(b.dataset.goto);
+  });
+
   document.addEventListener('keydown', e => {
-    if(e.key === 'Escape') Views.openSheet(false);
+    if(e.key === 'Escape'){
+      // Innermost layer first: the manual sits above the simulation sheet.
+      if(Manual.isOpen()) Manual.close(); else Views.openSheet(false);
+      return;
+    }
+    if(e.key === 'Tab'){ Manual.trapFocus(e); return; }
+    // "?" opens the manual, but never while the reader is typing into the chat.
+    const typing = document.activeElement &&
+                   /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if(e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey){
+      e.preventDefault();
+      Manual.toggle();
+    }
   });
 
   /* --- region switching: rebuild the graph and re-seed, then repaint --- */
