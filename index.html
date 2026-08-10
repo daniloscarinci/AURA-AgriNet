@@ -299,7 +299,7 @@ body{
 }
 .tile.is-alert{ border-color:rgba(208,59,59,.45); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 55%); }
 .tile.is-warn { border-color:rgba(250,178,25,.4);  background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 55%); }
-.tile-label{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:600; }
+.tile-label{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:600; min-width:0; }
 .tile-value{ font-size:27px; font-weight:600; letter-spacing:-.02em; line-height:1.1; }
 .tile-unit{ font-size:13px; color:var(--text-muted); font-weight:500; }
 .tile-delta{ font-size:11px; font-weight:600; font-family:var(--font-mono); }
@@ -917,6 +917,27 @@ body{
    Portuguese, where the labels are long enough to push the values onto their
    own line. Written out by hand rather than rebuilding the stylesheet; a test
    now fails if a class is used that nothing defines. */
+/* ---------- a headline goes DOWN, never sideways ----------
+   A headline and the status beside it used to share one row and run off the
+   edge when they would not fit. Measured rather than eyeballed: the worst case
+   was "Transitabilidad" beside "Caminos transitables", 76 px past the card in
+   Spanish. English overflowed too, by 22 px -- small enough to read as
+   deliberate, which is why it survived this long.
+
+   The four tiles stack theirs unconditionally. Wrapping only when it is needed
+   sounds tidier and is not: three tiles wrap, the fourth does not, and the row
+   of numbers underneath ends up on two different baselines. A stat row is read
+   by scanning across it, so the layout has to be the same in every tile and
+   every language, not a function of how long a particular word happens to be.
+
+   Everything else wraps on demand, because those are single titles with no
+   sibling to align to. Chips keep white-space:nowrap throughout: a status is
+   one word to the eye, so it moves as a unit rather than breaking in half. */
+.tile-head{ flex-direction:column; align-items:flex-start; gap:5px; }
+.panel-head,
+.mcard-head,
+.agro-head{ flex-wrap:wrap; row-gap:5px; }
+
 .gap-5{ gap:1.25rem; }
 .grid-cols-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
 .mb-3{ margin-bottom:.75rem; }
@@ -3142,16 +3163,18 @@ const Views = (() => {
                    : kind === 'derived'  ? `<span class="prov-live">◈ ${esc(t('derived'))}</span>`
                    : `<span class="prov-sim">○ ${esc(t('simulated'))}</span>`;
 
-    const detail = prov ? prov.detail
+    const detail = prov ? t(prov.detail)
                  : simulatedBesideLive
-                   ? `No keyless point source exists for ${m.label.toLowerCase()}. This value is a bounded random walk; use the ${key === 'ndvi' ? 'MODIS NDVI map layer' : 'map layers'} to check it against real imagery.`
-                   : 'bounded random walk modelling ' + SOURCES[m.src].label;
+                   ? t('No keyless point source exists for {metric}. This value is a bounded random walk; use the {layers} to check it against real imagery.',
+                       { metric: t(m.label).toLocaleLowerCase(I18n.current().locale),
+                         layers: key === 'ndvi' ? t('MODIS NDVI map layer') : t('map layers') })
+                   : t('bounded random walk modelling {source}', { source: SOURCES[m.src].label });
 
-    return `<div class="tile-src mt-1.5" title="${esc(detail)}">${esc(src)}${simulatedBesideLive ? '' : ' · ' + esc(res) + ' px'}${stale && !simulatedBesideLive ? ' · holding last value' : ''}</div>
-      <div class="tile-src">${kindChip} · conf ${conf.toFixed(2)}</div>
+    return `<div class="tile-src mt-1.5" title="${esc(detail)}">${esc(src)}${simulatedBesideLive ? '' : ' · ' + esc(res) + ' px'}${stale && !simulatedBesideLive ? ' · ' + esc(t('holding last value')) : ''}</div>
+      <div class="tile-src">${kindChip} · ${esc(t('conf'))} ${fmt(conf, 2)}</div>
       ${down
-        ? `<div class="tile-src" style="color:var(--warning-ink)" title="All three plots sit inside one ${esc(res)} cell, so per-plot values are downscaled estimates, not measurements">≈ ${esc(t('downscaled to plot'))}</div>`
-        : `<div class="tile-src" style="color:var(--good-ink)" title="The source cell is smaller than a plot, so this resolves per plot">✓ ${esc(t('resolves per plot'))}</div>`}`;
+        ? `<div class="tile-src" style="color:var(--warning-ink)" title="${esc(t('All three plots sit inside one {res} cell, so per-plot values are downscaled estimates, not measurements', { res }))}">≈ ${esc(t('downscaled to plot'))}</div>`
+        : `<div class="tile-src" style="color:var(--good-ink)" title="${esc(t('The source cell is smaller than a plot, so this resolves per plot'))}">✓ ${esc(t('resolves per plot'))}</div>`}`;
   }
 
   function renderTiles(){
@@ -3198,7 +3221,7 @@ const Views = (() => {
       }
 
       return `<div class="${tileCls}" data-key="${key}">
-        <div class="flex items-start justify-between gap-2">
+        <div class="tile-head flex items-start justify-between gap-2">
           <span class="tile-label">${esc(t(m.label))}</span>
           <span class="chip ${sev}" style="padding:1px 6px"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(t(statusWord(key, sev)))}</span></span>
         </div>

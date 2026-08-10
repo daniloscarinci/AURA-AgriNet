@@ -279,6 +279,24 @@ module.exports = ({ suite, test, assert }) => {
        screen. Six were shipping that way, and `gap-5` is why the driver's
        distance and drive time ran together. Nothing else can catch this --
        every test that reads the DOM sees the class attribute, not the rule. */
+    /* A headline and the status beside it must never resolve by running off the
+       edge of the card. Layout cannot be measured against a stub DOM, so what
+       is checked here is the contract that produces it: the stat tiles stack
+       unconditionally, so every tile in the row shares one baseline whatever
+       the language, and the single-title headers wrap rather than overflow. */
+    test('headlines resolve downwards, not sideways', () => {
+      const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [, ''])[1];
+      const tile = style.match(/\.tile-head\{([^}]*)\}/);
+      assert.ok(tile, 'the tile headline has no rule of its own');
+      assert.includes(tile[1], 'flex-direction:column',
+        'the tile headline puts its chip beside the label, so a long status overflows the card');
+      ['.panel-head', '.mcard-head', '.agro-head'].forEach(sel => {
+        const rule = style.match(new RegExp(`${sel.replace('.', '\\.')}[^{]*\\{([^}]*)\\}`, 'g')) || [];
+        assert.ok(rule.some(r => r.includes('flex-wrap:wrap')),
+          `${sel} cannot wrap, so a long title pushes its neighbour off the edge`);
+      });
+    });
+
     test('every class the app uses is defined in a stylesheet', () => {
       const css = fs.readFileSync(path.join(ROOT, 'app.css'), 'utf8');
       const inline = (html.match(/<style>([\s\S]*?)<\/style>/) || [, ''])[1];
