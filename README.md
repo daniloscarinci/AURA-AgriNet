@@ -111,19 +111,20 @@ translation.
 Every user-facing sentence in the app is translatable. What is actually
 translated today:
 
-| | UI, advisories, event log, agent replies | Typed-input keywords | Scripted briefings | Manual body |
+| | UI, board, advisories, log, agent replies | Typed-input keywords | Scripted briefings | Manual body |
 |---|---|---|---|---|
-| All 12 languages | ✅ 294/294 | ✅ 8 intents each | — | — |
-| Español additionally | | | ✅ 32 blocks | — |
+| All 12 languages | ✅ 354/354 | ✅ 8 intents each | — | — |
+| Español, Kiswahili | ✅ | ✅ | ✅ 32/32 | ✅ 7/7 |
+| The other nine | ✅ | ✅ | — | — |
 
 The first two columns are what a grower reads and types: the advisory that fires,
 the log entry behind it, the agent's answer, and the words they type to ask. All
 of that is complete in every language.
 
-The last two are long-form prose delivered on demand. Only Spanish carries the
-scripted briefing dialogue; no language carries the manual body yet. Both fall
-back to correct English, badged, exactly as designed — the fallback is per block,
-so a briefing is never half-rendered.
+The last two are long-form prose delivered on demand. Spanish and Kiswahili are
+complete end to end; the other nine fall back to correct English for those two
+surfaces, badged, exactly as designed. The fallback is per block, so a briefing
+is never half-rendered.
 
 **These translations are machine-produced and have not been reviewed by native
 speakers.** Every catalogue records `reviewed: false`. Before this reaches real
@@ -158,7 +159,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 647 checks, no dependencies, no network
+node tests/run.js              # 652 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
