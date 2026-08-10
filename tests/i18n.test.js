@@ -36,6 +36,8 @@ module.exports = ({ suite, test, assert }) => {
                     /nav:'([^']+)', title:'([^']+)'/g, /title:'([^']+)',\s*$/gm,
                     /name:'([A-Z][a-z]+)',\s+endonym/g,
                     /label:'([^']+)', product:'([^']+)'/g,    // satellite layers
+                    /name:'([^']+)',\s*kind:/g,               // map node labels, via t(n.name)
+                    /\bsub:'([^']+)'/g,                       // and their subtitles
                     /^\s{2}(\w+):\s+\{ frostSensitivity/gm]; // crop names, shown via t(n.crop)
     for (const re of tables) for (const m of script.matchAll(re)) {
       if (m[1]) set.add(m[1]);
@@ -55,13 +57,12 @@ module.exports = ({ suite, test, assert }) => {
       .matchAll(/(?:good|warning|serious|critical):'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const QUICK = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
     /* The opening exchange stores English source too, and its lines carry no
-       prose key to find them by. Every literal in that one function is either a
-       sentence or a participant id, and only the sentences contain a space. */
+       prose key to find them by. Only the sentences are wanted: the rest of the
+       literals in that function are participant ids and the separators between
+       segments, which are punctuation and units, not translatable text. */
     for (const m of block('function greet(){', 'return { post,')
-      .matchAll(/'((?:[^'\\]|\\.)*)'/g)) {
-      const v = m[1].replace(/\\'/g, "'");
-      if (v.includes(' ')) set.add(v);
-    }
+      .matchAll(/(?:text:\s*|post\('SYSTEM',\s*)'((?:[^'\\]|\\.)*)'/g))
+      set.add(m[1].replace(/\\'/g, "'"));
 
     /* Log entries and advisory details are stored as English SOURCE and
        translated at paint time, so they appear as bare literals rather than
@@ -709,6 +710,56 @@ module.exports = ({ suite, test, assert }) => {
         h.app.I18n.t(h.app.State.data.alerts.get('FROST_EVENT').detailKey,
                      h.app.State.data.alerts.get('FROST_EVENT').vars),
         'the hero note disagrees with the advisory it is showing');
+    });
+
+    /* The DOM walk the README claims, run rather than described. Every pane is
+       rendered in every language with a field in trouble, so each conditional
+       branch is on screen, and every catalogue key that changes under
+       translation must be absent in its English form. This is what caught the
+       role panes and the map labels; it is here so they cannot come back. */
+    ['es', 'pt', 'fr'].forEach(code => {
+      test(`no English survives in the ${code} role panes`, async () => {
+        const cat = JSON.parse(fs.readFileSync(path.join(ROOT, 'i18n', code + '.json'), 'utf8')).strings;
+        const h = boot({ fetch: served() });
+        h.app.Telemetry.stop();
+        Object.assign(h.app.State.data.latest, { temp: -6, moisture: 8, ndvi: 0.2, traff: 10 });
+        for (let i = 0; i < 4; i++) h.app.EventEngine.evaluate();
+        await h.advance(3000);
+        await switchTo(h, code);
+
+        /* A key with a placeholder can only be matched on a fragment, and a
+           fragment is not evidence; nor is a translation that contains its own
+           English word — French "cellule" holds "cell". */
+        const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const testable = Object.keys(cat).filter(k =>
+          cat[k] !== k && k.length > 3 && !k.includes('{') &&
+          !cat[k].toLowerCase().includes(k.toLowerCase()));
+
+        const leaks = [];
+        ['FARMER', 'BUYER', 'DRIVER'].forEach(role => {
+          h.app.Views.setRole(role);
+          const text = ' ' + (h.document.getElementById('pane' + role[0] + role.slice(1).toLowerCase()).innerHTML || '')
+            .replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ') + ' ';
+          testable.forEach(k => {
+            if (new RegExp(`(^|[^\\p{L}])${rx(k)}([^\\p{L}]|$)`, 'u').test(text))
+              leaks.push(`${role}: ${k}`);
+          });
+        });
+        assert.deepEqual([...new Set(leaks)].slice(0, 5), [],
+          `English on screen in ${code}, out of ${testable.length} translatable strings`);
+      });
+    });
+
+    test('map labels are drawn in the active language', async () => {
+      const h = boot({ fetch: served() });
+      h.app.Telemetry.stop();
+      await switchTo(h, 'es');
+      const svg = h.document.getElementById('fieldMap').innerHTML;
+      assert.includes(svg, ES['Plot F-2'], 'the map kept its English plot labels');
+      assert.notIncludes(svg, 'Plot F-2', 'an English plot label survived on the map');
+      assert.notIncludes(svg, 'Jct N', 'an English junction label survived on the map');
+      // A hub with a real name keeps it: a proper noun is not translated anywhere.
+      assert.includes(svg, 'Terrace Kitchen', 'a proper noun was translated');
     });
 
     test('the all-clear state is translated too, not just the alarm', async () => {

@@ -1377,7 +1377,7 @@ const REGIONS = {
     centre:{ lat:6.095, lon:0.042 },
     sources:{ SMAP:true, CROP_CASMA:false, S1:true, S2:true },
     climate:{ temp:27.5, moisture:31.5, ndvi:0.63, stress:0.24, traff:88 },
-    hubName:'Terrace Kitchen', depotName:'Somanya Depot',
+    hubName:'Terrace Kitchen', depotPlace:'Somanya',
     nodes:{
       F1: { lat:6.1210, lon:0.0120, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:2.1 },
       F2: { lat:6.1085, lon:0.0360, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:1.4 },
@@ -1394,7 +1394,7 @@ const REGIONS = {
     centre:{ lat:7.380, lon:3.900 },
     sources:{ SMAP:true, CROP_CASMA:false, S1:true, S2:true },
     climate:{ temp:28.4, moisture:29.0, ndvi:0.60, stress:0.28, traff:85 },
-    hubName:'Bodija Market', depotName:'Ojoo Depot',
+    hubName:'Bodija Market', depotPlace:'Ojoo',
     nodes:{
       F1: { lat:7.4090, lon:3.8700, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:2.6 },
       F2: { lat:7.3960, lon:3.8950, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:1.7 },
@@ -1412,7 +1412,7 @@ const REGIONS = {
     // The only region where CROP-CASMA actually has coverage.
     sources:{ SMAP:true, CROP_CASMA:true, S1:true, S2:true },
     climate:{ temp:19.5, moisture:26.0, ndvi:0.68, stress:0.30, traff:94 },
-    hubName:'Fresno Food Hub', depotName:'Kerman Depot',
+    hubName:'Fresno Food Hub', depotPlace:'Kerman',
     nodes:{
       F1: { lat:36.7860, lon:-119.8180, name:'Plot F-1', kind:'farm', crop:'Cassava', ha:3.4 },
       F2: { lat:36.7720, lon:-119.7900, name:'Plot F-2', kind:'farm', crop:'Tomato',  ha:2.8 },
@@ -1523,9 +1523,15 @@ const Geo = (() => {
     Object.keys(region.nodes).forEach(id => {
       const n = region.nodes[id];
       const pt = to(n.lat, n.lon);
+      /* REGIONS hold ENGLISH SOURCE; NODES hold what the map draws. Projecting
+         is where the two meet, and a region is reprojected on every language
+         change, so a label written here is always in the language showing now.
+         The ids (F1, XR, DEP) are what routing and the tests key on, which is
+         what makes translating the labels safe. */
       out[id] = Object.assign({}, n, {
         id, x: pt.x, y: pt.y,                      // screen y grows downward
-        sub: n.sub || (n.crop ? `${t(n.crop)} · ${n.ha} ha` : '')
+        name: t(n.name),
+        sub: n.sub ? t(n.sub) : (n.crop ? `${t(n.crop)} · ${fmt(n.ha, 1)} ha` : '')
       });
     });
     return out;
@@ -1554,11 +1560,15 @@ const Region = (() => {
     REGION = region;
     NODES = Geo.project(region);
     EDGES = Geo.buildEdges(NODES);
-    // Node labels that carry region-specific naming
-    // depotName/hubName are proper nouns for the built-in regions and generated
-    // "<Place> Depot" strings for searched ones; translate the generic word only.
-    if(NODES.DEP) NODES.DEP.name = region.depotName || t('Depot');
-    if(NODES.HUB) NODES.HUB.sub  = region.hubName || '';
+    /* Region-specific naming, built here rather than in the region data, which
+       is what lets it follow the picker. A depot is "<Place> Depot" everywhere,
+       built-in or searched -- only the place is fixed. A hub may be a genuine
+       proper noun (Bodija Market is a real market in Ibadan), and a proper noun
+       is not translated in any language, so that one wins when it exists. */
+    const town = region.depotPlace || (region.place && region.place.name);
+    if(NODES.DEP) NODES.DEP.name = town ? t('{place} Depot', { place: town }) : t('Depot');
+    if(NODES.HUB) NODES.HUB.sub = region.hubName ||
+      (region.place ? t('{place} Market', { place: region.place.name }) : '');
     return region;
   }
   const current = () => REGION;
@@ -1613,7 +1623,7 @@ const State = (() => {
     liveMode: 'simulated',   // 'live' once a real observation series is backing a metric
     place: null,             // the searched location currently loaded, if any
     edgeState: {},           // edgeId -> {traff, passable, degraded}
-    route: null,             // {path, edges, km, min, waypoints, segments}
+    route: null,             // {path, edges, km, min, segments} -- path is ids
     baselineRoute: null,
     prevRoutePoints: null,
     // baseGrade is the order's contracted grade. restore() returns to THIS, not a
@@ -2142,7 +2152,6 @@ const Dispatch = (() => {
     }
     if(!r) return null;
     r.fallback  = fallback;
-    r.waypoints = r.path.map(id => NODES[id].name);
     r.segments  = r.edges.map(e => e.id);
     return r;
   }
@@ -2169,9 +2178,9 @@ const Dispatch = (() => {
     if(!State.data.route) return null;
     const ret = shortestPath(ROUTE_DEST, 'F3', false) || shortestPath(ROUTE_DEST, 'F3', true);
     if(!ret) return null;
-    // `path` is labels for immediate display; `ids` is what a stored line keeps,
-    // because a label is language-dependent and an id is not.
-    return { path: ret.path.map(id => NODES[id].name), ids: ret.path, km: ret.km, min: ret.min };
+    // Ids, not labels: a label is language-dependent and an id is not, so the
+    // caller reads the names back when it draws them.
+    return { ids: ret.path, km: ret.km, min: ret.min };
   }
 
   return { refreshEdges, recomputeRoute, buildRoute, blockedEdges, shortestPath,
@@ -3477,7 +3486,7 @@ const Views = (() => {
     if(!r) return;
     el('routeKm').textContent  = fmt(r.km, 1);
     el('routeEta').textContent = Math.round(r.min);
-    el('routeWaypoints').textContent = r.waypoints.join('  →  ');
+    el('routeWaypoints').textContent = r.path.map(nodeName).join('  →  ');
 
     const paint = (node, val, unit, decimals) => {
       if(!base || Math.abs(val) < 0.05){
@@ -3985,7 +3994,7 @@ const Views = (() => {
         <div class="flex items-center justify-between gap-2">
           <div><div style="font-size:14px;font-weight:650">${esc(n.name)}</div>
             <div class="prov">${esc(t(n.crop))} · ${n.ha} ha</div></div>
-          ${chipHtml(sev, sev === 'good' ? 'Healthy' : sev === 'warning' ? 'Watch' : 'Act now')}
+          ${chipHtml(sev, sev === 'good' ? t('Healthy') : sev === 'warning' ? t('Watch') : t('Act now'))}
         </div>
         <div class="grid grid-cols-3 gap-2 mt-2.5">
           <div><div class="prov">${esc(t('Moisture'))}</div><div class="mval">${moist ? fmt(moist.v,1)+'%' : '—'}</div></div>
@@ -4002,15 +4011,15 @@ const Views = (() => {
     pane.innerHTML = `
       <div class="mcard">
         <div class="mcard-head"><span class="mcard-title">${esc(t('Harvest window'))}</span><div class="flex-1"></div>
-          ${chipHtml(win ? 'critical' : 'good', win ? 'Early harvest' : 'Normal')}</div>
-        <div class="mbig" style="color:${win ? 'var(--critical-ink)' : 'var(--text-primary)'}">${win ? 'CUT NOW' : 'Normal'}</div>
-        <div class="mlabel mt-2">${win
-          ? 'Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.'
-          : t('No change to your usual schedule. Harvest as planned.')}</div>
+          ${chipHtml(win ? 'critical' : 'good', win ? t('Early harvest') : t('Normal'))}</div>
+        <div class="mbig" style="color:${win ? 'var(--critical-ink)' : 'var(--text-primary)'}">${esc(win ? t('CUT NOW') : t('Normal'))}</div>
+        <div class="mlabel mt-2">${esc(win
+          ? t('Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.')
+          : t('No change to your usual schedule. Harvest as planned.'))}</div>
       </div>
       ${advisoryBlock('FARMER')}
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">My plots</span><div class="flex-1"></div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('My plots'))}</span><div class="flex-1"></div>
           <span class="prov">${esc(REGION.name)}</span></div>
         ${plots}
       </div>`;
@@ -4028,36 +4037,38 @@ const Views = (() => {
       return `<div class="mrow">
         <div style="min-width:0">
           <div style="font-size:13px;font-weight:600">${esc(t(o.crop))} <span class="prov mono">${esc(o.id)}</span></div>
-          <div class="prov">${esc(o.buyer)} · grade ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:var(--warning-ink)">(contracted ${esc(o.baseGrade)})</span>` : ''}</div>
+          <div class="prov">${esc(o.buyer)} · ${esc(t('grade'))} ${esc(o.grade)}${o.grade !== o.baseGrade ? ` <span style="color:var(--warning-ink)">(${esc(t('contracted {grade}', { grade: o.baseGrade }))})</span>` : ''}</div>
         </div>
         <div style="text-align:right">
-          <div class="mval">${o.crates}<span class="prov"> cr</span></div>
-          ${delta ? `<div class="prov" style="color:var(--critical-ink)">${delta > 0 ? '+' : ''}${delta} vs booked</div>` : `<div class="prov">as booked</div>`}
+          <div class="mval">${fmt(o.crates)}<span class="prov"> ${esc(t('cr'))}</span></div>
+          ${delta ? `<div class="prov" style="color:var(--critical-ink)">${delta > 0 ? '+' : ''}${fmt(delta)} ${esc(t('vs booked'))}</div>` : `<div class="prov">${esc(t('as booked'))}</div>`}
         </div>
       </div>`;
     }).join('');
 
     pane.innerHTML = `
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Incoming today</span><div class="flex-1"></div>
-          ${chipHtml(revised.length ? 'warning' : 'good', revised.length ? revised.length + ' revised' : 'All confirmed')}</div>
-        <div class="mbig">${Orders.total()}<span class="prov" style="font-size:15px"> crates</span></div>
-        <div class="mlabel mt-2">${revised.length
-          ? `${Orders.baseTotal() - Orders.total()} crates withdrawn against ${Orders.baseTotal()} booked. Revisions reverse automatically when the advisory clears.`
-          : `All orders stand at their booked quantities.`}</div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Incoming today'))}</span><div class="flex-1"></div>
+          ${chipHtml(revised.length ? 'warning' : 'good',
+             revised.length ? t('{n} revised', { n: fmt(revised.length) }) : t('All confirmed'))}</div>
+        <div class="mbig">${fmt(Orders.total())}<span class="prov" style="font-size:15px"> ${esc(t('crates'))}</span></div>
+        <div class="mlabel mt-2">${esc(revised.length
+          ? t('{cut} crates withdrawn against {booked} booked. Revisions reverse automatically when the advisory clears.',
+              { cut: fmt(Orders.baseTotal() - Orders.total()), booked: fmt(Orders.baseTotal()) })
+          : t('All orders stand at their booked quantities.'))}</div>
       </div>
       ${advisoryBlock('BUYER')}
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Order book</span></div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Order book'))}</span></div>
         ${rows}
       </div>
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Delivery</span></div>
-        <div class="mrow"><span class="mlabel">Drive time from pickup</span><span class="mval">${r ? Math.round(r.min) + ' min' : '—'}</span></div>
-        <div class="mrow"><span class="mlabel">Distance</span><span class="mval">${r ? fmt(r.km,1) + ' km' : '—'}</span></div>
-        <div class="mrow"><span class="mlabel">Route status</span>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Delivery'))}</span></div>
+        <div class="mrow"><span class="mlabel">${esc(t('Drive time from pickup'))}</span><span class="mval">${r ? fmt(Math.round(r.min)) + ' min' : '—'}</span></div>
+        <div class="mrow"><span class="mlabel">${esc(t('Distance'))}</span><span class="mval">${r ? fmt(r.km,1) + ' km' : '—'}</span></div>
+        <div class="mrow"><span class="mlabel">${esc(t('Route status'))}</span>
           <span>${chipHtml(r && r.fallback ? 'critical' : Dispatch.blockedEdges().length ? 'warning' : 'good',
-            r && r.fallback ? 'No viable route' : Dispatch.blockedEdges().length ? 'Rerouted' : 'Clear')}</span></div>
+            r && r.fallback ? t('No viable route') : Dispatch.blockedEdges().length ? t('Rerouted') : t('Clear'))}</span></div>
       </div>`;
   }
 
@@ -4069,38 +4080,42 @@ const Views = (() => {
     const blocked = Dispatch.blockedEdges();
     const base = State.data.baselineRoute;
     const bh = Dispatch.backhaul();
-    const next = r ? r.waypoints[1] || r.waypoints[r.waypoints.length - 1] : '—';
+    // A route is a chain of ids; the labels are read back here, so they are in
+    // the language showing now rather than the one the route was computed in.
+    const next = r ? nodeName(r.path[1] || r.path[r.path.length - 1]) : '—';
 
     pane.innerHTML = `
       <div class="mcard" style="${r && r.fallback ? 'border-color:rgba(208,59,59,.5)' : ''}">
-        <div class="mcard-head"><span class="mcard-title">Next stop</span><div class="flex-1"></div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Next stop'))}</span><div class="flex-1"></div>
           ${chipHtml(r && r.fallback ? 'critical' : blocked.length ? 'warning' : 'good',
-             r && r.fallback ? 'Do not depart' : blocked.length ? 'Rerouted' : 'Clear')}</div>
+             r && r.fallback ? t('Do not depart') : blocked.length ? t('Rerouted') : t('Clear'))}</div>
         <div class="mbig" style="font-size:30px">${esc(next)}</div>
         <div class="flex gap-5 mt-2.5">
-          <div><div class="prov">Distance</div><div class="mval">${r ? fmt(r.km,1) : '—'} km</div></div>
-          <div><div class="prov">Drive time</div><div class="mval">${r ? Math.round(r.min) : '—'} min</div></div>
+          <div><div class="prov">${esc(t('Distance'))}</div><div class="mval">${r ? fmt(r.km,1) : '—'} km</div></div>
+          <div><div class="prov">${esc(t('Drive time'))}</div><div class="mval">${r ? fmt(Math.round(r.min)) : '—'} min</div></div>
           ${base && r && Math.abs(r.km - base.km) > 0.05
-            ? `<div><div class="prov">vs clear</div><div class="mval" style="color:var(--critical-ink)">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
+            ? `<div><div class="prov">${esc(t('vs clear'))}</div><div class="mval" style="color:var(--critical-ink)">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
         </div>
       </div>
       ${r && r.fallback ? `<div class="mcard" style="border-color:rgba(208,59,59,.5)">
-        <div class="mcard-head">${chipHtml('critical','Hold position')}</div>
-        <div class="mlabel" style="color:var(--text-primary);font-size:13px">Every route to the depot crosses an impassable segment. Wait for SAR to show a crossing reopening — the waypoints below are the least-bad option and are <strong>not cleared for use</strong>.</div>
+        <div class="mcard-head">${chipHtml('critical', t('Hold position'))}</div>
+        <div class="mlabel" style="color:var(--text-primary);font-size:13px">${t('Every route to the depot crosses an impassable segment. Wait for SAR to show a crossing reopening — the waypoints below are the least-bad option and are {verdict}.',
+            { verdict: `<strong>${esc(t('not cleared for use'))}</strong>` })}</div>
       </div>` : ''}
       ${blocked.length ? `<div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Avoid</span></div>
-        ${blocked.map(e => `<div class="mrow"><span class="mlabel">${esc(e.id)} · ${fmt(e.km,1)} km</span>${chipHtml('critical','Impassable')}</div>`).join('')}
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Avoid'))}</span></div>
+        ${blocked.map(e => `<div class="mrow"><span class="mlabel">${esc(e.id)} · ${fmt(e.km,1)} km</span>${chipHtml('critical', t('Impassable'))}</div>`).join('')}
       </div>` : ''}
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Route</span></div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Route'))}</span></div>
         <div class="mono" style="font-size:12px;line-height:2;color:var(--text-secondary)">
-          ${r ? r.waypoints.map((w,i) => `<div>${i === 0 ? '◉' : i === r.waypoints.length-1 ? '⬢' : '○'} ${esc(w)}</div>`).join('') : '—'}
+          ${r ? r.path.map((id,i) => `<div>${i === 0 ? '◉' : i === r.path.length-1 ? '⬢' : '○'} ${esc(nodeName(id))}</div>`).join('') : '—'}
         </div>
       </div>
       ${bh ? `<div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Backhaul</span></div>
-        <div class="mlabel">Collect from ${esc(bh.path[bh.path.length-1])} on the return rather than running empty — recovers ${fmt(bh.km,1)} km of unloaded distance.</div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Backhaul'))}</span></div>
+        <div class="mlabel">${esc(t('Collect from {stop} on the return rather than running empty — recovers {km} km of unloaded distance.',
+            { stop: nodeName(bh.ids[bh.ids.length-1]), km: fmt(bh.km,1) }))}</div>
       </div>` : ''}
       <div class="mcard" style="padding:0;overflow:hidden">
         <div id="driverMapHost"></div>
@@ -5133,16 +5148,17 @@ const Places = (() => {
       nodes[id] = {
         lat: place.lat + N / kmPerDegLat,
         lon: place.lon + E / kmPerDegLon,
-        // Names are UI labels, not identifiers — the ids (F1, XR, DEP) are what
-        // routing and the tests key on, so translating these is safe.
-        name: id === 'DEP' ? t('Depot') : id === 'HUB' ? t('Buyer Hub')
-            : id === 'XR' ? 'Ford X-1' : id === 'J1' ? t('Jct N') : id === 'J2' ? t('Jct S')
-            : t('Plot {id}', { id: id.replace('F', 'F-') }),
+        // English source, exactly as the built-in regions write it. Geo.project
+        // is the single place a node label is translated, so a searched
+        // catchment and a built-in one behave identically on a language change.
+        name: id === 'DEP' ? 'Depot' : id === 'HUB' ? 'Buyer Hub'
+            : id === 'XR' ? 'Ford X-1' : id === 'J1' ? 'Jct N' : id === 'J2' ? 'Jct S'
+            : 'Plot ' + id.replace('F', 'F-'),
         kind: id.startsWith('F') && id !== 'DEP' ? 'farm'
             : id === 'DEP' ? 'depot' : id === 'HUB' ? 'hub' : 'jct'
       };
-      if(id === 'XR') nodes[id].sub = t('river crossing');
-      if(id === 'DEP') nodes[id].sub = t('cold store');
+      if(id === 'XR') nodes[id].sub = 'river crossing';
+      if(id === 'DEP') nodes[id].sub = 'cold store';
     });
     ['F1','F2','F3'].forEach((id, i) => { nodes[id].crop = crops[i]; nodes[id].ha = HECTARES[i]; });
 
@@ -5157,8 +5173,8 @@ const Places = (() => {
       sources: { SMAP:true, CROP_CASMA: conus(place.lat, place.lon), S1:true, S2:true },
       // Climate seeds are only the simulation fallback; live data overrides them.
       climate: { temp:22, moisture:28, ndvi:0.6, stress:0.3, traff:88 },
-      hubName: t('{place} Market', { place: place.name }),
-      depotName: t('{place} Depot', { place: place.name }),
+      // No depotName/hubName: a searched catchment has no proper noun of its
+      // own, so Region.load builds those two labels in the active language.
       nodes
     };
   }
