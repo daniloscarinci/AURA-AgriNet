@@ -108,18 +108,22 @@ translation.
 
 ### Translation coverage
 
-Every user-facing sentence in the app is now translatable. What is actually
-translated differs by language:
+Every user-facing sentence in the app is translatable. What is actually
+translated today:
 
-| | UI strings | Chat and advisories | Manual and briefings |
-|---|---|---|---|
-| Español | ✅ 100% | ✅ | ✅ chat prose |
-| The other ten | 58% | — | — |
+| | UI, advisories, event log, agent replies | Typed-input keywords | Scripted briefings | Manual body |
+|---|---|---|---|---|
+| All 12 languages | ✅ 294/294 | ✅ 8 intents each | — | — |
+| Español additionally | | | ✅ 32 blocks | — |
 
-Anything untranslated falls back to correct English and is badged in the UI with
-the exact coverage figure, so a reader always knows which language they are
-getting. Spanish is the complete vertical slice that proves every tier; the rest
-carry the UI chrome translated in an earlier pass.
+The first two columns are what a grower reads and types: the advisory that fires,
+the log entry behind it, the agent's answer, and the words they type to ask. All
+of that is complete in every language.
+
+The last two are long-form prose delivered on demand. Only Spanish carries the
+scripted briefing dialogue; no language carries the manual body yet. Both fall
+back to correct English, badged, exactly as designed — the fallback is per block,
+so a briefing is never half-rendered.
 
 **These translations are machine-produced and have not been reviewed by native
 speakers.** Every catalogue records `reviewed: false`. Before this reaches real
