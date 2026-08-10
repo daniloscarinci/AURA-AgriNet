@@ -1058,13 +1058,13 @@ body{
           <table class="dtable">
             <caption class="sr-only">Raw telemetry readings, most recent first</caption>
             <thead><tr>
-              <th scope="col">Time (UTC)</th><th scope="col">Soil moisture %</th><th scope="col">Root stress</th>
-              <th scope="col">NDVI</th><th scope="col">Surface °C</th><th scope="col">Trafficability %</th>
+              <th scope="col" data-i18n>Time (UTC)</th><th scope="col" data-i18n>Soil moisture %</th><th scope="col" data-i18n>Root stress</th>
+              <th scope="col">NDVI</th><th scope="col" data-i18n>Surface °C</th><th scope="col" data-i18n>Trafficability %</th>
             </tr></thead>
             <tbody id="tableBody"></tbody>
           </table>
         </div>
-        <p class="text-[10px] mt-2" style="color:var(--text-muted)">Every plotted value is present here — no reading is reachable only by hovering a chart.</p>
+        <p class="text-[10px] mt-2" style="color:var(--text-muted)" data-i18n>Every plotted value is present here — no reading is reachable only by hovering a chart.</p>
       </div>
     </div>
 
@@ -1083,9 +1083,9 @@ body{
     <div class="panel">
       <div class="panel-head">
         <span class="panel-title" data-i18n>Thermal Infrared</span>
-        <span class="panel-sub" data-i18n>Surface temperature · frost &amp; heatwave forecasting</span>
+        <span class="panel-sub" data-i18n>Surface temperature · frost and heatwave forecasting</span>
         <div class="flex-1"></div>
-        <span id="thermalChip" class="chip good"><span class="chip-icon">✓</span><span>Above frost floor</span></span>
+        <span id="thermalChip" class="chip good"><span class="chip-icon">✓</span><span data-i18n>Above frost floor</span></span>
       </div>
       <div class="chart-wrap p-3">
         <svg id="thermalChart" viewBox="0 0 620 210" width="100%" style="display:block;overflow:visible" role="img"
@@ -1118,17 +1118,17 @@ body{
 
       <div class="px-3 pb-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div class="rounded-lg p-2.5" style="background:var(--surface-2);border:1px solid var(--hairline)">
-          <div class="tile-src mb-1">Distance</div>
+          <div class="tile-src mb-1" data-i18n>Distance</div>
           <div><span id="routeKm" class="text-[17px] font-semibold tnum">—</span><span class="tile-unit"> km</span></div>
           <div id="routeKmDelta" class="tile-delta mt-0.5" style="color:var(--text-muted)">—</div>
         </div>
         <div class="rounded-lg p-2.5" style="background:var(--surface-2);border:1px solid var(--hairline)">
-          <div class="tile-src mb-1">Drive time</div>
+          <div class="tile-src mb-1" data-i18n>Drive time</div>
           <div><span id="routeEta" class="text-[17px] font-semibold tnum">—</span><span class="tile-unit"> min</span></div>
           <div id="routeEtaDelta" class="tile-delta mt-0.5" style="color:var(--text-muted)">—</div>
         </div>
         <div class="rounded-lg p-2.5 col-span-2" style="background:var(--surface-2);border:1px solid var(--hairline)">
-          <div class="tile-src mb-1">Waypoints · Unit D-3</div>
+          <div class="tile-src mb-1"><span data-i18n>Waypoints</span> · <span data-i18n>Unit D-3</span></div>
           <div id="routeWaypoints" class="text-[11.5px] mono leading-relaxed" style="color:var(--text-secondary)">—</div>
         </div>
       </div>
@@ -1148,13 +1148,10 @@ body{
           <div id="triggerButtons" class="flex flex-col gap-2"></div>
           <div class="h-px my-1" style="background:var(--hairline)"></div>
           <div class="flex gap-2">
-            <button id="btnPause" class="btn c-info" style="width:auto;flex:1"><span class="btn-glyph">❚❚</span><span>Pause feed</span></button>
+            <button id="btnPause" class="btn c-info" style="width:auto;flex:1"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
             <button id="btnSpeed" class="btn c-info" style="width:auto;flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
           </div>
-          <p class="text-[10px] leading-relaxed mt-1" style="color:var(--text-muted)">
-            Triggers inject a telemetry excursion and let the normal rule path run — manual and
-            autonomous firings execute identical code.
-          </p>
+          <p class="text-[10px] leading-relaxed mt-1" style="color:var(--text-muted)" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run — manual and autonomous firings execute identical code.</p>
         </div>
       </div>
 
@@ -1202,16 +1199,16 @@ body{
             <div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>
           </div>
         </div>
-        <button id="newPill" class="newpill hidden">↓ New messages</button>
+        <button id="newPill" class="newpill hidden"><span data-i18n>↓ New messages</span></button>
       </div>
 
       <div class="p-2.5 flex flex-col gap-2" style="border-top:1px solid var(--hairline)">
         <div class="flex items-center gap-2">
-          <label for="personaSel" class="text-[9px] tracking-[.1em] uppercase flex-none" style="color:var(--text-muted)">Send as</label>
+          <label for="personaSel" class="text-[9px] tracking-[.1em] uppercase flex-none" style="color:var(--text-muted)" data-i18n>Send as</label>
           <select id="personaSel" class="field" style="width:auto;padding:5px 8px;font-size:11px">
-            <option value="FARMER">Amara — Farmer, Plot F-2</option>
-            <option value="BUYER">Kwesi — Terrace Kitchen</option>
-            <option value="DRIVER">Tunde — Driver, Unit D-3</option>
+            <option value="FARMER" data-i18n>Amara — Farmer, Plot F-2</option>
+            <option value="BUYER" data-i18n>Kwesi — Terrace Kitchen</option>
+            <option value="DRIVER" data-i18n>Tunde — Driver, Unit D-3</option>
           </select>
         </div>
         <form id="chatForm" class="flex gap-2">
@@ -1245,7 +1242,7 @@ body{
     <div class="h-px my-3" style="background:var(--hairline)"></div>
 
     <div class="flex gap-2 mb-3">
-      <button id="btnPauseM" class="btn c-info" style="flex:1"><span class="btn-glyph">❚❚</span><span>Pause feed</span></button>
+      <button id="btnPauseM" class="btn c-info" style="flex:1"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
       <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
     </div>
 
@@ -1261,11 +1258,7 @@ body{
       </div>
     </div>
 
-    <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)">
-      Triggers inject a telemetry excursion and let the normal rule path run, so they
-      land on the next downlink — up to ~13 s for Sentinel-1. Raise the speed to
-      compress the wait.
-    </p>
+    <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run, so they land on the next downlink. Raise the speed to compress the wait.</p>
   </div>
 </div>
 
@@ -1310,9 +1303,7 @@ body{
 </nav>
 
 <footer class="max-w-[1800px] mx-auto px-4 pb-6 pt-1 text-[10px] leading-relaxed" style="color:var(--text-muted)">
-  <p><strong style="color:var(--text-secondary)">Simulation.</strong> Telemetry is synthetic and generated in-browser — it models the
-  cadence, latency and packet loss of NASA SMAP / CROP-CASMA, ESA Sentinel-1 SAR, Sentinel-2 MSI and thermal-IR downlinks, but
-  contacts no external service. Routing, order adjustment and readiness scoring run real arithmetic over that synthetic feed.</p>
+  <p><strong style="color:var(--text-secondary)"><span data-i18n>Simulation.</span></strong> <span data-i18n>Telemetry is synthetic and generated in-browser where no live source exists. Routing, order adjustment and readiness scoring run real arithmetic over the observations shown.</span></p>
 </footer>
 
 <script>
@@ -1603,7 +1594,9 @@ const Region = (() => {
     NODES = Geo.project(region);
     EDGES = Geo.buildEdges(NODES);
     // Node labels that carry region-specific naming
-    if(NODES.DEP) NODES.DEP.name = region.depotName || 'Depot';
+    // depotName/hubName are proper nouns for the built-in regions and generated
+    // "<Place> Depot" strings for searched ones; translate the generic word only.
+    if(NODES.DEP) NODES.DEP.name = region.depotName || t('Depot');
     if(NODES.HUB) NODES.HUB.sub  = region.hubName || '';
     return region;
   }
@@ -2265,8 +2258,8 @@ const Orders = (() => {
       touched++;
     });
     if(spared > 0 && touched > 0){
-      Log.add('info', t('Orders spared'),
-        t('{n} orders untouched — crop not grown on any affected plot.', { n: spared }));
+      Log.add('info', 'Orders spared',
+        '{n} orders untouched — crop not grown on any affected plot.', { n: spared });
     }
     if(totalCut > 0){
       State.data.orderAudit.unshift({
@@ -2274,9 +2267,9 @@ const Orders = (() => {
         text: t('{cut} crates withdrawn across {n} buyer orders; grade re-marked {grade}.',
           { cut: totalCut, n: touched, grade: grade || t('unchanged') })
       });
-      Log.add('warning', t('Buyer orders revised'),
-        t('Autonomous adjustment: −{cut} crates across {n} orders ({reason}).',
-          { cut: totalCut, n: touched, reason: t(labelForReason(reason)).toLowerCase() }));
+      Log.add('warning', 'Buyer orders revised',
+        'Autonomous adjustment: −{cut} crates across {n} orders ({reason}).',
+        { cut: totalCut, n: touched, reason: t(labelForReason(reason)).toLowerCase() });
     }
     State.emit('orders');
     return totalCut;
@@ -2297,8 +2290,8 @@ const Orders = (() => {
       State.data.orderAudit.unshift({ t: State.data.clock, reason,
         text: t('{n} crates reinstated after {reason} cleared.',
           { n: restored, reason: t(labelForReason(reason)).toLowerCase() }) });
-      Log.add('good', t('Buyer orders reinstated'),
-        t('+{n} crates returned to the order book.', { n: restored }));
+      Log.add('good', 'Buyer orders reinstated',
+        '+{n} crates returned to the order book.', { n: restored });
     }
     State.emit('orders');
     return restored;
@@ -2358,8 +2351,13 @@ const Scoring = (() => {
 
 
 const Log = (() => {
-  function add(severity, title, detail){
-    State.data.log.unshift({ t: State.data.clock, severity, title, detail });
+  /* `title` and `detail` are ENGLISH SOURCE, not translated text, and `vars`
+     carries their numbers. Both are translated in renderLog, so switching
+     language retranslates the whole log instead of stranding older entries —
+     including the boot messages, which are always written before any catalogue
+     has had a chance to load. */
+  function add(severity, title, detail, vars){
+    State.data.log.unshift({ t: State.data.clock, severity, title, detail, vars: vars || null });
     if(State.data.log.length > CFG.MAX_LOG) State.data.log.pop();
     State.emit('log');
   }
@@ -2374,10 +2372,15 @@ const Console = (() => {
   const queue = [];
   let draining = false;
 
+  /* `text` is the ENGLISH SOURCE. `opts.vars` fills its placeholders and
+     `opts.pkey` names a prose block when the line is long-form dialogue; both
+     are resolved in Views.msgHtml, so the transcript retranslates on a language
+     change rather than freezing in the language it was written in. A message the
+     user typed carries `mine` and is never translated — it is their words. */
   function post(fromId, text, opts){
     const p = PEOPLE[fromId] || PEOPLE.BOT;
     const msg = Object.assign({
-      id: ++seq, from: fromId, text,
+      id: ++seq, from: fromId, text, vars: null, pkey: null, pen: null, kvKey: null,
       t: State.data.clock,
       channel: p.channel,
       severity: null, mine: false, kv: null
@@ -2444,7 +2447,7 @@ const Console = (() => {
           tp('chat.frost.farmer',
              '{farmer} — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.',
              { farmer: NAME.farmer }),
-          kv:`Plot F-2 · ${t('surface')} ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
+          kv:`${t('Plot {id}', { id: 'F-2' })} · ${t('surface')} ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
         steps.push({ from:'FARMER', delay:1200, text:
           tp('chat.frost.farmerReply',
              'Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.') });
@@ -2811,6 +2814,8 @@ const EventEngine = (() => {
       id:'FROST_EVENT', label:'Frost event', severity:'critical', metric:'temp', minTicks:1,
       arm:   s => s.temp !== null && s.temp <= CFG.THRESH.frostArm,
       clear: s => s.temp !== null && s.temp >= CFG.THRESH.frostClear,
+      detailKey: 'Surface temperature {temp}°C — at or below the {floor}°C frost floor.',
+      detailVars: s => ({ temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }),
       detail: s => t('Surface temperature {temp}°C — at or below the {floor}°C frost floor.',
                       { temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }),
       onArm(){
@@ -2835,6 +2840,8 @@ const EventEngine = (() => {
       id:'HEATWAVE', label:'Heatwave', severity:'serious', metric:'temp', minTicks:2,
       arm:   s => s.temp !== null && s.temp >= CFG.THRESH.heatArm,
       clear: s => s.temp !== null && s.temp <= CFG.THRESH.heatClear,
+      detailKey: 'Surface temperature {temp}°C — heat stress threshold exceeded.',
+      detailVars: s => ({ temp: fmt(s.temp,1) }),
       detail: s => t('Surface temperature {temp}°C — heat stress threshold exceeded.',
                       { temp: fmt(s.temp,1) }),
       onArm(){ Dispatch.setColdChain(true);  Console.cascade('HEAT', {}); },
@@ -2844,6 +2851,8 @@ const EventEngine = (() => {
       id:'FLOOD_SATURATION', label:'Road saturation', severity:'critical', metric:'traff', minTicks:1,
       arm:   s => s.traff !== null && s.traff <= CFG.THRESH.traffArm,
       clear: s => s.traff !== null && s.traff >= CFG.THRESH.traffClear,
+      detailKey: 'Mean trafficability {pct}% — rural segments saturating.',
+      detailVars: s => ({ pct: fmt(s.traff,0) }),
       detail: s => t('Mean trafficability {pct}% — rural segments saturating.',
                       { pct: fmt(s.traff,0) }),
       onArm(){
@@ -2860,6 +2869,8 @@ const EventEngine = (() => {
       id:'SOIL_STRESS', label:'Root-zone moisture stress', severity:'warning', metric:'moisture', minTicks:2,
       arm:   s => s.moisture !== null && s.moisture <= CFG.THRESH.moistArm,
       clear: s => s.moisture !== null && s.moisture >= CFG.THRESH.moistClear,
+      detailKey: 'Root-zone moisture {pct}% — below the {floor}% stress floor.',
+      detailVars: s => ({ pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0) }),
       detail: s => t('Root-zone moisture {pct}% — below the {floor}% stress floor.',
                       { pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0) }),
       onArm(){ Console.cascade('DROUGHT', {}); },
@@ -2869,6 +2880,8 @@ const EventEngine = (() => {
       id:'NDVI_DECLINE', label:'Canopy vigour decline', severity:'warning', metric:'ndvi', minTicks:2,
       arm:   s => s.ndvi !== null && s.ndvi <= CFG.THRESH.ndviArm,
       clear: s => s.ndvi !== null && s.ndvi >= CFG.THRESH.ndviClear,
+      detailKey: 'NDVI {v} — canopy vigour below the {floor} health floor.',
+      detailVars: s => ({ v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }),
       detail: s => t('NDVI {v} — canopy vigour below the {floor} health floor.',
                       { v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }),
       onArm(){ Console.cascade('NDVI', {}); },
@@ -2908,14 +2921,15 @@ const EventEngine = (() => {
       id: rule.id, label: rule.label, severity: rule.severity,
       since: State.data.clock, detail: rule.detail(s)
     });
-    Log.add(rule.severity, t(rule.label), rule.detail(s));
+    Log.add(rule.severity, rule.label, rule.detailKey, rule.detailVars(s));
     try{ rule.onArm(); }catch(e){ console.error('[rule.onArm]', rule.id, e); }
   }
 
   function release(rule){
     State.data.alerts.delete(rule.id);
-    Log.add('good', t('{label} cleared', { label: t(rule.label) }),
-      t('Telemetry returned past the release threshold; autonomous actions reverted.'));
+    Log.add('good', '{label} cleared',
+      'Telemetry returned past the release threshold; autonomous actions reverted.',
+      { label: t(rule.label) });
     try{ rule.onClear(); }catch(e){ console.error('[rule.onClear]', rule.id, e); }
   }
 
@@ -2943,23 +2957,23 @@ const EventEngine = (() => {
         break;
       case 'SIGNAL_LOSS':
         Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'reacquire'));
-        Log.add('warning', t('Downlink degraded'),
-          t('All four sources dropped to reacquisition. Holding last known values.'));
+        Log.add('warning', 'Downlink degraded',
+          'All four sources dropped to reacquisition. Holding last known values.');
         Console.cascade('SIGNAL_LOSS', {});
         return;
       case 'RESTORE':
         Telemetry.clearInjections();
         Object.keys(METRICS).forEach(k => Telemetry.inject(k, METRICS[k].seed, 5, true));
         Object.keys(SOURCES).forEach(sid => Telemetry.setLink(sid, 'nominal', SOURCES[sid].latency));
-        Log.add('info', t('Restore requested'),
-          t('Nudging all metrics back toward nominal. Advisories clear as each metric crosses its release threshold.'));
+        Log.add('info', 'Restore requested',
+          'Nudging all metrics back toward nominal. Advisories clear as each metric crosses its release threshold.');
         Console.cascade('RESTORE', {});
         return;
     }
     const rule = RULES.find(r => r.id === id);
-    if(rule) Log.add('info', t('Simulation injected'),
-      t('{label} excursion queued on the {metric} feed — awaiting next downlink.',
-        { label: t(rule.label), metric: t(METRICS[rule.metric].label).toLowerCase() }));
+    if(rule) Log.add('info', 'Simulation injected',
+      '{label} excursion queued on the {metric} feed — awaiting next downlink.',
+      { label: t(rule.label), metric: t(METRICS[rule.metric].label).toLowerCase() });
   }
 
   return { evaluate, fire, RULES };
@@ -3071,7 +3085,7 @@ const Views = (() => {
     const pill = el('posturePill');
     pill.className = 'chip ' + p + ' flex-none';
     pill.innerHTML = `<span class="chip-icon">${SEV[p].icon}</span><span>${
-      n ? esc(n + ' active advisor' + (n > 1 ? 'ies' : 'y')) : 'All Systems Nominal'}</span>`;
+      n ? esc(t('{n} active advisories', { n })) : esc(t('All Systems Nominal'))}</span>`;
   }
 
   /* ---------- hero ---------- */
@@ -3121,7 +3135,7 @@ const Views = (() => {
        still wearing an instrument's name -- that is the reading a user would
        most reasonably misinterpret. */
     const simulatedBesideLive = !prov && Live.ready();
-    const src   = prov ? prov.source
+    const src   = prov ? t(prov.source)
                 : simulatedBesideLive ? t('No live source · modelled')
                 : SOURCES[m.src].short;
     const resM  = prov ? prov.resM : m.pixelM;
@@ -3179,7 +3193,7 @@ const Views = (() => {
         meter = `<div class="meter-track mt-2" role="img" aria-label="${esc(t(m.label))} ${fmt(v,m.decimals)} against a floor of ${floor}">
                    <div class="meter-fill" style="width:${pct.toFixed(1)}%;background:${colour}"></div>
                  </div>
-                 <div class="tile-src mt-1">floor ${floor}${esc(m.unit)}</div>`;
+                 <div class="tile-src mt-1">${esc(t('floor {v}{unit}', { v: floor, unit: m.unit }))}</div>`;
       }
 
       let endDot = '';
@@ -3271,7 +3285,7 @@ const Views = (() => {
     if(zeroVisible){
       out += `<rect x="${TC.l}" y="${zeroY.toFixed(1)}" width="${plotW}" height="${(TC.t+plotH-zeroY).toFixed(1)}" fill="var(--critical)" opacity=".08"/>`;
       out += `<line class="thresh-line" x1="${TC.l}" y1="${zeroY.toFixed(1)}" x2="${TC.l+plotW}" y2="${zeroY.toFixed(1)}"/>`;
-      out += `<text class="thresh-text" x="${TC.l+4}" y="${(zeroY-6).toFixed(1)}">0°C FROST FLOOR</text>`;
+      out += `<text class="thresh-text" x="${TC.l+4}" y="${(zeroY-6).toFixed(1)}">${esc(t('{n}°C FROST FLOOR', { n: fmt(CFG.THRESH.frostArm,0) }))}</text>`;
     }
 
     // area wash under the line
@@ -3316,7 +3330,7 @@ const Views = (() => {
     const sev = metricSeverity('temp', State.data.latest.temp);
     const chip = el('thermalChip');
     chip.className = 'chip ' + sev;
-    chip.innerHTML = `<span class="chip-icon">${SEV[sev].icon}</span><span>${esc(statusWord('temp', sev))}</span>`;
+    chip.innerHTML = `<span class="chip-icon">${SEV[sev].icon}</span><span>${esc(t(statusWord('temp', sev)))}</span>`;
   }
 
   /** Hover wired once via delegation, so a chart re-render never leaks listeners. */
@@ -3366,7 +3380,29 @@ const Views = (() => {
   }
 
   /* ---------- micro-logistics map ---------- */
-  function renderMap(){
+  /* renderMap runs on every telemetry tick, and it rebuilds the whole SVG —
+     including the satellite <image> elements, which the browser then has to
+     re-resolve and re-decode. Nothing it draws changes between most ticks, so a
+     cheap signature over exactly what it renders skips the work. The driver
+     marker is animated separately by requestAnimationFrame and is unaffected. */
+  let mapSig = null;
+  function mapSignature(){
+    const es = State.data.edgeState, r = State.data.route;
+    return [
+      REGION && REGION.id,
+      Sat.activeId(),
+      I18n.lang(),
+      r ? r.segments.join('>') + (r.fallback ? '!' : '') : '-',
+      State.data.prevRoutePoints ? State.data.prevRoutePoints.join('>') : '-',
+      EDGES.map(e => { const st = es[e.id]; return st ? Math.round(st.traff) : '-'; }).join(',')
+    ].join('|');
+  }
+
+  function renderMap(force){
+    const sig = mapSignature();
+    if(!force && sig === mapSig) return;
+    mapSig = sig;
+
     const es = State.data.edgeState;
     const route = State.data.route;
 
@@ -3408,7 +3444,7 @@ const Views = (() => {
       const ly = my + (vertical ? 0 : -8);
       out += `<text class="road-label" x="${lx}" y="${ly}" text-anchor="middle">${e.id} · ${fmt(e.km,1)} km</text>`;
       if(!st.passable){
-        out += `<text class="blocked-tag" x="${lx}" y="${ly + 11}" text-anchor="middle">✕ IMPASSABLE</text>`;
+        out += `<text class="blocked-tag" x="${lx}" y="${ly + 11}" text-anchor="middle">✕ ${esc(t('IMPASSABLE'))}</text>`;
       } else if(st.degraded){
         out += `<text x="${lx}" y="${ly + 11}" text-anchor="middle" style="fill:var(--warning-ink);font-size:8px;font-weight:700">▲ ${fmt(st.traff,0)}%</text>`;
       }
@@ -3453,15 +3489,15 @@ const Views = (() => {
     out += `<g transform="translate(14,320)">
       <rect x="-8" y="-12" width="392" height="22" rx="6" fill="var(--surface-2)" opacity=".92"/>
       <rect x="0" y="-5" width="9" height="9" rx="2" fill="none" stroke="var(--series-3)" stroke-width="1.6"/>
-      <text class="node-sub" x="14" y="3">Farm plot</text>
+      <text class="node-sub" x="14" y="3">${esc(t('Farm plot'))}</text>
       <polygon points="82,-7 90,-3 90,4 74,4 74,-3" fill="none" stroke="var(--series-1)" stroke-width="1.6"/>
-      <text class="node-sub" x="96" y="3">Depot</text>
+      <text class="node-sub" x="96" y="3">${esc(t('Depot'))}</text>
       <circle cx="142" cy="-1" r="5" fill="none" stroke="var(--series-2)" stroke-width="1.6"/>
-      <text class="node-sub" x="152" y="3">Buyer hub</text>
+      <text class="node-sub" x="152" y="3">${esc(t('Buyer hub'))}</text>
       <line x1="214" y1="-1" x2="230" y2="-1" stroke="var(--series-1)" stroke-width="3" stroke-linecap="round"/>
-      <text class="node-sub" x="235" y="3">Active route</text>
+      <text class="node-sub" x="235" y="3">${esc(t('Active route'))}</text>
       <line x1="304" y1="-1" x2="320" y2="-1" stroke="var(--critical)" stroke-width="3" stroke-linecap="round"/>
-      <text class="node-sub" x="325" y="3">✕ Blocked</text>
+      <text class="node-sub" x="325" y="3">✕ ${esc(t('Blocked'))}</text>
     </g>`;
 
     el('fieldMap').innerHTML = out;
@@ -3496,7 +3532,7 @@ const Views = (() => {
     chip.innerHTML = `<span class="chip-icon">${SEV[sev].icon}</span><span>${
       r.fallback ? 'No viable route — network cut'
       : blocked.length ? esc(blocked.map(e => e.id).join(', ') + ' impassable — rerouted')
-      : sev === 'warning' ? 'Segments degraded' : 'Primary route clear'}</span>`;
+      : sev === 'warning' ? esc(t('Segments degraded')) : esc(t('Primary route clear'))}</span>`;
   }
 
   /* driver marker animated along the route path */
@@ -3530,38 +3566,46 @@ const Views = (() => {
   /* ---------- event log ---------- */
   function renderLog(){
     const log = State.data.log;
-    el('logCount').textContent = log.length + (log.length === 1 ? ' entry' : ' entries');
+    el('logCount').textContent = t('{n} entries', { n: log.length });
     if(!log.length){
-      el('eventLog').innerHTML = `<div class="text-[11px] px-1" style="color:var(--text-muted)">No events yet. Autonomous decisions and manual injections both land here.</div>`;
+      el('eventLog').innerHTML = `<div class="text-[11px] px-1" style="color:var(--text-muted)">${esc(t('No events yet. Autonomous decisions and manual injections both land here.'))}</div>`;
       return;
     }
     el('eventLog').innerHTML = log.map(e => `<div class="logrow ${e.severity}">
       <span style="color:${sevColour(e.severity)};font-size:11px;line-height:1.35">${SEV[e.severity] ? SEV[e.severity].icon : '·'}</span>
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline gap-2">
-          <span class="font-semibold text-[11.5px]">${esc(e.title)}</span>
+          <span class="font-semibold text-[11.5px]">${esc(t(e.title, e.vars))}</span>
           <span class="mono tnum text-[9.5px]" style="color:var(--text-muted)">${clockStrFull(e.t)}</span>
         </div>
-        <div class="text-[11px] leading-snug mt-0.5" style="color:var(--text-secondary)">${esc(e.detail)}</div>
+        <div class="text-[11px] leading-snug mt-0.5" style="color:var(--text-secondary)">${esc(t(e.detail, e.vars))}</div>
       </div>
     </div>`).join('');
   }
 
   /* ---------- chat ---------- */
+  /* Resolve a stored message to display text. Prose blocks win when present,
+     then the plain string; a message the user typed is returned untouched. */
+  function msgText(m){
+    if(m.mine) return m.text;
+    if(m.pkey) return tp(m.pkey, m.pen || m.text, m.vars);
+    return t(m.text, m.vars);
+  }
+
   function msgHtml(m){
     const p = PEOPLE[m.from] || PEOPLE.BOT;
     if(m.from === 'SYSTEM'){
-      return `<div class="msg" style="justify-content:center"><div class="bubble sys">${esc(m.text)}</div></div>`;
+      return `<div class="msg" style="justify-content:center"><div class="bubble sys">${esc(msgText(m))}</div></div>`;
     }
     const sevMark = m.severity
-      ? `<div><span class="chip ${m.severity}" style="padding:1px 6px;margin-bottom:4px"><span class="chip-icon">${SEV[m.severity].icon}</span><span>${SEV[m.severity].word}</span></span></div>`
+      ? `<div><span class="chip ${m.severity}" style="padding:1px 6px;margin-bottom:4px"><span class="chip-icon">${SEV[m.severity].icon}</span><span>${esc(t(SEV[m.severity].word))}</span></span></div>`
       : '';
     return `<div class="msg ${m.mine ? 'mine' : ''}">
       <div class="avatar" style="background:${p.colour}" title="${esc(p.name)}">${esc(p.initials)}</div>
       <div class="bubble">
-        ${m.mine ? '' : `<div class="msg-from" style="color:${p.colour}">${esc(p.name)}${p.role ? ` <span style="color:var(--text-muted);font-weight:500">· ${esc(p.role)}</span>` : ''}</div>`}
+        ${m.mine ? '' : `<div class="msg-from" style="color:${p.colour}">${esc(p.name)}${p.role ? ` <span style="color:var(--text-muted);font-weight:500">· ${esc(t(p.role))}</span>` : ''}</div>`}
         ${sevMark}
-        <div>${esc(m.text)}</div>
+        <div>${esc(msgText(m))}</div>
         ${m.kv ? `<span class="kv">${esc(m.kv).replace(/\n/g,'<br>')}</span>` : ''}
         <div class="msg-time">${clockStrFull(m.t)} UTC</div>
       </div>
@@ -3656,7 +3700,7 @@ const Views = (() => {
       const b = el(id);
       if(b) b.innerHTML = paused
         ? '<span class="btn-glyph">▶</span><span>Resume feed</span>'
-        : '<span class="btn-glyph">❚❚</span><span>Pause feed</span>';
+        : `<span class="btn-glyph">❚❚</span><span>${esc(t('Pause feed'))}</span>`;
     });
     ['btnSpeed', 'btnSpeedM'].forEach(id => {
       const b = el(id);
@@ -3701,7 +3745,7 @@ const Views = (() => {
         <div class="agro-row"><dt>${esc(t('Balance'))}</dt><dd>${w.balance7 === null ? '—' : (w.balance7 > 0 ? '+' : '') + fmt(w.balance7,1) + ' mm'}</dd></div>
         <div class="agro-row"><dt>${esc(t('Rain, next 48 h'))}</dt><dd>${w.rain48 === null ? '—' : fmt(w.rain48,1) + ' mm'}</dd></div>
       </dl>
-      <div class="prov">Derived · FAO-56 over a ${Agronomy.ROOT_DEPTH_MM} mm root zone, assumed mid-texture soil</div>
+      <div class="prov">${esc(t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Agronomy.ROOT_DEPTH_MM }))}</div>
     </div>`;
   }
 
@@ -3729,7 +3773,7 @@ const Views = (() => {
         <div class="agro-row"><dt>${esc(t('Maximum'))}</dt><dd>${fmt(th.maxC,1)} °C</dd></div>
         <div class="agro-row"><dt>Hours ≤ ${fmt(CFG.THRESH.frostArm,1)}°C</dt><dd>${th.frostHours}</dd></div>
       </dl>
-      <div class="prov">2 m air temperature · ECMWF IFS / DWD ICON forecast</div>
+      <div class="prov">${esc(t('2 m air temperature · ECMWF IFS / DWD ICON forecast'))}</div>
     </div>`;
   }
 
@@ -3754,7 +3798,7 @@ const Views = (() => {
         <div class="agro-row"><dt>${esc(t('Wind limit'))}</dt><dd>${Agronomy.SPRAY.windMax} km/h</dd></div>
         <div class="agro-row"><dt>${esc(t('Humidity floor'))}</dt><dd>${Agronomy.SPRAY.rhMin}%</dd></div>
       </dl>
-      <div class="prov">Conventional limits · wind, gusts, humidity and rain probability</div>
+      <div class="prov">${esc(t('Conventional limits · wind, gusts, humidity and rain probability'))}</div>
     </div>`;
   }
 
@@ -3768,7 +3812,7 @@ const Views = (() => {
         <div class="agro-row"><dt>${esc(t('To maturity'))}</dt><dd>${g.toMaturity ? fmt(g.toMaturity,0) + ' GDD' : '—'}</dd></div>
         <div class="agro-row"><dt>${esc(t('At this rate'))}</dt><dd>${g.daysAtRate ? '~' + g.daysAtRate + ' days' : '—'}</dd></div>
       </dl>
-      <div class="prov">Assumes a textbook accumulation for the crop; cultivar varies</div>
+      <div class="prov">${esc(t('Assumes a textbook accumulation for the crop; cultivar varies'))}</div>
     </div>`;
   }
 
@@ -3825,12 +3869,13 @@ const Views = (() => {
     const px = info.tilePixelM >= 1000 ? `${info.tilePixelM / 1000} km` : `${info.tilePixelM} m`;
     const across = (info.tilePixelM / 1000) / Math.max(0.01, span);
     note.hidden = false;
-    note.innerHTML = `<strong style="color:var(--text-secondary)">${esc(info.layer.label)}</strong> · ` +
-      `${esc(info.layer.product)} · latest granule via NASA GIBS. ` +
-      `One source pixel is ${esc(px)} across; this catchment is ${fmt(span,1)} km origin to depot — ` +
+    note.innerHTML = `<strong style="color:var(--text-secondary)">${esc(t(info.layer.label))}</strong> · ` +
+      `${esc(t(info.layer.product))} · ${esc(t('latest granule via NASA GIBS.'))} ` +
+      esc(t('One source pixel is {px} across; this catchment is {km} km origin to depot —',
+            { px, km: fmt(span,1) })) + ' ' +
       (across >= 0.9
-        ? `<strong style="color:var(--warning-ink)">a single pixel covers the whole holding</strong>, which is exactly why per-plot values from this product are estimates, not measurements.`
-        : `about ${fmt(span / (info.tilePixelM / 1000), 0)} pixels across.`);
+        ? `<strong style="color:var(--warning-ink)">${esc(t('a single pixel covers the whole holding'))}</strong>${esc(t(', which is exactly why per-plot values from this product are estimates, not measurements.'))}`
+        : esc(t('about {n} pixels across.', { n: fmt(span / (info.tilePixelM / 1000), 0) })));
   }
 
   function renderAgronomy(){
@@ -3866,9 +3911,13 @@ const Views = (() => {
 
   function repaintAll(){
     translateStatic();
+    // Node names (Depot, Jct N, Plot F-1) are baked into NODES at region load.
+    // Rebuilding the region re-runs those labels in the new language, which is
+    // cheaper and far less error-prone than translating at every display site.
+    if(Region.current()) Region.load(Region.current().id);
     renderLangMenu(); renderRegionPicker(); renderLiveChip(); renderLinks();
     renderTiles(); renderThermal(); renderTable(); renderHero(); renderPosture();
-    renderClock(); renderMap(); renderSatBar(); renderAgronomy();
+    renderClock(); renderMap(true); renderSatBar(); renderAgronomy();
     renderTriggers(); renderQuickReplies(); renderLog(); renderChat();
     renderRolePanes(); syncControls(); placeMap();
     if(Manual.isOpen()) Manual.build();
@@ -3934,24 +3983,25 @@ const Views = (() => {
           ${chipHtml(sev, sev === 'good' ? 'Healthy' : sev === 'warning' ? 'Watch' : 'Act now')}
         </div>
         <div class="grid grid-cols-3 gap-2 mt-2.5">
-          <div><div class="prov">Moisture</div><div class="mval">${moist ? fmt(moist.v,1)+'%' : '—'}</div></div>
+          <div><div class="prov">${esc(t('Moisture'))}</div><div class="mval">${moist ? fmt(moist.v,1)+'%' : '—'}</div></div>
           <div><div class="prov">NDVI</div><div class="mval">${ndvi ? fmt(ndvi.v,3) : '—'}</div></div>
-          <div><div class="prov">Surface</div><div class="mval">${temp ? fmt(temp.v,1)+'°' : '—'}</div></div>
+          <div><div class="prov">${esc(t('Surface'))}</div><div class="mval">${temp ? fmt(temp.v,1)+'°' : '—'}</div></div>
         </div>
         <div class="prov mt-2">${moist && moist.downscaled
-          ? `≈ moisture downscaled from a ${(moist.pixelM/1000)} km ${moist.src} pixel · conf ${moist.confidence.toFixed(2)}`
-          : '✓ direct measurement'} · NDVI ✓ ${ndvi ? ndvi.pixelM+' m' : ''}</div>
+          ? t('≈ moisture downscaled from a {res} km {src} cell · conf {conf}',
+                { res: (moist.pixelM/1000), src: moist.src, conf: fmt(moist.confidence,2) })
+          : t('✓ resolves per plot')} · NDVI ✓ ${ndvi ? ndvi.pixelM+' m' : ''}</div>
       </div>`;
     }).join('');
 
     pane.innerHTML = `
       <div class="mcard">
-        <div class="mcard-head"><span class="mcard-title">Harvest window</span><div class="flex-1"></div>
+        <div class="mcard-head"><span class="mcard-title">${esc(t('Harvest window'))}</span><div class="flex-1"></div>
           ${chipHtml(win ? 'critical' : 'good', win ? 'Early harvest' : 'Normal')}</div>
         <div class="mbig" style="color:${win ? 'var(--critical-ink)' : 'var(--text-primary)'}">${win ? 'CUT NOW' : 'Normal'}</div>
         <div class="mlabel mt-2">${win
           ? 'Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.'
-          : 'No change to your usual schedule. Harvest as planned.'}</div>
+          : t('No change to your usual schedule. Harvest as planned.')}</div>
       </div>
       ${advisoryBlock('FARMER')}
       <div class="mcard">
@@ -5070,14 +5120,16 @@ const Places = (() => {
       nodes[id] = {
         lat: place.lat + N / kmPerDegLat,
         lon: place.lon + E / kmPerDegLon,
-        name: id === 'DEP' ? 'Depot' : id === 'HUB' ? 'Buyer Hub'
-            : id === 'XR' ? 'Ford X-1' : id === 'J1' ? 'Jct N' : id === 'J2' ? 'Jct S'
-            : `Plot ${id.replace('F', 'F-')}`,
+        // Names are UI labels, not identifiers — the ids (F1, XR, DEP) are what
+        // routing and the tests key on, so translating these is safe.
+        name: id === 'DEP' ? t('Depot') : id === 'HUB' ? t('Buyer Hub')
+            : id === 'XR' ? 'Ford X-1' : id === 'J1' ? t('Jct N') : id === 'J2' ? t('Jct S')
+            : t('Plot {id}', { id: id.replace('F', 'F-') }),
         kind: id.startsWith('F') && id !== 'DEP' ? 'farm'
             : id === 'DEP' ? 'depot' : id === 'HUB' ? 'hub' : 'jct'
       };
-      if(id === 'XR') nodes[id].sub = 'river crossing';
-      if(id === 'DEP') nodes[id].sub = 'cold store';
+      if(id === 'XR') nodes[id].sub = t('river crossing');
+      if(id === 'DEP') nodes[id].sub = t('cold store');
     });
     ['F1','F2','F3'].forEach((id, i) => { nodes[id].crop = crops[i]; nodes[id].ha = HECTARES[i]; });
 
@@ -5092,8 +5144,8 @@ const Places = (() => {
       sources: { SMAP:true, CROP_CASMA: conus(place.lat, place.lon), S1:true, S2:true },
       // Climate seeds are only the simulation fallback; live data overrides them.
       climate: { temp:22, moisture:28, ndvi:0.6, stress:0.3, traff:88 },
-      hubName: `${place.name} Market`,
-      depotName: `${place.name} Depot`,
+      hubName: t('{place} Market', { place: place.name }),
+      depotName: t('{place} Depot', { place: place.name }),
       nodes
     };
   }
@@ -5832,13 +5884,13 @@ const Search = (() => {
   Views.renderPosture();
   Views.renderClock();
   Views.setRole(State.data.role);
-  Log.add('info', restored ? t('Session restored') : t('AURA-AgriNet online'),
-    `Monitoring ${region.name}, ${region.country}. Decision matrix armed with 5 rules across thermal, SAR, SMAP and multispectral channels.` +
-    (region.sources.CROP_CASMA ? '' : ' CROP-CASMA has no coverage here (CONUS only); soil moisture falls back to SMAP L4 at 9 km.'));
+  Log.add('info', restored ? 'Session restored' : 'AURA-AgriNet online',
+    'Monitoring {place}. Decision matrix armed with {n} rules.',
+    { place: region.name + (region.country ? ', ' + region.country : ''), n: EventEngine.RULES.length });
 
   /* --- state -> view bindings (views never mutate state) --- */
   State.on('telemetry',      () => { Views.renderTiles(); Views.renderThermal(); Views.renderTable(); Views.renderHero(); });
-  State.on('sat',            () => { Views.renderMap(); Views.renderSatBar(); });
+  State.on('sat',            () => { Views.renderMap(true); Views.renderSatBar(); });
   State.on('live',           () => { Views.renderLiveChip(); Views.renderAgronomy(); });
   State.on('telemetry:loss', () => { Views.renderTiles(); });
   State.on('links',   Views.renderLinks);
@@ -5884,9 +5936,9 @@ const Search = (() => {
     const paused = !State.data.paused;
     State.commit({ paused });
     Views.syncControls();
-    Log.add('info', paused ? t('Feed paused') : t('Feed resumed'), paused
-      ? t('Ingestion halted. Displayed values are held; no autonomous actions will fire.')
-      : t('Ingestion resumed across all sources.'));
+    Log.add('info', paused ? 'Feed paused' : 'Feed resumed', paused
+      ? 'Ingestion halted. Displayed values are held; no autonomous actions will fire.'
+      : 'Ingestion resumed across all sources.');
   }
   function cycleSpeed(){
     State.commit({ speed: State.data.speed === 1 ? 4 : State.data.speed === 4 ? 8 : 1 });
@@ -5911,8 +5963,8 @@ const Search = (() => {
     try{
       await I18n.set(b.dataset.lang);
     }catch(err){
-      Log.add('warning', t('Language unavailable'),
-        t('That translation could not be loaded, so the interface stayed in English.'));
+      Log.add('warning', 'Language unavailable',
+        'That translation could not be loaded, so the interface stayed in English.');
     }
     Views.repaintAll();
   });
@@ -5937,8 +5989,8 @@ const Search = (() => {
     const node = e.target;
     if(node && node.dataset && node.dataset.satTile){
       Sat.markFailed(node.dataset.satTile);
-      Log.add('info', t('Imagery unavailable'),
-        t('That NASA product has no recent granule covering this location. Falling back to the vector map.'));
+      Log.add('info', 'Imagery unavailable',
+        'That NASA product has no recent granule covering this location. Falling back to the vector map.');
       Sat.set(null);
     }
   }, true);
@@ -6002,8 +6054,8 @@ const Search = (() => {
     }
 
     Views.renderLiveChip();
-    Log.add('info', t('Location changed'),
-      t('Loading live observations for {place}…', { place: region.name }));
+    Log.add('info', 'Location changed',
+      'Loading live observations for {place}…', { place: region.name });
 
     const centre = region.centre;
     const res = await Live.ensure(centre.lat, centre.lon, region.name);
@@ -6030,7 +6082,7 @@ const Search = (() => {
     const place = region.name + (region.country ? ', ' + region.country : '');
     if(res.payload){
       Log.add(res.source === 'cache' ? 'warning' : 'good',
-        res.source === 'cache' ? t('Serving cached observations') : t('Live observations loaded'),
+        res.source === 'cache' ? 'Serving cached observations' : 'Live observations loaded',
         `${place} — ${st.text}. ` + (region.synthesised
           ? t('Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.')
           : t('Built-in demo catchment.')));
@@ -6044,9 +6096,9 @@ const Search = (() => {
             (w ? `${t('water')}: ${t(w.call)}${w.applyMm ? ' ' + w.applyMm + ' mm' : ''}` : '')
       });
     } else {
-      Log.add('warning', t('No live data'),
-        t('Could not reach the observation services and nothing is cached for {place}. Falling back to simulated telemetry, labelled as such.',
-          { place }));
+      Log.add('warning', 'No live data',
+        'Could not reach the observation services and nothing is cached for {place}. Falling back to simulated telemetry, labelled as such.',
+        { place });
       Console.post('BOT',
         t('I could not load real observations for {place} and have nothing cached for it. Everything you see is simulated until the connection returns — the header chip says so.',
           { place }));
@@ -6056,7 +6108,7 @@ const Search = (() => {
   }
 
   Search.setHandler(pick => { goToLocation(pick).catch(err => {
-    Log.add('critical', t('Location failed'), String(err && err.message || err));
+    Log.add('critical', 'Location failed', String(err && err.message || err));
   }); });
 
   /* --- search wiring: both copies share one module --- */
@@ -6154,8 +6206,8 @@ const Search = (() => {
           sw.addEventListener('statechange', () => {
             // A new version is ready and an old one is still controlling the page.
             if(sw.state === 'installed' && navigator.serviceWorker.controller){
-              Log.add('info', t('Update available'),
-                t('A newer build is cached. It applies on next launch.'));
+              Log.add('info', 'Update available',
+                'A newer build is cached. It applies on next launch.');
             }
           });
         });

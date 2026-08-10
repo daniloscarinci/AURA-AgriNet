@@ -49,6 +49,22 @@ module.exports = ({ suite, test, assert }) => {
       .matchAll(/(?:good|warning|serious|critical):'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const QUICK = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
 
+    /* Log entries and advisory details are stored as English SOURCE and
+       translated at paint time, so they appear as bare literals rather than
+       inside t(). Both shapes must be scanned or the coverage figure lies.
+       Split-and-slice rather than one big regex: the call spans lines and the
+       arguments include ternaries, which a single pattern reads badly. */
+    script.split('Log.add(').slice(1).forEach(chunk => {
+      const head = chunk.slice(0, chunk.indexOf(');') + 1 || 400);
+      for (const lit of head.matchAll(/'((?:[^'\\]|\\.)*)'/g)) {
+        const v = lit[1].replace(/\\'/g, "'");
+        if (/^(info|good|warning|serious|critical|cache|network|none)$/.test(v)) continue;  // code values, not UI text
+        set.add(v);
+      }
+    });
+    for (const m of script.matchAll(/role:'([^']+)'/g)) set.add(m[1]);   // PEOPLE roles, shown via t(p.role)
+    for (const m of script.matchAll(/detailKey:\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
+
     // Same filter the catalogue builder applies, so both sides agree on the set.
     return new Set([...set].map(x => x.trim()).filter(x => x && x.length > 1));
   }
