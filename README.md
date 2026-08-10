@@ -197,12 +197,20 @@ nothing to install and nothing to cache, because there are no dependencies.
 **What the suite cannot tell you:** it drives the shipped script against a *stub* DOM.
 Layout, the service worker, and anything that depends on a real rendering engine are
 outside it — which is not theoretical. Opening the app in a browser found four things
-580 passing checks did not: every  and  was still English
-(attributes are not text, so no DOM walk sees them), the Agronomy card's empty state
-had never been through ,  and five other utility classes were silently
-inert because  is prebuilt, and an installed copy kept serving the previous
-shell until  moved. Three of those are now guarded by tests; the fourth
-is a habit.
+580 passing checks did not:
+
+- every `placeholder` and `aria-label` was still English — attributes are not text, so
+  no DOM walk sees them, and the reader worst affected is the one using a screen reader;
+- the Agronomy card's empty state, the panel a visitor sees *before* searching, had never
+  been through `t()`;
+- `gap-5` and five other utility classes were silently inert, because `app.css` is
+  prebuilt and this project has no build step — that one showed up as `9,6 km19 min` in
+  the driver's pane, and only in Portuguese, where the labels are long enough to push the
+  values onto their own line;
+- an installed copy kept serving the previous shell until `CACHE_VERSION` moved.
+
+The first three are now guarded by tests. The fourth is a habit: **bump `CACHE_VERSION`
+whenever you change a precached file**, or your testers will be looking at yesterday.
 
 ## Licence
 
