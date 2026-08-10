@@ -907,6 +907,24 @@ body{
   .doc .scn{ flex-direction:column; align-items:stretch; }
   .doc .scn-go{ align-self:stretch; min-height:44px; }
 }
+
+/* ---------- utilities the prebuilt Tailwind does not carry ----------
+   app.css is compiled ahead of time and committed, and this project has no
+   build step, so a utility that was not in the source when that file was built
+   is SILENTLY INERT -- it reads correctly in the markup and does nothing on
+   screen. These six were exactly that. `gap-5` is why the driver's distance
+   and drive time ran together as "9,6 km19 min", which only became obvious in
+   Portuguese, where the labels are long enough to push the values onto their
+   own line. Written out by hand rather than rebuilding the stylesheet; a test
+   now fails if a class is used that nothing defines. */
+.gap-5{ gap:1.25rem; }
+.grid-cols-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.mb-3{ margin-bottom:.75rem; }
+.my-3{ margin-top:.75rem; margin-bottom:.75rem; }
+.mt-2\.5{ margin-top:.625rem; }
+@media (min-width:1024px){
+  .lg\:col-span-12{ grid-column:span 12 / span 12; }
+}
 </style>
 </head>
 <body>
@@ -944,10 +962,10 @@ body{
       <span class="search-icon" aria-hidden="true">⌕</span>
       <input id="placeSearch" class="field search-input" type="search" autocomplete="off"
              spellcheck="false" placeholder="Search any location on Earth…"
-             aria-label="Search for a location" aria-controls="placeResults" aria-autocomplete="list">
+             aria-label="Search for a location" aria-controls="placeResults" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
       <button id="placeGeo" class="search-geo" type="button" title="Use my location"
-              aria-label="Use my current location">◎</button>
-      <div id="placeResults" class="search-results" role="listbox" aria-label="Location results" hidden></div>
+              aria-label="Use my current location" data-i18n-attr="title,aria-label">◎</button>
+      <div id="placeResults" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
     </div>
 
     <div class="flex-1"></div>
@@ -960,18 +978,18 @@ body{
          lives in the header rather than the tab bar or the simulation sheet. -->
     <div class="langwrap flex-none">
       <button id="btnLang" class="toggle" aria-haspopup="listbox" aria-expanded="false"
-              aria-controls="langMenu" title="Language" aria-label="Choose language">
+              aria-controls="langMenu" title="Language" aria-label="Choose language" data-i18n-attr="title,aria-label">
         <span aria-hidden="true">🌐</span><span id="langLabel" class="wide-only">&nbsp;English</span>
       </button>
-      <div id="langMenu" class="langmenu" role="listbox" aria-label="Language" hidden></div>
+      <div id="langMenu" class="langmenu" role="listbox" aria-label="Language" hidden data-i18n-attr="aria-label"></div>
     </div>
 
     <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
-            title="Manual (?)" aria-label="Open the manual">
+            title="Manual (?)" aria-label="Open the manual" data-i18n-attr="title,aria-label">
       <span aria-hidden="true">📖</span><span class="wide-only">&nbsp;Manual</span>
     </button>
 
-    <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite" aria-label="Satellite downlink status"></div>
+    <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite" aria-label="Satellite downlink status" data-i18n-attr="aria-label"></div>
   </div>
 </header>
 
@@ -1050,7 +1068,7 @@ body{
       </div>
       <div class="chart-wrap p-3">
         <svg id="thermalChart" viewBox="0 0 620 210" width="100%" style="display:block;overflow:visible" role="img"
-             aria-label="Surface temperature over the last 24 readings against the 0 degree Celsius frost floor"></svg>
+             aria-label="Surface temperature over the last 24 readings against the 0 degree Celsius frost floor" data-i18n-attr="aria-label"></svg>
         <div id="thermalTip" class="tooltip"></div>
       </div>
     </div>
@@ -1069,11 +1087,11 @@ body{
 
       <!-- Real NASA imagery under the graph. Off by default: the vector map is
            the faster read, and the raster is the thing you turn on to check it. -->
-      <div id="satBar" class="satbar" role="group" aria-label="Satellite imagery layers"></div>
+      <div id="satBar" class="satbar" role="group" aria-label="Satellite imagery layers" data-i18n-attr="aria-label"></div>
 
       <div class="p-3">
         <svg id="fieldMap" viewBox="0 0 600 340" width="100%" style="display:block" role="img"
-             aria-label="Field road network showing farm plots, depot, buyer hub and the active delivery route"></svg>
+             aria-label="Field road network showing farm plots, depot, buyer hub and the active delivery route" data-i18n-attr="aria-label"></svg>
         <div id="satNote" class="satnote" hidden></div>
       </div>
 
@@ -1110,7 +1128,7 @@ body{
           <div class="h-px my-1" style="background:var(--hairline)"></div>
           <div class="flex gap-2">
             <button id="btnPause" class="btn c-info" style="width:auto;flex:1"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
-            <button id="btnSpeed" class="btn c-info" style="width:auto;flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
+            <button id="btnSpeed" class="btn c-info" style="width:auto;flex:none" aria-label="Simulation speed" data-i18n-attr="aria-label"><span class="btn-glyph">»</span><span>×1</span></button>
           </div>
           <p class="text-[10px] leading-relaxed mt-1" style="color:var(--text-muted)" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run — manual and autonomous firings execute identical code.</p>
         </div>
@@ -1145,7 +1163,7 @@ body{
         <span class="chip good"><span class="chip-icon">✓</span><span>Online</span></span>
       </div>
 
-      <div class="px-2.5 py-2 flex gap-1.5 overflow-x-auto" style="border-bottom:1px solid var(--hairline)" role="tablist" aria-label="Conversation channels">
+      <div class="px-2.5 py-2 flex gap-1.5 overflow-x-auto" style="border-bottom:1px solid var(--hairline)" role="tablist" aria-label="Conversation channels" data-i18n-attr="aria-label">
         <button class="tab" role="tab" aria-selected="true"  data-channel="ALL">All</button>
         <button class="tab" role="tab" aria-selected="false" data-channel="FARMER">Farmers</button>
         <button class="tab" role="tab" aria-selected="false" data-channel="BUYER">Buyers</button>
@@ -1153,7 +1171,7 @@ body{
       </div>
 
       <div class="relative flex-1 min-h-0">
-        <div id="chatScroll" class="chat-scroll absolute inset-0 px-3 py-3" role="log" aria-live="polite" aria-label="Dispatch message stream">
+        <div id="chatScroll" class="chat-scroll absolute inset-0 px-3 py-3" role="log" aria-live="polite" aria-label="Dispatch message stream" data-i18n-attr="aria-label">
           <div id="chatStream"></div>
           <div id="typingRow" class="msg hidden">
             <div id="typingAvatar" class="avatar" style="background:var(--series-1)">AA</div>
@@ -1174,8 +1192,8 @@ body{
         </div>
         <form id="chatForm" class="flex gap-2">
           <label for="chatInput" class="sr-only">Message AURA-AgriNet</label>
-          <input id="chatInput" class="field" autocomplete="off" placeholder="Ask about moisture, frost, route, orders…">
-          <button type="submit" class="btn" style="width:auto;flex:none;padding:9px 14px" aria-label="Send message">
+          <input id="chatInput" class="field" autocomplete="off" placeholder="Ask about moisture, frost, route, orders…" data-i18n-attr="placeholder">
+          <button type="submit" class="btn" style="width:auto;flex:none;padding:9px 14px" aria-label="Send message" data-i18n-attr="aria-label">
             <span class="btn-glyph" style="color:var(--series-1)">➤</span>
           </button>
         </form>
@@ -1187,7 +1205,7 @@ body{
 </main>
 
 <!-- ══════════════════════ MOBILE SIMULATION SHEET ══════════════════════ -->
-<button id="fabSim" class="fab" aria-label="Open simulation controls" aria-haspopup="dialog">⚡</button>
+<button id="fabSim" class="fab" aria-label="Open simulation controls" aria-haspopup="dialog" data-i18n-attr="aria-label">⚡</button>
 
 <div id="simSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="simSheetTitle" hidden>
   <div class="sheet-panel">
@@ -1195,7 +1213,7 @@ body{
     <div class="flex items-center gap-2 mb-3">
       <span id="simSheetTitle" class="panel-title" data-i18n>Event Simulation</span>
       <div class="flex-1"></div>
-      <button id="simClose" class="toggle" aria-label="Close simulation controls">Close</button>
+      <button id="simClose" class="toggle" aria-label="Close simulation controls" data-i18n-attr="aria-label">Close</button>
     </div>
 
     <div id="triggerButtonsMobile" class="flex flex-col gap-2"></div>
@@ -1204,7 +1222,7 @@ body{
 
     <div class="flex gap-2 mb-3">
       <button id="btnPauseM" class="btn c-info" style="flex:1"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
-      <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed"><span class="btn-glyph">»</span><span>×1</span></button>
+      <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed" data-i18n-attr="aria-label"><span class="btn-glyph">»</span><span>×1</span></button>
     </div>
 
     <div class="mb-3">
@@ -1213,9 +1231,9 @@ body{
         <span class="search-icon" aria-hidden="true">⌕</span>
         <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
                spellcheck="false" placeholder="Search any location…"
-               aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list">
-        <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location">◎</button>
-        <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden></div>
+               aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
+        <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location" data-i18n-attr="aria-label">◎</button>
+        <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
       </div>
     </div>
 
@@ -1227,16 +1245,16 @@ body{
      Shell only. Contents and prose are rendered by Module 7b on first open, so
      nothing here costs anything at boot. -->
 <div id="manualLayer" class="manual" role="dialog" aria-modal="true" aria-labelledby="manualTitle" hidden>
-  <button id="manualScrim" class="manual-scrim" tabindex="-1" aria-label="Close the manual"></button>
+  <button id="manualScrim" class="manual-scrim" tabindex="-1" aria-label="Close the manual" data-i18n-attr="aria-label"></button>
   <div class="manual-panel">
     <div class="manual-head">
       <span id="manualTitle" class="panel-title" data-i18n>Manual</span>
       <span class="panel-sub wide-only" data-i18n>How AURA-AgriNet reads the sky and acts on it</span>
       <div class="flex-1"></div>
-      <button id="manualClose" class="toggle" aria-label="Close the manual">Close</button>
+      <button id="manualClose" class="toggle" aria-label="Close the manual" data-i18n-attr="aria-label">Close</button>
     </div>
     <div class="manual-body">
-      <nav id="manualToc" class="manual-toc" aria-label="Manual contents"></nav>
+      <nav id="manualToc" class="manual-toc" aria-label="Manual contents" data-i18n-attr="aria-label"></nav>
       <div id="manualScroll" class="manual-scroll" tabindex="-1">
         <div id="manualDoc" class="doc"></div>
       </div>
@@ -1245,7 +1263,7 @@ body{
 </div>
 
 <!-- ══════════════════════ MOBILE TAB BAR ══════════════════════ -->
-<nav class="tabbar" role="tablist" aria-label="Role">
+<nav class="tabbar" role="tablist" aria-label="Role" data-i18n-attr="aria-label">
   <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="false">
     <span class="rb-glyph" aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
     <span class="rb-badge hidden" data-badge="FARMER"></span>
@@ -3015,7 +3033,7 @@ const Views = (() => {
     el('linkChips').innerHTML = LIVE_FEEDS.map(f => {
       const off = f.id === 'FLOW' && p && !p.river;
       if(off){
-        return `<div class="link-chip" style="opacity:.42" title="${esc(f.label)} — no river reach covers this catchment">
+        return `<div class="link-chip" style="opacity:.42" title="${esc(t('{feed} — no river reach covers this catchment', { feed: f.label }))}">
           <span class="link-dot" style="background:var(--text-muted)"></span>
           <span>${esc(f.short)}</span><span class="link-lat">N/A</span></div>`;
       }
@@ -3038,7 +3056,7 @@ const Views = (() => {
       // labelled, never silently polled. CROP-CASMA is CONUS-only, so outside the
       // United States the SMAP chip says so.
       if(l.status === 'unavailable' || !Region.covers(src.id)){
-        return `<div class="link-chip" style="opacity:.42" title="${esc(src.label)} — no coverage over ${esc(REGION.name)}">
+        return `<div class="link-chip" style="opacity:.42" title="${esc(t('{source} — no coverage over {region}', { source: src.label, region: REGION.name }))}">
           <span class="link-dot" style="background:var(--text-muted)"></span>
           <span>${esc(src.short)}</span><span class="link-lat">N/A</span>
         </div>`;
@@ -3047,7 +3065,7 @@ const Views = (() => {
       const word = l.status === 'nominal' ? 'LOCK'    : l.status === 'degraded' ? 'DEGRADED' : 'REACQ';
       const label = (src.id === 'SMAP' && REGION && REGION.sources.CROP_CASMA)
         ? 'SMAP/CASMA' : src.short;
-      return `<div class="link-chip ${l.rx ? 'rx' : ''}" title="${esc(src.label)} · ${src.id === 'SMAP' ? '9 km' : src.id === 'TIR' ? '1 km' : '10 m'} pixel">
+      return `<div class="link-chip ${l.rx ? 'rx' : ''}" title="${esc(t('{source} · {size} pixel', { source: src.label, size: src.id === 'SMAP' ? '9 km' : src.id === 'TIR' ? '1 km' : '10 m' }))}">
         <span class="link-dot ${cls}"></span>
         <span>${esc(label)}</span>
         <span class="link-lat">${l.rx ? '···' : word}${(l.latency && l.status === 'nominal') ? ' ' + l.latency + 'ms' : ''}</span>
@@ -3397,7 +3415,7 @@ const Views = (() => {
     const sat = Sat.tilesFor(Region.current());
     if(sat.html){
       out += `<g class="satlayer" aria-hidden="true">${sat.html}</g>`;
-      out += `<g class="satfoot" aria-hidden="true">${Sat.footprintFor(Region.current())}</g>`;
+      out += `<g aria-hidden="true">${Sat.footprintFor(Region.current())}</g>`;
     }
 
     // roads
@@ -3749,7 +3767,7 @@ const Views = (() => {
       <div class="agro-call ${tone}">${esc(headline)}</div>
       <div class="agro-why">${esc(w.why)}</div>
       <div class="wbar ${tone}" role="img"
-           aria-label="Soil water depletion ${Math.round(pct)} percent of available water; refill point at ${Math.round(markPct)} percent">
+           aria-label="${esc(t('Soil water depletion {pct} percent of available water; refill point at {mark} percent', { pct: fmt(Math.round(pct)), mark: fmt(Math.round(markPct)) }))}">
         <i style="width:${pct.toFixed(1)}%"></i>
         <span class="wbar-mark" style="left:${markPct.toFixed(1)}%"></span>
       </div>
@@ -3775,13 +3793,13 @@ const Views = (() => {
       const cls = p.t <= CFG.THRESH.frostArm ? 'frost'
                 : p.t >= CFG.THRESH.heatArm  ? 'heat'
                 : p.t <= CFG.THRESH.frostClear ? 'marginal' : 'mild';
-      return `<i class="${cls}" title="+${p.h} h · ${fmt(p.t,1)}°C"></i>`;
+      return `<i class="${cls}" title="${esc(t('+{h} h · {temp}°C', { h: fmt(p.h), temp: fmt(p.t,1) }))}"></i>`;
     }).join('');
     return `<div class="agro">
       <div class="agro-head"><span class="agro-title">${esc(t('Next 72 hours'))}</span></div>
       <div class="agro-call ${tone}">${esc(headline)}</div>
       <div class="strip" role="img"
-           aria-label="Hourly air temperature for 72 hours. Minimum ${fmt(th.minC,1)} degrees, maximum ${fmt(th.maxC,1)} degrees, ${th.frostHours} hours at or below freezing.">${cells}</div>
+           aria-label="${esc(t('Hourly air temperature for 72 hours. Minimum {min} degrees, maximum {max} degrees, {frost} hours at or below freezing.', { min: fmt(th.minC,1), max: fmt(th.maxC,1), frost: fmt(th.frostHours) }))}">${cells}</div>
       <div class="strip-axis"><span>now</span><span>+36 h</span><span>+72 h</span></div>
       <dl class="agro-rows">
         <div class="agro-row"><dt>${esc(t('Minimum'))}</dt><dd>${fmt(th.minC,1)} °C</dd></div>
@@ -3800,7 +3818,7 @@ const Views = (() => {
                    : w.start === 0 ? t('Spray now · {len} h', { len: w.len })
                    : t('Wait {start} h · {len} h window', { start: w.start, len: w.len });
     const cells = s.blocks.map(b =>
-      `<i class="${b.rating}" title="+${b.h} h · wind ${fmt(b.wind,0)} km/h${b.fails.length ? ' · ' + b.fails.join(', ') : ''}"></i>`
+      `<i class="${b.rating}" title="${esc(t('+{h} h · wind {wind} km/h', { h: fmt(b.h), wind: fmt(b.wind,0) }) + (b.fails.length ? ' · ' + b.fails.map(f => t(f)).join(', ') : ''))}"></i>`
     ).join('');
     return `<div class="agro">
       <div class="agro-head"><span class="agro-title">${esc(t('Spray & fieldwork'))}</span></div>
@@ -3897,7 +3915,7 @@ const Views = (() => {
     if(!host) return;
     if(!Live.ready()){
       host.innerHTML = agroUnavailable(
-        'Agronomy needs a real location. Search for one above — these figures are computed from live forecast data and are not simulated.');
+        t('Agronomy needs a real location. Search for one above — these figures are computed from live forecast data and are not simulated.'));
       return;
     }
     const now = State.data.clock;
@@ -3920,6 +3938,22 @@ const Views = (() => {
     document.querySelectorAll('[data-i18n]').forEach(n => {
       if(!n.dataset.i18nSrc) n.dataset.i18nSrc = n.textContent;
       n.textContent = t(n.dataset.i18nSrc);
+    });
+
+    /* Attributes are text too, and the ones nobody sees are the ones that get
+       left behind: a placeholder is read by everyone, an aria-label by exactly
+       the users least able to work around it being in the wrong language. The
+       marker is explicit rather than a blanket walk over every [aria-label],
+       because an attribute built at render time carries live numbers, and
+       stashing one would replay a stale reading forever. */
+    document.querySelectorAll('[data-i18n-attr]').forEach(n => {
+      n.getAttribute('data-i18n-attr').split(',').forEach(name => {
+        const attr = name.trim();
+        if(!attr) return;
+        const stash = 'data-i18n-src-' + attr;
+        if(n.getAttribute(stash) === null) n.setAttribute(stash, n.getAttribute(attr) || '');
+        n.setAttribute(attr, t(n.getAttribute(stash)));
+      });
     });
   }
 
@@ -5757,7 +5791,7 @@ const Sat = (() => {
     return `<rect class="pixel-footprint" x="${Math.min(nw.x,se.x).toFixed(1)}" y="${Math.min(nw.y,se.y).toFixed(1)}" ` +
            `width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>` +
            `<text class="pixel-label" x="${(Math.min(nw.x,se.x) + 5).toFixed(1)}" y="${(Math.min(nw.y,se.y) + 13).toFixed(1)}">` +
-           `one ${l.resM >= 1000 ? (l.resM/1000) + ' km' : l.resM + ' m'} pixel</text>`;
+           `${esc(t('one {size} pixel', { size: l.resM >= 1000 ? fmt(l.resM/1000) + ' km' : l.resM + ' m' }))}</text>`;
   }
 
   function set(id){

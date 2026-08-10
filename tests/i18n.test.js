@@ -31,6 +31,13 @@ module.exports = ({ suite, test, assert }) => {
     for (const m of script.matchAll(/\bseg\(\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
     for (const m of script.matchAll(/\{\s*t:\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
     for (const m of markup.matchAll(/data-i18n[^>]*>([^<]+)</g)) set.add(m[1].trim());
+    /* Attributes marked data-i18n-attr are translated in place, so their values
+       are UI strings exactly like the text between the tags. */
+    for (const tag of markup.matchAll(/<[^>]*\bdata-i18n-attr="([^"]+)"[^>]*>/g))
+      for (const name of tag[1].split(',')) {
+        const hit = tag[0].match(new RegExp(`\\b${name.trim()}="([^"]*)"`));
+        if (hit) set.add(hit[1]);
+      }
     const tables = [/label:'([^']+)',\s+unit/g, /word:'([^']+)'/g, /label:'([^']+)',\s+glyph/g,
                     /note:'([^']+)'/g, /label:'([^']+)', severity/g, /product:'([^']+)'/g,
                     /nav:'([^']+)', title:'([^']+)'/g, /title:'([^']+)',\s*$/gm,
@@ -533,6 +540,36 @@ module.exports = ({ suite, test, assert }) => {
       h.app.I18n.LANGS.filter(l => l.code !== 'en').forEach(l =>
         assert.includes(sw, `./i18n/${l.code}.json`,
           `${l.code} would fall back to English the moment the network drops`));
+    });
+
+    /* Attributes are the part of the interface a DOM walk cannot see and a
+       screen-reader user cannot work around. The shell is checked at source:
+       every placeholder, title and aria-label written as a literal must name
+       itself in data-i18n-attr, or it ships in English forever. Attributes
+       built at render time are exempt here and translated at their call site,
+       because stashing one would replay a stale reading. */
+    test('every static placeholder, title and aria-label is marked translatable', () => {
+      const { markup } = readSource();
+      const unmarked = [];
+      for (const tag of markup.matchAll(/<[a-z][^>]*>/g)) {
+        const s = tag[0];
+        if (s.includes('${')) continue;                     // built at render time
+        const marked = (s.match(/data-i18n-attr="([^"]+)"/) || [, ''])[1]
+          .split(',').map(x => x.trim());
+        for (const a of s.matchAll(/\s(placeholder|title|aria-label)="([^"$]{4,})"/g))
+          if (!marked.includes(a[1])) unmarked.push(`${a[1]}="${a[2].slice(0, 40)}"`);
+      }
+      assert.deepEqual(unmarked.slice(0, 5), [],
+        'an attribute the user reads or hears is not translatable');
+    });
+
+    test('the translator handles marked attributes at all', () => {
+      const { script } = readSource();
+      const fn = script.slice(script.indexOf('function translateStatic(){'),
+                              script.indexOf('function repaintAll('));
+      assert.includes(fn, 'data-i18n-attr', 'marked attributes are never translated');
+      assert.includes(fn, 'data-i18n-src-',
+        'the original is not stashed, so switching language twice would compound');
     });
 
     test('an unreviewed translation is badged rather than presented as finished', () => {

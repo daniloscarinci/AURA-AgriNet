@@ -169,7 +169,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 577 checks, no dependencies, no network
+node tests/run.js              # 580 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -196,7 +196,13 @@ nothing to install and nothing to cache, because there are no dependencies.
 
 **What the suite cannot tell you:** it drives the shipped script against a *stub* DOM.
 Layout, the service worker, and anything that depends on a real rendering engine are
-outside it. Those are checked by opening the app.
+outside it — which is not theoretical. Opening the app in a browser found four things
+580 passing checks did not: every  and  was still English
+(attributes are not text, so no DOM walk sees them), the Agronomy card's empty state
+had never been through ,  and five other utility classes were silently
+inert because  is prebuilt, and an installed copy kept serving the previous
+shell until  moved. Three of those are now guarded by tests; the fourth
+is a habit.
 
 ## Licence
 

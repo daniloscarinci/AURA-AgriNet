@@ -272,5 +272,31 @@ module.exports = ({ suite, test, assert }) => {
 
     test('a meta description is present', () =>
       assert.includes(html, '<meta name="description"', 'no meta description'));
+
+    /* Tailwind here is PREBUILT and committed, and there is no build step, so a
+       utility class that was not in the source when app.css was compiled is
+       silently inert: it reads correctly in the markup and does nothing on
+       screen. Six were shipping that way, and `gap-5` is why the driver's
+       distance and drive time ran together. Nothing else can catch this --
+       every test that reads the DOM sees the class attribute, not the rule. */
+    test('every class the app uses is defined in a stylesheet', () => {
+      const css = fs.readFileSync(path.join(ROOT, 'app.css'), 'utf8');
+      const inline = (html.match(/<style>([\s\S]*?)<\/style>/) || [, ''])[1];
+      const sheets = css + '\n' + inline;
+
+      const used = new Set();
+      for (const m of html.matchAll(/class="([^"]*)"/g))
+        for (const c of m[1].split(/\s+/))
+          // Template literals put JS between the quotes; only real class names.
+          if (/^[a-zA-Z][\w:.\/[\]%-]*$/.test(c)) used.add(c);
+
+      const undefined_ = [...used].filter(c => {
+        // Tailwind escapes . : / [ ] in its selectors: .max-h-\[260px\]
+        const esc = [...c].map(ch => /[\w-]/.test(ch) ? ch : '\\\\?\\' + ch).join('');
+        return !new RegExp('\\.' + esc + '(?![\\w-])').test(sheets);
+      });
+      assert.deepEqual(undefined_.sort().slice(0, 6), [],
+        'class names that style nothing — app.css is prebuilt, so a new utility must be written by hand');
+    });
   });
 };
