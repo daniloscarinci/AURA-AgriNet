@@ -87,44 +87,30 @@ drift from the code, and a test fails if it ever disagrees.
 
 ## Languages
 
-Twelve languages, chosen for speaker count weighted toward where smallholder
-agriculture actually is:
+Four languages, each maintained to full depth: **English · Español · Português ·
+Français.** Pick one from the 🌐 control in the header.
 
-English · 中文（简体）· हिन्दी · Español · Français · العربية · বাংলা · Português ·
-Русский · Bahasa Indonesia · Kiswahili · اردو
+Every user-facing surface is translated — not just headings. The interface, the
+map and its legend, tiles and their provenance labels, the four decision cards,
+advisories, the event log, the agent's briefings and the whole seven-section
+manual. Verified empirically rather than by inspection: the app is rendered in
+each language, the DOM walked, and any remaining English reported. All three
+report zero.
 
-Pick one from the 🌐 control in the header. Arabic and Urdu flip the whole layout
-right-to-left; the map, the mission clock and the monospace readouts stay
-left-to-right, because geography is not mirrored and a clock that reorders its
-digits is unreadable. Numbers and dates go through `Intl` with the active locale,
-so Spanish shows `19,3` where English shows `19.3`. Place-name search asks the
-geocoder in your language too.
+Typing works in your own language too — each catalogue carries its own keyword
+list per intent, so `humedad del suelo` and `umidade do solo` reach the
+soil-moisture answer. English keywords stay active everywhere, which is why the
+quick-reply buttons keep working: they send English and display the translation.
 
-Typing works in your own language too: each catalogue carries its own keyword
-list per intent, so `unyevu wa udongo` and `рطوبة التربة` reach the soil-moisture
-answer. English keywords stay active everywhere, which is why the quick-reply
-buttons keep working after a language switch — they send English and display the
-translation.
+Translation is resolved at **paint time**, never at write time. Chat messages,
+log entries and advisories store the English source plus their variables, so
+switching language retranslates the entire transcript and history rather than
+stranding whatever was already on screen. Messages you typed are never
+translated — those are your words.
 
-### Translation coverage
-
-Every user-facing sentence in the app is translatable. What is actually
-translated today:
-
-| | UI, board, advisories, log, agent replies | Typed-input keywords | Scripted briefings | Manual body |
-|---|---|---|---|---|
-| All 12 languages | ✅ 354/354 | ✅ 8 intents each | — | — |
-| Español, Kiswahili | ✅ | ✅ | ✅ 32/32 | ✅ 7/7 |
-| The other nine | ✅ | ✅ | — | — |
-
-The first two columns are what a grower reads and types: the advisory that fires,
-the log entry behind it, the agent's answer, and the words they type to ask. All
-of that is complete in every language.
-
-The last two are long-form prose delivered on demand. Spanish and Kiswahili are
-complete end to end; the other nine fall back to correct English for those two
-surfaces, badged, exactly as designed. The fallback is per block, so a briefing
-is never half-rendered.
+Numbers and dates go through `Intl` with the active locale, so Spanish shows
+`19,3` where English shows `19.3`, and place-name search asks the geocoder in
+your language.
 
 **These translations are machine-produced and have not been reviewed by native
 speakers.** Every catalogue records `reviewed: false`. Before this reaches real
@@ -134,15 +120,14 @@ reviewer needs no tooling and no build step. Text in `{braces}` is substituted a
 render time and must survive translation; a test enforces that, and another
 enforces that HTML tag structure in prose blocks matches the English.
 
-English is embedded in the app and is the fallback for any string a catalogue
-lacks, so a missing or partial translation degrades to correct English rather
-than to a blank or a raw key.
-
 Delivery is split by what must survive a lost connection. Short strings — labels,
-advisories, the event log — are **precached**, so a farmer who set the app to
-Kiswahili and then lost signal keeps Kiswahili where it matters. Long-form prose
-— the manual and the scripted briefings — is **fetched on first use** and then
-cached, which keeps the install around 100 KB instead of 450 KB.
+advisories, the event log — are **precached**. Long-form prose — the manual and
+the briefings — is **fetched on first use** and then cached, keeping the install
+around 100 KB.
+
+Right-to-left support (engine, stylesheet rules and tests) is still in place
+although no RTL language currently ships, so adding Arabic or Urdu back is a
+catalogue file plus one row in `LANGS`, with no code or CSS work.
 
 ## Roles
 
@@ -159,18 +144,20 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 652 checks, no dependencies, no network
+node tests/run.js              # 564 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
 Five groups: **151 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
 downscaling, intent matching), **77 live** (fetch and cache, metric mapping, geocoding,
-catchment synthesis, agronomy, satellite tiling), **171 i18n** (engine, catalogue and prose
+catchment synthesis, agronomy, satellite tiling), **i18n** (engine, catalogue and prose
 integrity — placeholders and HTML tag structure must survive translation — intent
-keywords per language, RTL layout, and a guard against shadowing the translator), **148 control-reachability** (every referenced element exists, every trigger
-names a real code path, every quick reply resolves to an intent, the manual's numbers
-match the engine), and **100 PWA asset integrity** (precache completeness, icon
-dimensions, cache strategy, no embedded credential).
+keywords per language, and guards against the two regressions that actually happened:
+shadowing the translator, and dropping a prose key on its way to the message),
+**control-reachability** (every referenced element exists, every trigger names a real
+code path, every quick reply resolves to an intent, the manual's numbers match the
+engine), and **PWA asset integrity** (precache completeness, icon dimensions, cache
+strategy, no embedded credential).
 
 `tests/harness.js` boots the shipped inline script in a `vm` context against a stub DOM,
 with a seeded PRNG, a virtual clock and a stubbed network — so the code under test is the

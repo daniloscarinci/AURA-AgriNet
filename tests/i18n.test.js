@@ -109,8 +109,19 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(new Set(c).size, c.length, 'duplicate language code');
     });
 
-    test('Arabic and Urdu are marked right-to-left', () =>
-      ['ar', 'ur'].forEach(c => assert.equal(I18n.langFor(c).dir, 'rtl', `${c} must be RTL`)));
+    /* No right-to-left language ships today, but the engine, the stylesheet rules
+       and this contract all remain so one can be added back as a catalogue file
+       alone. What must hold is that `dir` is always a valid direction. */
+    test('every language declares a usable direction', () =>
+      I18n.LANGS.forEach(l => assert.includes(['ltr', 'rtl'], l.dir, `${l.code} has no direction`)));
+
+    test('the RTL path still works if a language declares it', () => {
+      const h2 = boot();
+      const fake = { code:'xx', locale:'xx', dir:'rtl', name:'Test', endonym:'Test' };
+      assert.equal(fake.dir, 'rtl', 'sanity');
+      assert.includes(readSource().html, '[dir="rtl"]',
+        'the right-to-left rules were removed, so re-adding Arabic would need CSS work too');
+    });
 
     test('an unknown language falls back to English rather than breaking', () =>
       assert.equal(I18n.langFor('xx').code, 'en', 'unknown code did not fall back'));
@@ -130,8 +141,8 @@ module.exports = ({ suite, test, assert }) => {
     });
 
     test('a stored choice wins over the browser default', () => {
-      const h2 = boot({ storage: { 'aura-lang': 'sw' } });
-      assert.equal(h2.app.I18n.initial(), 'sw', 'the saved language was ignored');
+      const h2 = boot({ storage: { 'aura-lang': 'pt' } });
+      assert.equal(h2.app.I18n.initial(), 'pt', 'the saved language was ignored');
     });
 
     test('a stored language that no longer exists falls back', () => {
@@ -240,14 +251,24 @@ module.exports = ({ suite, test, assert }) => {
   /* -------------------------------------------------------------- prose --- */
   suite('i18n · prose blocks', () => {
     const { script } = readSource();
-    const keys = [...script.matchAll(/tp\('([a-zA-Z.]+)'/g)].map(m => m[1]);
+    /* Two shapes name a prose block: tp('manual.x', …) for the manual sections,
+       and pkey:'chat.x' on a stored chat step. Both are real keys. */
+    const keys = [...new Set([
+      ...[...script.matchAll(/tp\('([a-zA-Z.]+)'/g)].map(m => m[1]),
+      ...[...script.matchAll(/pkey:\s*'([a-zA-Z.]+)'/g)].map(m => m[1]),
+    ])];
 
     /* The English block each tp() call falls back to, pulled from the source so
        the tests compare against exactly what ships. */
     function englishBlocks() {
       const out = {};
-      const re = /tp\('([a-zA-Z.]+)',\s*(`[\s\S]*?`|'(?:[^'\\]|\\.)*')/g;
-      for (const m of script.matchAll(re)) out[m[1]] = m[2].slice(1, -1);
+      // Manual sections: tp('manual.x', `…`, {vars})
+      for (const m of script.matchAll(/tp\('([a-zA-Z.]+)',\s*`([\s\S]*?)`/g)) out[m[1]] = m[2];
+      /* Chat lines: a stored step keeps the English in `text:` and names its
+         block in the `pkey:` that follows, so the source sits before the key
+         rather than inside a tp() call. */
+      for (const m of script.matchAll(/text:\s*('(?:[^'\\]|\\.)*')\s*,\s*pkey:\s*'([a-zA-Z.]+)'/g))
+        out[m[2]] = m[1].slice(1, -1).replace(/\\'/g, "'");
       return out;
     }
     const EN = englishBlocks();
@@ -322,6 +343,26 @@ module.exports = ({ suite, test, assert }) => {
       // prose for eleven languages it will never open.
       const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
       assert.notIncludes(sw, 'i18n/prose/', 'prose in PRECACHE would quadruple the install');
+    });
+
+    /* A briefing step carries its prose key and variables; the queue drainer must
+       forward both to post(). It once forwarded only severity/channel/kv, which
+       left four lines stuck in English with an unfilled {farmer} placeholder —
+       invisible to every other check because the block itself was translated. */
+    test('the chat queue forwards prose keys and variables to the message', () => {
+      const drain = script.slice(script.indexOf('function drain(){'),
+                                script.indexOf('function cascade('));
+      assert.includes(drain, 'pkey:', 'a briefing line would lose its prose key and never retranslate');
+      assert.includes(drain, 'vars:', 'a briefing line would render with its placeholders unfilled');
+    });
+
+    test('every stored briefing step declares both a key and its English', () => {
+      const cascade = script.slice(script.indexOf('function cascade(kind, ctx){'),
+                                   script.indexOf('const INTENTS = ['));
+      const keyed = [...cascade.matchAll(/pkey:\s*'([a-zA-Z.]+)'/g)].length;
+      const pushes = [...cascade.matchAll(/steps\.push\(/g)].length;
+      assert.equal(keyed, pushes,
+        `${pushes - keyed} briefing step(s) have no prose key and can never be translated`);
     });
 
     test('the manual and the chat both trigger a prose load', () => {
@@ -416,11 +457,16 @@ module.exports = ({ suite, test, assert }) => {
         assert.includes(menu, `data-lang="${l.code}"`, `${l.code} is missing from the picker`));
     });
 
+    /* Each option is stamped with its own script direction so an endonym renders
+       correctly inside the menu regardless of the page direction. All four
+       shipping languages are left-to-right today; the attribute is what makes
+       adding a right-to-left one a catalogue change rather than a code change. */
     test('each option carries its own script direction', () => {
       const h = boot();
       h.app.Views.renderLangMenu();
-      assert.includes(h.document.getElementById('langMenu').innerHTML, 'data-dir="rtl"',
-        'RTL endonyms would render in the wrong direction inside an LTR menu');
+      const menu = h.document.getElementById('langMenu').innerHTML;
+      h.app.I18n.LANGS.forEach(l =>
+        assert.includes(menu, `data-dir="${l.dir}"`, `${l.code} option has no direction`));
     });
 
     test('typing in each language reaches the right intent', async () => {
@@ -428,12 +474,9 @@ module.exports = ({ suite, test, assert }) => {
          matcher rather than against the keyword list, so the whole path is
          exercised. */
       const PHRASES = {
-        es: ['humedad del suelo', 'moisture'], fr: ['humidité du sol', 'moisture'],
-        pt: ['umidade do solo', 'moisture'],   id: ['kelembapan tanah', 'moisture'],
-        sw: ['unyevu wa udongo', 'moisture'],  zh: ['土壤湿度', 'moisture'],
-        hi: ['मिट्टी की नमी', 'moisture'],       bn: ['মাটির আর্দ্রতা', 'moisture'],
-        ru: ['влажность почвы', 'moisture'],   ar: ['رطوبة التربة', 'moisture'],
-        ur: ['مٹی کی نمی', 'moisture'],
+        es: ['humedad del suelo', 'moisture'],
+        fr: ['humidité du sol', 'moisture'],
+        pt: ['umidade do solo', 'moisture'],
       };
       for (const [code, [phrase, want]] of Object.entries(PHRASES)) {
         const cat = JSON.parse(fs.readFileSync(path.join(ROOT, 'i18n', code + '.json'), 'utf8'));

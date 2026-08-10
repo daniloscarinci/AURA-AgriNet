@@ -2269,7 +2269,7 @@ const Orders = (() => {
       });
       Log.add('warning', 'Buyer orders revised',
         'Autonomous adjustment: −{cut} crates across {n} orders ({reason}).',
-        { cut: totalCut, n: touched, reason: t(labelForReason(reason)).toLowerCase() });
+        { cut: totalCut, n: touched, reason: { t: labelForReason(reason) } });
     }
     State.emit('orders');
     return totalCut;
@@ -2289,7 +2289,7 @@ const Orders = (() => {
     if(restored > 0){
       State.data.orderAudit.unshift({ t: State.data.clock, reason,
         text: t('{n} crates reinstated after {reason} cleared.',
-          { n: restored, reason: t(labelForReason(reason)).toLowerCase() }) });
+          { n: restored, reason: { t: labelForReason(reason) } }) });
       Log.add('good', 'Buyer orders reinstated',
         '+{n} crates returned to the order book.', { n: restored });
     }
@@ -2380,7 +2380,7 @@ const Console = (() => {
   function post(fromId, text, opts){
     const p = PEOPLE[fromId] || PEOPLE.BOT;
     const msg = Object.assign({
-      id: ++seq, from: fromId, text, vars: null, pkey: null, pen: null, kvKey: null,
+      id: ++seq, from: fromId, text, vars: null, pkey: null, kvKey: null,
       t: State.data.clock,
       channel: p.channel,
       severity: null, mine: false, kv: null
@@ -2408,7 +2408,13 @@ const Console = (() => {
 
     setTimeout(() => {
       State.emit('typing', null);
-      post(step.from, step.text, { severity: step.severity, channel: step.channel, kv: step.kv });
+      // pkey and vars must travel with the message or it can never retranslate —
+      // dropping them here is what left four briefing lines stuck in English
+      // with their {farmer} placeholder unfilled.
+      post(step.from, step.text, {
+        severity: step.severity, channel: step.channel, kv: step.kv,
+        pkey: step.pkey || null, vars: step.vars || null
+      });
       draining = false;
       drain();
     }, think);
@@ -2440,158 +2446,124 @@ const Console = (() => {
     switch(kind){
       case 'FROST': {
         steps.push({ from:'BOT', delay:500, severity:'critical', text:
-          tp('chat.frost.alert',
-             'FROST EVENT — surface temperature {temp}°C at plot level, at or below the {floor}°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.',
-             { temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }) });
+          'FROST EVENT — surface temperature {temp}°C at plot level, at or below the {floor}°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.', pkey:'chat.frost.alert', vars:{ temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) } });
         steps.push({ from:'BOT', delay:800, channel:'FARMER', text:
-          tp('chat.frost.farmer',
-             '{farmer} — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.',
-             { farmer: NAME.farmer }),
+          '{farmer} — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.', pkey:'chat.frost.farmer', vars:{ farmer: NAME.farmer },
           kv:`${t('Plot {id}', { id: 'F-2' })} · ${t('surface')} ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
         steps.push({ from:'FARMER', delay:1200, text:
-          tp('chat.frost.farmerReply',
-             'Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.') });
+          'Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.', pkey:'chat.frost.farmerReply', vars:null });
         steps.push({ from:'BOT', delay:900, channel:'BUYER', severity:'warning', text:
-          tp('chat.frost.buyer',
-             '{buyer} — frost-driven revision to your standing order. Volume reduced by {cut} crates and grade re-marked B. No price change applied; the revision is logged for review.',
-             { buyer: NAME.buyer, cut: (ctx && ctx.cut) ? ctx.cut : 0 }),
+          '{buyer} — frost-driven revision to your standing order. Volume reduced by {cut} crates and grade re-marked B. No price change applied; the revision is logged for review.', pkey:'chat.frost.buyer', vars:{ buyer: NAME.buyer, cut: (ctx && ctx.cut) ? ctx.cut : 0 },
           kv:`ORD-4417 · ${State.data.orders[0].crates} ${t('crates')} · ${t('grade')} ${State.data.orders[0].grade}` });
         steps.push({ from:'BUYER', delay:1100, text:
-          tp('chat.frost.buyerReply',
-             'That works. Send whatever holds grade — I will move the softer stock through the lunch menu rather than retail.') });
+          'That works. Send whatever holds grade — I will move the softer stock through the lunch menu rather than retail.', pkey:'chat.frost.buyerReply', vars:null });
         steps.push({ from:'BOT', delay:850, channel:'DRIVER', text:
-          tp('chat.frost.driver',
-             '{driver} — pickup at Plot F-2 pulled forward to the early window. Route unchanged; load is lighter, so expect one collection stop instead of two.',
-             { driver: NAME.driver }) });
+          '{driver} — pickup at Plot F-2 pulled forward to the early window. Route unchanged; load is lighter, so expect one collection stop instead of two.', pkey:'chat.frost.driver', vars:{ driver: NAME.driver } });
         break;
       }
       case 'FROST_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          tp('chat.frostClear.alert',
-             'Frost cleared — surface temperature recovered to {temp}°C. Harvest window returned to normal and withdrawn order volume reinstated.',
-             { temp: fmt(s.temp,1) }) });
+          'Frost cleared — surface temperature recovered to {temp}°C. Harvest window returned to normal and withdrawn order volume reinstated.', pkey:'chat.frostClear.alert', vars:{ temp: fmt(s.temp,1) } });
         steps.push({ from:'BUYER', delay:900, text:
-          tp('chat.frostClear.buyerReply', 'Good news. Back to the usual crate count then.') });
+          'Good news. Back to the usual crate count then.', pkey:'chat.frostClear.buyerReply', vars:null });
         break;
       }
       case 'FLOOD': {
         const before = ctx && ctx.before, after = ctx && ctx.after;
         const blocked = ((ctx && ctx.blocked) || []).map(e => e.id);
-        steps.push({ from:'BOT', delay:500, severity:'critical', text:
-          blocked.length
-            ? tp('chat.flood.alert',
-                 'ROAD SATURATION — mean trafficability {pct}%. Segments {segments} below the passability floor.',
-                 { pct: fmt(s.traff,0), segments: blocked.join(', ') })
-            : tp('chat.flood.alertNoSegments',
-                 'ROAD SATURATION — mean trafficability {pct}%. Rural segments degrading.',
-                 { pct: fmt(s.traff,0) }) });
+        // Two different sentences depending on whether any segment can be named.
+        // Written as two complete steps rather than a computed pair, so the key
+        // and its English sit together where both a reader and the extractor can
+        // see them.
+        const floodVars = { pct: fmt(s.traff,0), segments: blocked.join(', ') };
+        if(blocked.length){
+          steps.push({ from:'BOT', delay:500, severity:'critical',
+            text: 'ROAD SATURATION — mean trafficability {pct}%. Segments {segments} below the passability floor.',
+            pkey:'chat.flood.alert', vars: floodVars });
+        } else {
+          steps.push({ from:'BOT', delay:500, severity:'critical',
+            text: 'ROAD SATURATION — mean trafficability {pct}%. Rural segments degrading.',
+            pkey:'chat.flood.alertNoSegments', vars: floodVars });
+        }
         if(after){
           const dk = before ? after.km - before.km : 0;
           const dm = before ? after.min - before.min : 0;
           steps.push({ from:'BOT', delay:900, channel:'DRIVER', severity:'warning', text:
-            tp('chat.flood.driver',
-               '{driver} — do not attempt {segment}. Rerouting you now. New waypoints pushed to your handset.',
-               { driver: NAME.driver, segment: blocked[0] || t('the ford') }),
+            '{driver} — do not attempt {segment}. Rerouting you now. New waypoints pushed to your handset.', pkey:'chat.flood.driver', vars:{ driver: NAME.driver, segment: blocked[0] || t('the ford') },
             kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}${before ? `  (${dk>=0?'+':''}${fmt(dk,1)} km · ${dm>=0?'+':''}${Math.round(dm)} min)` : ''}` });
           steps.push({ from:'DRIVER', delay:1200, text:
-            tp('chat.flood.driverReply',
-               'Copy. I am at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.') });
+            'Copy. I am at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.', pkey:'chat.flood.driverReply', vars:null });
           steps.push({ from:'BOT', delay:900, channel:'BUYER', text:
-            tp('chat.flood.buyer',
-               '{buyer} — your delivery is rerouted around a flooded crossing. Revised drive time is {time} from pickup; contents and quantity unchanged.',
-               { buyer: NAME.buyer, time: minS(after.min) }) });
+            '{buyer} — your delivery is rerouted around a flooded crossing. Revised drive time is {time} from pickup; contents and quantity unchanged.', pkey:'chat.flood.buyer', vars:{ buyer: NAME.buyer, time: minS(after.min) } });
         }
         break;
       }
       case 'FLOOD_CLEAR': {
         const after = ctx && ctx.after;
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          tp('chat.floodClear.alert',
-             'Trafficability recovered to {pct}%. Primary crossing reopened; shortest-time path restored.',
-             { pct: fmt(s.traff,0) }) });
+          'Trafficability recovered to {pct}%. Primary crossing reopened; shortest-time path restored.', pkey:'chat.floodClear.alert', vars:{ pct: fmt(s.traff,0) } });
         if(after) steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          tp('chat.floodClear.driver', '{driver} — R-14 is passable again. Standard route reinstated.',
-             { driver: NAME.driver }),
+          '{driver} — R-14 is passable again. Standard route reinstated.', pkey:'chat.floodClear.driver', vars:{ driver: NAME.driver },
           kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}` });
         steps.push({ from:'DRIVER', delay:900, text:
-          tp('chat.floodClear.driverReply', 'Good, that saves me the long way round tomorrow.') });
+          'Good, that saves me the long way round tomorrow.', pkey:'chat.floodClear.driverReply', vars:null });
         break;
       }
       case 'HEAT': {
         steps.push({ from:'BOT', delay:500, severity:'serious', text:
-          tp('chat.heat.alert',
-             'HEATWAVE — surface temperature {temp}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.',
-             { temp: fmt(s.temp,1) }) });
+          'HEATWAVE — surface temperature {temp}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.', pkey:'chat.heat.alert', vars:{ temp: fmt(s.temp,1) } });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
-          tp('chat.heat.farmer',
-             '{farmer} — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.',
-             { farmer: NAME.farmer }) });
+          '{farmer} — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.', pkey:'chat.heat.farmer', vars:{ farmer: NAME.farmer } });
         steps.push({ from:'FARMER', delay:1100, text:
-          tp('chat.heat.farmerReply', 'Fine by me. We will start again around five.') });
+          'Fine by me. We will start again around five.', pkey:'chat.heat.farmerReply', vars:null });
         steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          tp('chat.heat.driver',
-             '{driver} — refrigerated unit required for today\'s run. Depot has been notified to pre-chill.',
-             { driver: NAME.driver }) });
+          '{driver} — refrigerated unit required for today\'s run. Depot has been notified to pre-chill.', pkey:'chat.heat.driver', vars:{ driver: NAME.driver } });
         break;
       }
       case 'HEAT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          tp('chat.heatClear.alert', 'Heat advisory cleared at {temp}°C. Standard collection windows restored.',
-             { temp: fmt(s.temp,1) }) });
+          'Heat advisory cleared at {temp}°C. Standard collection windows restored.', pkey:'chat.heatClear.alert', vars:{ temp: fmt(s.temp,1) } });
         break;
       }
       case 'DROUGHT': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          tp('chat.drought.alert',
-             'ROOT-ZONE STRESS — moisture at {pct}%, below the {floor}% stress floor. Stress index {idx}.',
-             { pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0), idx: fmt(s.stress,2) }) });
+          'ROOT-ZONE STRESS — moisture at {pct}%, below the {floor}% stress floor. Stress index {idx}.', pkey:'chat.drought.alert', vars:{ pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0), idx: fmt(s.stress,2) } });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
-          tp('chat.drought.farmer',
-             '{farmer} — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.',
-             { farmer: NAME.farmer }),
+          '{farmer} — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.', pkey:'chat.drought.farmer', vars:{ farmer: NAME.farmer },
           kv:`${t('moisture')} ${fmt(s.moisture,1)}% · ${t('stress')} ${fmt(s.stress,2)} · NDVI ${fmt(s.ndvi,3)}` });
         steps.push({ from:'FARMER', delay:1150, text:
-          tp('chat.drought.farmerReply',
-             'The pump is working. I will run it tonight when the line pressure is better.') });
+          'The pump is working. I will run it tonight when the line pressure is better.', pkey:'chat.drought.farmerReply', vars:null });
         break;
       }
       case 'DROUGHT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          tp('chat.droughtClear.alert', 'Root-zone moisture recovered to {pct}%. Irrigation advisory withdrawn.',
-             { pct: fmt(s.moisture,1) }) });
+          'Root-zone moisture recovered to {pct}%. Irrigation advisory withdrawn.', pkey:'chat.droughtClear.alert', vars:{ pct: fmt(s.moisture,1) } });
         break;
       }
       case 'NDVI': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          tp('chat.ndvi.alert',
-             'CANOPY VIGOUR — NDVI at {v}, below the {floor} health floor. Yield forecast revised down for the affected plots.',
-             { v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }) });
+          'CANOPY VIGOUR — NDVI at {v}, below the {floor} health floor. Yield forecast revised down for the affected plots.', pkey:'chat.ndvi.alert', vars:{ v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) } });
         steps.push({ from:'BOT', delay:850, channel:'BUYER', text:
-          tp('chat.ndvi.buyer',
-             '{buyer} — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I will propose a volume revision.',
-             { buyer: NAME.buyer }) });
+          '{buyer} — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I will propose a volume revision.', pkey:'chat.ndvi.buyer', vars:{ buyer: NAME.buyer } });
         break;
       }
       case 'NDVI_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          tp('chat.ndviClear.alert', 'NDVI recovered to {v}. Yield forecast restored.', { v: fmt(s.ndvi,3) }) });
+          'NDVI recovered to {v}. Yield forecast restored.', pkey:'chat.ndviClear.alert', vars:{ v: fmt(s.ndvi,3) } });
         break;
       }
       case 'SIGNAL_LOSS': {
         steps.push({ from:'BOT', delay:450, severity:'warning', text:
-          tp('chat.signalLoss.alert',
-             'DOWNLINK DEGRADED — all sources dropped to reacquisition. Operating on last known values; no autonomous order changes will be issued while the feed is stale.') });
+          'DOWNLINK DEGRADED — all sources dropped to reacquisition. Operating on last known values; no autonomous order changes will be issued while the feed is stale.', pkey:'chat.signalLoss.alert', vars:null });
         steps.push({ from:'DRIVER', delay:1000, text:
-          tp('chat.signalLoss.driverReply', 'Do I keep going on the last route you sent?') });
+          'Do I keep going on the last route you sent?', pkey:'chat.signalLoss.driverReply', vars:null });
         steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
-          tp('chat.signalLoss.driver',
-             'Yes — hold the current waypoints. The last pass is still within its validity window. I will push an update the moment the link is reacquired.') });
+          'Yes — hold the current waypoints. The last pass is still within its validity window. I will push an update the moment the link is reacquired.', pkey:'chat.signalLoss.driver', vars:null });
         break;
       }
       case 'RESTORE': {
         steps.push({ from:'BOT', delay:450, severity:'good', text:
-          tp('chat.restore.alert',
-             'Restore requested — all feeds reacquired and metrics converging on nominal. Advisories will clear individually as each metric crosses its release threshold.') });
+          'Restore requested — all feeds reacquired and metrics converging on nominal. Advisories will clear individually as each metric crosses its release threshold.', pkey:'chat.restore.alert', vars:null });
         break;
       }
     }
@@ -2929,7 +2901,7 @@ const EventEngine = (() => {
     State.data.alerts.delete(rule.id);
     Log.add('good', '{label} cleared',
       'Telemetry returned past the release threshold; autonomous actions reverted.',
-      { label: t(rule.label) });
+      { label: { t: rule.label } });
     try{ rule.onClear(); }catch(e){ console.error('[rule.onClear]', rule.id, e); }
   }
 
@@ -2973,7 +2945,7 @@ const EventEngine = (() => {
     const rule = RULES.find(r => r.id === id);
     if(rule) Log.add('info', 'Simulation injected',
       '{label} excursion queued on the {metric} feed — awaiting next downlink.',
-      { label: t(rule.label), metric: t(METRICS[rule.metric].label).toLowerCase() });
+      { label: { t: rule.label }, metric: { t: METRICS[rule.metric].label } });
   }
 
   return { evaluate, fire, RULES };
@@ -3586,9 +3558,13 @@ const Views = (() => {
   /* ---------- chat ---------- */
   /* Resolve a stored message to display text. Prose blocks win when present,
      then the plain string; a message the user typed is returned untouched. */
+  /* Resolve a stored message at paint time. `text` is always the English source;
+     `pkey` names a prose block when the line is long-form dialogue. A message
+     the user typed carries `mine` and is returned untouched — those are their
+     words, not ours to translate. */
   function msgText(m){
     if(m.mine) return m.text;
-    if(m.pkey) return tp(m.pkey, m.pen || m.text, m.vars);
+    if(m.pkey) return tp(m.pkey, m.text, m.vars);
     return t(m.text, m.vars);
   }
 
@@ -5006,14 +4982,21 @@ const Live = (() => {
   const soilRefs = () => SOIL;
 
   /** Human summary of where the current numbers come from and how old they are. */
+  /* Returns a source key and its variables rather than a finished sentence, so
+     the caller renders it in whatever language is active at paint time. `text`
+     is kept as a convenience for callers that just want it now. */
   function statusLine(){
-    if(!ready()) return { mode:'simulated', text:'Synthetic telemetry — no location loaded' };
+    if(!ready()) return { mode:'simulated', key:'Synthetic telemetry — no location loaded',
+                          vars:null, text:t('Synthetic telemetry — no location loaded') };
     const mins = Math.round(ageMs() / 60000);
-    const age = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` :
-                mins < 1440 ? `${Math.round(mins/60)} h ago` : `${Math.round(mins/1440)} d ago`;
-    if(!online())  return { mode:'cached', text:`Offline — last good reading ${age}`, ageMs: ageMs() };
-    if(!isFresh()) return { mode:'stale',  text:`Stale — fetched ${age}`, ageMs: ageMs() };
-    return { mode:'live', text:`Live — fetched ${age}`, ageMs: ageMs() };
+    const age = mins < 1 ? t('just now')
+              : mins < 60 ? t('{n} min ago', { n: mins })
+              : mins < 1440 ? t('{n} h ago', { n: Math.round(mins/60) })
+              : t('{n} d ago', { n: Math.round(mins/1440) });
+    const pick = !online() ? ['cached', 'Offline — last good reading {age}']
+               : !isFresh() ? ['stale',  'Stale — fetched {age}']
+               :              ['live',   'Live — fetched {age}'];
+    return { mode: pick[0], key: pick[1], vars: { age }, text: t(pick[1], { age }), ageMs: ageMs() };
   }
 
   function clear(){ current = null; }
@@ -5335,20 +5318,17 @@ const Agronomy = (() => {
 const I18n = (() => {
   /* Ordered roughly by speakers, weighted toward where smallholder agriculture
      is. `dir` drives document direction; `locale` drives Intl. */
+  /* Four languages, each maintained to full depth rather than a dozen kept as
+     headline-only stubs. Adding one back is a catalogue file plus a row here:
+     the engine, the RTL layout rules and the tests are all still in place, so
+     Arabic or Urdu can return without touching any of that machinery. */
   const LANGS = [
-    { code:'en', locale:'en',    dir:'ltr', name:'English',          endonym:'English' },
-    { code:'zh', locale:'zh-CN', dir:'ltr', name:'Chinese',          endonym:'中文（简体）' },
-    { code:'hi', locale:'hi-IN', dir:'ltr', name:'Hindi',            endonym:'हिन्दी' },
-    { code:'es', locale:'es',    dir:'ltr', name:'Spanish',          endonym:'Español' },
-    { code:'fr', locale:'fr',    dir:'ltr', name:'French',           endonym:'Français' },
-    { code:'ar', locale:'ar',    dir:'rtl', name:'Arabic',           endonym:'العربية' },
-    { code:'bn', locale:'bn-BD', dir:'ltr', name:'Bengali',          endonym:'বাংলা' },
-    { code:'pt', locale:'pt-BR', dir:'ltr', name:'Portuguese',       endonym:'Português' },
-    { code:'ru', locale:'ru',    dir:'ltr', name:'Russian',          endonym:'Русский' },
-    { code:'id', locale:'id',    dir:'ltr', name:'Indonesian',       endonym:'Bahasa Indonesia' },
-    { code:'sw', locale:'sw',    dir:'ltr', name:'Swahili',          endonym:'Kiswahili' },
-    { code:'ur', locale:'ur-PK', dir:'rtl', name:'Urdu',             endonym:'اردو' }
+    { code:'en', locale:'en',    dir:'ltr', name:'English',    endonym:'English' },
+    { code:'es', locale:'es',    dir:'ltr', name:'Spanish',    endonym:'Español' },
+    { code:'pt', locale:'pt-BR', dir:'ltr', name:'Portuguese', endonym:'Português' },
+    { code:'fr', locale:'fr',    dir:'ltr', name:'French',     endonym:'Français' }
   ];
+
 
   const STORE_KEY = 'aura-lang';
   let code = 'en';
@@ -5374,8 +5354,14 @@ const I18n = (() => {
     let out = (code !== 'en' && Object.prototype.hasOwnProperty.call(dict, key)) ? dict[key] : key;
     if(code !== 'en' && !Object.prototype.hasOwnProperty.call(dict, key)) missing.add(key);
     if(vars){
-      out = out.replace(/\{(\w+)\}/g, (m, name) =>
-        (vars[name] === undefined || vars[name] === null) ? m : String(vars[name]));
+      out = out.replace(/\{(\w+)\}/g, (m, name) => {
+        const v = vars[name];
+        if(v === undefined || v === null) return m;
+        // {t:'…'} means "this value is itself a source string" — translate it
+        // now, at paint time, rather than whenever the record was created.
+        if(typeof v === 'object' && v.t !== undefined) return t(v.t);
+        return String(v);
+      });
     }
     return out;
   }
@@ -6084,9 +6070,10 @@ const Search = (() => {
     if(res.payload){
       Log.add(res.source === 'cache' ? 'warning' : 'good',
         res.source === 'cache' ? 'Serving cached observations' : 'Live observations loaded',
-        `${place} — ${st.text}. ` + (region.synthesised
-          ? t('Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.')
-          : t('Built-in demo catchment.')));
+        region.synthesised
+          ? '{place} — {status}. Coordinates, elevation and telemetry are real; the plot layout and road graph around them are generated.'
+          : '{place} — {status}. Built-in demo catchment.',
+        { place, status: st.text });
       Console.post('BOT',
         t('Now monitoring {place}. {status}. Soil moisture and temperature are ECMWF/DWD land-surface model output, trafficability is derived from rain and river discharge, NDVI has no keyless point source and stays modelled.',
           { place, status: st.text }), {
