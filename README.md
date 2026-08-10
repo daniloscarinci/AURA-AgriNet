@@ -95,16 +95,19 @@ map and its legend, tiles and their provenance labels, the four decision cards,
 advisories, the event log, the agent's briefings and the whole seven-section
 manual. Verified empirically rather than by inspection: the app is rendered in
 each language, the DOM walked, and any remaining English reported. All three
-report zero. The chat and the advisory cards are swept the same way — every
-intent asked, every briefing played and every rule armed in English, then the
-language switched and the whole lot reread: 65 translated sources and 4
-advisories per language, zero English survivors, zero English decimal
-separators.
+report zero, and that walk is now a **test rather than a claim**: every intent
+asked, every briefing played and every rule armed in English, then the language
+switched and the whole lot reread — chat, advisory cards, the map and all three
+role panes, with a field in trouble so every branch is on screen. Up to 376
+translatable strings checked per language, zero English survivors, zero English
+decimal separators. Reverting a single `t()` names the exact label that broke.
 
-One surface is knowingly behind: the **role panes** below 1024px still hold
-around twenty English labels of their own (`My plots`, `Order book`, `Hold
-position`, `Next stop`) that were never routed through `t()`. The advisory cards
-inside those panes are translated; the furniture around them is not.
+Map labels follow too. Regions hold English source and `Geo.project` produces
+what is drawn, so a reprojection on language change relabels the catchment;
+a route stores node **ids**, never a snapshot of their names. Genuine proper
+nouns are left alone in every language — Bodija Market is a real market in
+Ibadan — while `Somanya Depot` turned out to be `<Place> Depot` and is built
+from its parts.
 
 Typing works in your own language too — each catalogue carries its own keyword
 list per intent, so `humedad del suelo` and `umidade do solo` reach the
@@ -166,7 +169,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 573 checks, no dependencies, no network
+node tests/run.js              # 577 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -187,3 +190,16 @@ strategy, no embedded credential).
 with a seeded PRNG, a virtual clock and a stubbed network — so the code under test is the
 code that ships, a 72-hour forecast can be exercised in milliseconds, and a suite run on a
 plane gives the same answer as one run at a desk.
+
+CI runs the same command on Node 20, 22 and 24 (`.github/workflows/tests.yml`). There is
+nothing to install and nothing to cache, because there are no dependencies.
+
+**What the suite cannot tell you:** it drives the shipped script against a *stub* DOM.
+Layout, the service worker, and anything that depends on a real rendering engine are
+outside it. Those are checked by opening the app.
+
+## Licence
+
+MIT — see `LICENSE`. The observations come from third parties on their own terms
+(Open-Meteo CC BY 4.0, Copernicus, NASA GIBS); attribution for each is shown in the app
+beside the numbers it produces.
