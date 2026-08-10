@@ -671,10 +671,6 @@ body{
 .langopt:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 .langopt .endo{ font-size:13px; font-weight:650; }
 .langopt .exo{ font-size:11px; color:var(--text-muted); flex:1; text-align:end; }
-/* An endonym must render in its own script's natural direction even inside an
-   LTR menu, and vice versa. */
-.langopt[data-dir="rtl"] .endo{ direction:rtl; unicode-bidi:isolate; }
-.langopt[data-dir="ltr"] .endo{ direction:ltr; unicode-bidi:isolate; }
 
 .tr-badge{
   display:inline-flex; align-items:center; gap:5px; margin-inline-start:6px;
@@ -682,41 +678,6 @@ body{
   letter-spacing:.06em; text-transform:uppercase;
   background:var(--warning-wash); color:var(--warning-ink); border:1px solid var(--warning-line);
 }
-
-/* ---------- right-to-left ----------
-   The stylesheet is written with logical properties where it matters, so this
-   block only has to handle the things that are genuinely physical. */
-[dir="rtl"] .search-icon{ left:auto; right:10px; }
-[dir="rtl"] .search-input{ padding-left:34px; padding-right:28px; }
-[dir="rtl"] .search-geo{ right:auto; left:6px; }
-[dir="rtl"] .fab{ right:auto; left:16px; }
-[dir="rtl"] .newpill{ left:auto; right:50%; transform:translateX(50%); }
-[dir="rtl"] .logrow{ border-left:none; border-right:2px solid transparent; }
-[dir="rtl"] .logrow.critical{ border-right-color:var(--critical); }
-[dir="rtl"] .logrow.warning { border-right-color:var(--warning); }
-[dir="rtl"] .logrow.serious { border-right-color:var(--serious); }
-[dir="rtl"] .logrow.good    { border-right-color:var(--good); }
-[dir="rtl"] .logrow.info    { border-right-color:var(--series-1); }
-[dir="rtl"] .doc .note{ border-left:none; border-right:2px solid var(--series-1); border-radius:9px 0 0 9px; }
-[dir="rtl"] .doc .note.warn{ border-right-color:var(--warning); }
-[dir="rtl"] .doc ul{ padding-left:0; padding-right:18px; }
-[dir="rtl"] .doc ol.steps li{ padding:0 34px 14px 0; border-left:none; border-right:1px solid var(--hairline);
-                              margin-left:0; margin-right:11px; }
-[dir="rtl"] .doc ol.steps li::before{ left:auto; right:-11px; }
-[dir="rtl"] .manual-toc{ border-right:none; border-left:1px solid var(--hairline); }
-[dir="rtl"] .rolebtn[aria-selected="true"]::before{ left:22%; right:22%; }
-
-/* Geography is not mirrored. A map, a chart and a route diagram mean the same
-   thing everywhere, so they stay LTR inside an RTL page. Same for the mission
-   clock and monospace readouts, which would otherwise reorder their digits. */
-[dir="rtl"] #fieldMap,
-[dir="rtl"] .thermal-wrap,
-[dir="rtl"] svg{ direction:ltr; }
-[dir="rtl"] .mono,
-[dir="rtl"] .tnum,
-[dir="rtl"] #missionClock,
-[dir="rtl"] .link-lat,
-[dir="rtl"] .msg-time{ direction:ltr; unicode-bidi:isolate; }
 
 /* ---------- satellite layers ---------- */
 .satbar{
@@ -2208,7 +2169,9 @@ const Dispatch = (() => {
     if(!State.data.route) return null;
     const ret = shortestPath(ROUTE_DEST, 'F3', false) || shortestPath(ROUTE_DEST, 'F3', true);
     if(!ret) return null;
-    return { path: ret.path.map(id => NODES[id].name), km: ret.km, min: ret.min };
+    // `path` is labels for immediate display; `ids` is what a stored line keeps,
+    // because a label is language-dependent and an id is not.
+    return { path: ret.path.map(id => NODES[id].name), ids: ret.path, km: ret.km, min: ret.min };
   }
 
   return { refreshEdges, recomputeRoute, buildRoute, blockedEdges, shortestPath,
@@ -2372,15 +2335,17 @@ const Console = (() => {
   const queue = [];
   let draining = false;
 
-  /* `text` is the ENGLISH SOURCE. `opts.vars` fills its placeholders and
-     `opts.pkey` names a prose block when the line is long-form dialogue; both
-     are resolved in Views.msgHtml, so the transcript retranslates on a language
-     change rather than freezing in the language it was written in. A message the
-     user typed carries `mine` and is never translated — it is their words. */
+  /* `text` is the ENGLISH SOURCE: one string, or a list of segments when the
+     line is assembled from several pieces. `opts.vars` fills its placeholders,
+     `opts.pkey` names a prose block when the line is long-form dialogue, and
+     `opts.kv` is a segment list too. All of it is resolved in Views.msgHtml, so
+     the transcript retranslates on a language change rather than freezing in the
+     language it was written in. A message the user typed carries `mine` and is
+     never translated — it is their words. */
   function post(fromId, text, opts){
     const p = PEOPLE[fromId] || PEOPLE.BOT;
     const msg = Object.assign({
-      id: ++seq, from: fromId, text, vars: null, pkey: null, kvKey: null,
+      id: ++seq, from: fromId, text, vars: null, pkey: null,
       t: State.data.clock,
       channel: p.channel,
       severity: null, mine: false, kv: null
@@ -2420,8 +2385,13 @@ const Console = (() => {
     }, think);
   }
 
-  const kmS  = v => fmt(v, 1) + ' km';
+  /* A distance carries a decimal separator, which is language, so it is stored
+     as segments. Whole minutes read the same in all four, so they are not. */
+  const kmS  = v => [amount(v, 1), ' km'];
   const minS = v => Math.round(v) + ' min';
+  /* A waypoint chain is map labels, and those change with the language, so it is
+     stored as node ids and read back when the line is painted. */
+  const wayS = path => path.reduce((out, id, i) => out.concat(i ? [' → ', mapNode(id)] : [mapNode(id)]), []);
 
   /** Event cascades. Every trigger produces a contextual multi-party thread
       whose numbers are read from live state at send time. */
@@ -2446,15 +2416,16 @@ const Console = (() => {
     switch(kind){
       case 'FROST': {
         steps.push({ from:'BOT', delay:500, severity:'critical', text:
-          'FROST EVENT — surface temperature {temp}°C at plot level, at or below the {floor}°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.', pkey:'chat.frost.alert', vars:{ temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) } });
+          'FROST EVENT — surface temperature {temp}°C at plot level, at or below the {floor}°C frost floor. Autonomous early-harvest protocol engaged for Plots F-1, F-2 and F-3.', pkey:'chat.frost.alert', vars:{ temp: amount(s.temp,1), floor: amount(CFG.THRESH.frostArm,1) } });
         steps.push({ from:'BOT', delay:800, channel:'FARMER', text:
           '{farmer} — harvest window moved forward. Please begin cutting Plot F-2 tomato within the next 4 hours. Canopy damage becomes irreversible after roughly 6 hours of sub-zero exposure.', pkey:'chat.frost.farmer', vars:{ farmer: NAME.farmer },
-          kv:`${t('Plot {id}', { id: 'F-2' })} · ${t('surface')} ${fmt(s.temp,1)}°C · NDVI ${fmt(s.ndvi,3)}` });
+          kv:[mapNode('F2'), ' · ', seg('surface'), ' ', amount(s.temp,1), '°C · NDVI ', amount(s.ndvi,3)] });
         steps.push({ from:'FARMER', delay:1200, text:
           'Understood. Starting on the north rows now. I can get maybe two thirds of it in before dark — the rest will be soft.', pkey:'chat.frost.farmerReply', vars:null });
         steps.push({ from:'BOT', delay:900, channel:'BUYER', severity:'warning', text:
           '{buyer} — frost-driven revision to your standing order. Volume reduced by {cut} crates and grade re-marked B. No price change applied; the revision is logged for review.', pkey:'chat.frost.buyer', vars:{ buyer: NAME.buyer, cut: (ctx && ctx.cut) ? ctx.cut : 0 },
-          kv:`ORD-4417 · ${State.data.orders[0].crates} ${t('crates')} · ${t('grade')} ${State.data.orders[0].grade}` });
+          kv:[`ORD-4417 · ${State.data.orders[0].crates} `, seg('crates'), ' · ', seg('grade'),
+              ` ${State.data.orders[0].grade}`] });
         steps.push({ from:'BUYER', delay:1100, text:
           'That works. Send whatever holds grade — I will move the softer stock through the lunch menu rather than retail.', pkey:'chat.frost.buyerReply', vars:null });
         steps.push({ from:'BOT', delay:850, channel:'DRIVER', text:
@@ -2463,7 +2434,7 @@ const Console = (() => {
       }
       case 'FROST_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          'Frost cleared — surface temperature recovered to {temp}°C. Harvest window returned to normal and withdrawn order volume reinstated.', pkey:'chat.frostClear.alert', vars:{ temp: fmt(s.temp,1) } });
+          'Frost cleared — surface temperature recovered to {temp}°C. Harvest window returned to normal and withdrawn order volume reinstated.', pkey:'chat.frostClear.alert', vars:{ temp: amount(s.temp,1) } });
         steps.push({ from:'BUYER', delay:900, text:
           'Good news. Back to the usual crate count then.', pkey:'chat.frostClear.buyerReply', vars:null });
         break;
@@ -2475,7 +2446,7 @@ const Console = (() => {
         // Written as two complete steps rather than a computed pair, so the key
         // and its English sit together where both a reader and the extractor can
         // see them.
-        const floodVars = { pct: fmt(s.traff,0), segments: blocked.join(', ') };
+        const floodVars = { pct: amount(s.traff,0), segments: blocked.join(', ') };
         if(blocked.length){
           steps.push({ from:'BOT', delay:500, severity:'critical',
             text: 'ROAD SATURATION — mean trafficability {pct}%. Segments {segments} below the passability floor.',
@@ -2489,8 +2460,10 @@ const Console = (() => {
           const dk = before ? after.km - before.km : 0;
           const dm = before ? after.min - before.min : 0;
           steps.push({ from:'BOT', delay:900, channel:'DRIVER', severity:'warning', text:
-            '{driver} — do not attempt {segment}. Rerouting you now. New waypoints pushed to your handset.', pkey:'chat.flood.driver', vars:{ driver: NAME.driver, segment: blocked[0] || t('the ford') },
-            kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}${before ? `  (${dk>=0?'+':''}${fmt(dk,1)} km · ${dm>=0?'+':''}${Math.round(dm)} min)` : ''}` });
+            '{driver} — do not attempt {segment}. Rerouting you now. New waypoints pushed to your handset.', pkey:'chat.flood.driver', vars:{ driver: NAME.driver, segment: blocked[0] || { t:'the ford' } },
+            kv:[...wayS(after.path), '\n', ...kmS(after.km), ` · ${minS(after.min)}`,
+                ...(before ? ['  (' + (dk>=0?'+':''), amount(dk,1),
+                              ` km · ${dm>=0?'+':''}${Math.round(dm)} min)`] : [])] });
           steps.push({ from:'DRIVER', delay:1200, text:
             'Copy. I am at the junction now — water is already over the causeway, so that call is right. Taking the southern loop.', pkey:'chat.flood.driverReply', vars:null });
           steps.push({ from:'BOT', delay:900, channel:'BUYER', text:
@@ -2501,17 +2474,17 @@ const Console = (() => {
       case 'FLOOD_CLEAR': {
         const after = ctx && ctx.after;
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          'Trafficability recovered to {pct}%. Primary crossing reopened; shortest-time path restored.', pkey:'chat.floodClear.alert', vars:{ pct: fmt(s.traff,0) } });
+          'Trafficability recovered to {pct}%. Primary crossing reopened; shortest-time path restored.', pkey:'chat.floodClear.alert', vars:{ pct: amount(s.traff,0) } });
         if(after) steps.push({ from:'BOT', delay:800, channel:'DRIVER', text:
           '{driver} — R-14 is passable again. Standard route reinstated.', pkey:'chat.floodClear.driver', vars:{ driver: NAME.driver },
-          kv:`${after.waypoints.join(' → ')}\n${kmS(after.km)} · ${minS(after.min)}` });
+          kv:[...wayS(after.path), '\n', ...kmS(after.km), ` · ${minS(after.min)}`] });
         steps.push({ from:'DRIVER', delay:900, text:
           'Good, that saves me the long way round tomorrow.', pkey:'chat.floodClear.driverReply', vars:null });
         break;
       }
       case 'HEAT': {
         steps.push({ from:'BOT', delay:500, severity:'serious', text:
-          'HEATWAVE — surface temperature {temp}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.', pkey:'chat.heat.alert', vars:{ temp: fmt(s.temp,1) } });
+          'HEATWAVE — surface temperature {temp}°C. Cold-chain protocol engaged: collection windows shifted to pre-dawn and post-dusk.', pkey:'chat.heat.alert', vars:{ temp: amount(s.temp,1) } });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
           '{farmer} — hold harvesting through the midday peak. Field heat at this level shortens shelf life by roughly a third before the produce reaches the depot.', pkey:'chat.heat.farmer', vars:{ farmer: NAME.farmer } });
         steps.push({ from:'FARMER', delay:1100, text:
@@ -2522,34 +2495,35 @@ const Console = (() => {
       }
       case 'HEAT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          'Heat advisory cleared at {temp}°C. Standard collection windows restored.', pkey:'chat.heatClear.alert', vars:{ temp: fmt(s.temp,1) } });
+          'Heat advisory cleared at {temp}°C. Standard collection windows restored.', pkey:'chat.heatClear.alert', vars:{ temp: amount(s.temp,1) } });
         break;
       }
       case 'DROUGHT': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          'ROOT-ZONE STRESS — moisture at {pct}%, below the {floor}% stress floor. Stress index {idx}.', pkey:'chat.drought.alert', vars:{ pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0), idx: fmt(s.stress,2) } });
+          'ROOT-ZONE STRESS — moisture at {pct}%, below the {floor}% stress floor. Stress index {idx}.', pkey:'chat.drought.alert', vars:{ pct: amount(s.moisture,1), floor: amount(CFG.THRESH.moistArm,0), idx: amount(s.stress,2) } });
         steps.push({ from:'BOT', delay:850, channel:'FARMER', text:
           '{farmer} — irrigation advised on Plot F-2 within 48 hours. At current depletion the root zone reaches wilting point in about three days.', pkey:'chat.drought.farmer', vars:{ farmer: NAME.farmer },
-          kv:`${t('moisture')} ${fmt(s.moisture,1)}% · ${t('stress')} ${fmt(s.stress,2)} · NDVI ${fmt(s.ndvi,3)}` });
+          kv:[seg('moisture'), ' ', amount(s.moisture,1), '% · ', seg('stress'), ' ', amount(s.stress,2),
+              ' · NDVI ', amount(s.ndvi,3)] });
         steps.push({ from:'FARMER', delay:1150, text:
           'The pump is working. I will run it tonight when the line pressure is better.', pkey:'chat.drought.farmerReply', vars:null });
         break;
       }
       case 'DROUGHT_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          'Root-zone moisture recovered to {pct}%. Irrigation advisory withdrawn.', pkey:'chat.droughtClear.alert', vars:{ pct: fmt(s.moisture,1) } });
+          'Root-zone moisture recovered to {pct}%. Irrigation advisory withdrawn.', pkey:'chat.droughtClear.alert', vars:{ pct: amount(s.moisture,1) } });
         break;
       }
       case 'NDVI': {
         steps.push({ from:'BOT', delay:500, severity:'warning', text:
-          'CANOPY VIGOUR — NDVI at {v}, below the {floor} health floor. Yield forecast revised down for the affected plots.', pkey:'chat.ndvi.alert', vars:{ v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) } });
+          'CANOPY VIGOUR — NDVI at {v}, below the {floor} health floor. Yield forecast revised down for the affected plots.', pkey:'chat.ndvi.alert', vars:{ v: amount(s.ndvi,3), floor: amount(CFG.THRESH.ndviArm,2) } });
         steps.push({ from:'BOT', delay:850, channel:'BUYER', text:
           '{buyer} — early notice, no action needed yet: canopy vigour is declining on the tomato plots. If it holds two more cycles I will propose a volume revision.', pkey:'chat.ndvi.buyer', vars:{ buyer: NAME.buyer } });
         break;
       }
       case 'NDVI_CLEAR': {
         steps.push({ from:'BOT', delay:500, severity:'good', text:
-          'NDVI recovered to {v}. Yield forecast restored.', pkey:'chat.ndviClear.alert', vars:{ v: fmt(s.ndvi,3) } });
+          'NDVI recovered to {v}. Yield forecast restored.', pkey:'chat.ndviClear.alert', vars:{ v: amount(s.ndvi,3) } });
         break;
       }
       case 'SIGNAL_LOSS': {
@@ -2595,8 +2569,9 @@ const Console = (() => {
      quick-reply buttons deliberately send English so they keep working after a
      language switch, and a grower who knows the English term for a product
      should not be penalised for using it. The active language's own keywords are
-     tried second, as substring matches -- word boundaries are meaningless in
-     Chinese and unreliable in agglutinative languages like Kiswahili. */
+     tried second, as substring matches rather than whole words, so an inflected
+     or contracted form -- "l'humidité", "umidade" inside "umidades" -- still
+     lands on its intent. */
   function match(text){
     const hit = INTENTS.find(i => i.re.test(text));
     if(hit) return hit.id;
@@ -2610,142 +2585,166 @@ const Console = (() => {
     return 'fallback';
   }
 
-  /** Persona-aware replies. Every number is read from live state. */
+  /** Persona-aware replies. Every number is read from live state and frozen into
+      the answer; every sentence stays English source. The reply is therefore a
+      SEGMENT LIST, not a finished string — which is what lets an answer given in
+      one language be reread in another instead of stranding the transcript. */
   function reply(intent, persona){
     const s = State.data.latest;
     const r = State.data.route;
     const alerts = [...State.data.alerts.values()];
-    const ts = clockStr(State.data.clock);
+    const ts = instant(State.data.clock);
 
     switch(intent){
       case 'help':
-        return { text: t('I track live observations and act on what they show. Ask me about: soil moisture · frost and temperature · NDVI crop health · road conditions and your route · order quantities · backhaul. Say "status" for the full picture.') };
+        return { text: [seg('I track live observations and act on what they show. Ask me about: soil moisture · frost and temperature · NDVI crop health · road conditions and your route · order quantities · backhaul. Say "status" for the full picture.')] };
 
       case 'status': {
         const line = alerts.length
-          ? alerts.map(a => `${SEV[a.severity].icon} ${a.label}`).join(' · ')
-          : '✓ ' + t('no active advisories');
+          ? alerts.map(a => ({ t: a.label, pre: SEV[a.severity].icon + ' ' }))
+          : [{ t: 'no active advisories', pre: '✓ ' }];
         return {
-          text: t('Field readiness {n}/100 — {posture}. {advisories}.',
-            { n: State.data.readiness, posture: t(SEV[State.data.posture].word).toLowerCase(), advisories: line }),
-          kv:`${t('moisture')} ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\n` +
-             `${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('trafficability')} ${fmt(s.traff,0)}%\n` +
-             `${t('route')} ${r ? fmt(r.km,1)+' km / '+Math.round(r.min)+' min' : t('n/a')}  ·  ${Orders.total()} ${t('crates booked')}\n` +
-             `${t('last downlink')} ${ts} UTC`
+          text: [seg('Field readiness {n}/100 — {posture}. {advisories}.',
+            { n: State.data.readiness,
+              posture: { t: SEV[State.data.posture].word, lower: true },
+              advisories: line })],
+          kv:[seg('moisture'), ' ', amount(s.moisture,1), '%  ·  NDVI ', amount(s.ndvi,3), '\n',
+              seg('surface'), ' ', amount(s.temp,1), '°C  ·  ', seg('trafficability'), ' ', amount(s.traff,0), '%\n',
+              seg('route'), ' ', ...(r ? [amount(r.km,1), ` km / ${minS(r.min)}`] : [seg('n/a')]),
+              `  ·  ${Orders.total()} `, seg('crates booked'), '\n',
+              seg('last downlink'), ' ', ts, ' UTC']
         };
       }
 
       case 'moisture': {
         const stressed = s.moisture <= CFG.THRESH.moistArm;
-        if(persona === 'BUYER') return { text: t('Root-zone moisture on the supplying plots is {pct}% ({ts} UTC).', { pct: fmt(s.moisture,1), ts }) + ' ' +
-          (stressed ? t('Below the stress floor — I may propose a volume revision if it holds.')
-                    : t('Comfortably above the stress floor, so no supply impact expected.')) };
-        if(persona === 'DRIVER') return { text: t('Moisture reaches you only through the roads — trafficability is {traff}% right now. Soil moisture itself is {pct}%.',
-          { traff: fmt(s.traff,0), pct: fmt(s.moisture,1) }) };
+        if(persona === 'BUYER') return { text: [
+          seg('Root-zone moisture on the supplying plots is {pct}% ({ts} UTC).', { pct: amount(s.moisture,1), ts }),
+          stressed ? seg('Below the stress floor — I may propose a volume revision if it holds.')
+                   : seg('Comfortably above the stress floor, so no supply impact expected.')] };
+        if(persona === 'DRIVER') return { text: [
+          seg('Moisture reaches you only through the roads — trafficability is {traff}% right now. Soil moisture itself is {pct}%.',
+            { traff: amount(s.traff,0), pct: amount(s.moisture,1) })] };
         // Quote the plot's own reading, then state plainly how it was derived.
         // At 9 km all three plots share one SMAP pixel, so this is a downscaled
         // estimate and must not be presented as a plot-level measurement.
         const pr = (State.data.plots.F2 || {}).moisture;
         const peers = Telemetry.pixelPeers('F2', 'moisture');
-        const prov = pr
-          ? (pr.downscaled
-              ? t('Downscaled from a {res} km {src} cell shared with {peers} — confidence {conf}, field mean {mean}%.',
-                  { res: (pr.pixelM/1000), src: pr.src,
-                    peers: peers.length ? peers.map(p => NODES[p].name).join(' ' + t('and') + ' ') : t('no other plot'),
-                    conf: fmt(pr.confidence,2), mean: fmt(s.moisture,1) })
-              : t('Resolved directly at {res} m — confidence {conf}.',
-                  { res: pr.pixelM, conf: fmt(pr.confidence,2) }))
-          : '';
-        const val = pr ? pr.v : s.moisture;
+        const prov = !pr ? null
+          : pr.downscaled
+            ? seg('Downscaled from a {res} km {src} cell shared with {peers} — confidence {conf}, field mean {mean}%.',
+                { res: amount(pr.pixelM/1000), src: pr.src,
+                  peers: peers.length ? { list: peers.map(mapNode) } : { t: 'no other plot' },
+                  conf: amount(pr.confidence,2), mean: amount(s.moisture,1) })
+            : seg('Resolved directly at {res} m — confidence {conf}.',
+                { res: pr.pixelM, conf: amount(pr.confidence,2) });
+        const reading = pr ? pr.v : s.moisture;
         return {
-          text: t('Plot F-2 root-zone moisture is {pct}% ({src}, {ts} UTC).',
-              { pct: fmt(val,1), src: pr && pr.src ? pr.src : t('model'), ts }) + ' ' +
-            (stressed
-              ? t('Below the {floor}% stress floor — irrigation advised within 48 hours.', { floor: fmt(CFG.THRESH.moistArm,0) })
-              : t('Above the {floor}% stress floor. No irrigation needed.', { floor: fmt(CFG.THRESH.moistArm,0) })) +
-            (prov ? ' ' + prov : ''),
-          kv:`${t('plot')} F-2 ${fmt(val,1)}%  ·  ${t('field mean')} ${fmt(s.moisture,1)}%  ·  ${t('stress')} ${fmt(s.stress,2)}\n` +
-             `${t('cell')} ${pr ? (pr.pixelM >= 1000 ? (pr.pixelM/1000)+' km' : pr.pixelM+' m') : '—'}  ·  ${t('confidence')} ${pr ? fmt(pr.confidence,2) : '—'}  ·  ${pr && pr.downscaled ? t('DOWNSCALED ESTIMATE') : t('resolves per plot')}`
+          text: [
+            seg('Plot F-2 root-zone moisture is {pct}% ({src}, {ts} UTC).',
+              { pct: amount(reading,1), src: pr && pr.src ? pr.src : { t:'model' }, ts }),
+            stressed
+              ? seg('Below the {floor}% stress floor — irrigation advised within 48 hours.', { floor: amount(CFG.THRESH.moistArm,0) })
+              : seg('Above the {floor}% stress floor. No irrigation needed.', { floor: amount(CFG.THRESH.moistArm,0) }),
+            prov],
+          kv:[seg('plot'), ' F-2 ', amount(reading,1), '%  ·  ', seg('field mean'), ' ', amount(s.moisture,1), '%  ·  ',
+              seg('stress'), ' ', amount(s.stress,2), '\n',
+              seg('cell'), ` ${pr ? (pr.pixelM >= 1000 ? (pr.pixelM/1000)+' km' : pr.pixelM+' m') : '—'}  ·  `,
+              seg('confidence'), ' ', pr ? amount(pr.confidence,2) : '—', '  ·  ',
+              pr && pr.downscaled ? seg('DOWNSCALED ESTIMATE') : seg('resolves per plot')]
         };
       }
 
       case 'frost': {
         const frost = s.temp <= CFG.THRESH.frostArm;
         const heat  = s.temp >= CFG.THRESH.heatArm;
-        const win   = Dispatch.getHarvestWindow() === 'EARLY' ? t('early-harvest') : t('normal');
-        if(persona === 'BUYER') return { text: t('Surface temperature is {temp}°C.', { temp: fmt(s.temp,1) }) + ' ' +
-          (frost ? t('Frost protocol is active, so your order has been revised — see the last revision note.')
-                 : heat ? t('Heat protocol is active; cold chain is engaged but quantities are unchanged.')
-                        : t('Nothing thermal affecting your order.')) };
-        if(persona === 'DRIVER') return { text: t('{temp}°C at surface.', { temp: fmt(s.temp,1) }) + ' ' +
-          (heat ? t('Refrigerated unit required today.')
-                : frost ? t('Pickup pulled forward to the early window — load will be lighter.')
-                        : t('No thermal impact on your run.')) };
+        const win   = Dispatch.getHarvestWindow() === 'EARLY' ? seg('early-harvest') : seg('normal');
+        if(persona === 'BUYER') return { text: [
+          seg('Surface temperature is {temp}°C.', { temp: amount(s.temp,1) }),
+          frost ? seg('Frost protocol is active, so your order has been revised — see the last revision note.')
+                : heat ? seg('Heat protocol is active; cold chain is engaged but quantities are unchanged.')
+                       : seg('Nothing thermal affecting your order.')] };
+        if(persona === 'DRIVER') return { text: [
+          seg('{temp}°C at surface.', { temp: amount(s.temp,1) }),
+          heat ? seg('Refrigerated unit required today.')
+               : frost ? seg('Pickup pulled forward to the early window — load will be lighter.')
+                       : seg('No thermal impact on your run.')] };
         return {
-          text: t('Surface temperature is {temp}°C ({ts} UTC).', { temp: fmt(s.temp,1), ts }) + ' ' +
-            (frost ? t('At or below the frost floor — cut Plot F-2 within 4 hours.')
-                   : heat ? t('Above the heat threshold — hold harvesting through the midday peak.')
-                          : t('Above the {floor}°C frost floor, so the harvest window stays {win}.',
-                              { floor: fmt(CFG.THRESH.frostArm,1), win })),
-          kv:`${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('frost floor')} ${fmt(CFG.THRESH.frostArm,1)}°C  ·  ${t('window')} ${win}`
+          text: [
+            seg('Surface temperature is {temp}°C ({ts} UTC).', { temp: amount(s.temp,1), ts }),
+            frost ? seg('At or below the frost floor — cut Plot F-2 within 4 hours.')
+                  : heat ? seg('Above the heat threshold — hold harvesting through the midday peak.')
+                         : seg('Above the {floor}°C frost floor, so the harvest window stays {win}.',
+                             { floor: amount(CFG.THRESH.frostArm,1), win: { t: win.s } })],
+          kv:[seg('surface'), ' ', amount(s.temp,1), '°C  ·  ', seg('frost floor'), ' ',
+              amount(CFG.THRESH.frostArm,1), '°C  ·  ', seg('window'), ' ', win]
         };
       }
 
       case 'ndvi': {
         const low = s.ndvi <= CFG.THRESH.ndviArm;
         return {
-          text: t('NDVI reads {v} across the monitored plots ({ts} UTC).', { v: fmt(s.ndvi,3), ts }) + ' ' +
-            (low ? t('Below the {floor} health floor — canopy vigour is declining and the yield forecast is revised down.', { floor: fmt(CFG.THRESH.ndviArm,2) })
-                 : t('Above the {floor} health floor; canopy vigour is healthy.', { floor: fmt(CFG.THRESH.ndviArm,2) })),
-          kv:`NDVI ${fmt(s.ndvi,3)}  ·  ${t('floor')} ${fmt(CFG.THRESH.ndviArm,2)}  ·  ${t('moisture')} ${fmt(s.moisture,1)}%`
+          text: [
+            seg('NDVI reads {v} across the monitored plots ({ts} UTC).', { v: amount(s.ndvi,3), ts }),
+            low
+              ? seg('Below the {floor} health floor — canopy vigour is declining and the yield forecast is revised down.', { floor: amount(CFG.THRESH.ndviArm,2) })
+              : seg('Above the {floor} health floor; canopy vigour is healthy.', { floor: amount(CFG.THRESH.ndviArm,2) })],
+          kv:['NDVI ', amount(s.ndvi,3), '  ·  ', seg('floor'), ' ', amount(CFG.THRESH.ndviArm,2), '  ·  ',
+              seg('moisture'), ' ', amount(s.moisture,1), '%']
         };
       }
 
       case 'route': {
-        if(!r) return { text: t('No active route computed yet — waiting on the first downlink.') };
+        if(!r) return { text: [seg('No active route computed yet — waiting on the first downlink.')] };
         const blocked = Dispatch.blockedEdges();
         if(r.fallback) return {
-          text: t('Every path to the depot currently crosses an impassable segment — {segments}. Do not depart. Hold at {origin} until a crossing reopens; the waypoints below are the least-bad option and are NOT cleared for use.',
-            { segments: blocked.map(e=>e.id).join(', '), origin: NODES[ROUTE_ORIGIN].name }),
-          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min · ⚠ ${t('NOT CLEARED')}`
+          text: [seg('Every path to the depot currently crosses an impassable segment — {segments}. Do not depart. Hold at {origin} until a crossing reopens; the waypoints below are the least-bad option and are NOT cleared for use.',
+            { segments: blocked.map(e=>e.id).join(', '), origin: mapNode(ROUTE_ORIGIN) })],
+          kv:[...wayS(r.path), '\n', ...kmS(r.km), ` · ${minS(r.min)} · ⚠ `, seg('NOT CLEARED')]
         };
         const base = State.data.baselineRoute;
         const dk = base ? r.km - base.km : 0;
         return {
-          text: (blocked.length
-              ? t('Segments {segments} are below the passability floor, so the route avoids them.',
+          text: [
+            blocked.length
+              ? seg('Segments {segments} are below the passability floor, so the route avoids them.',
                   { segments: blocked.map(e=>e.id).join(', ') })
-              : t('All segments passable — you are on the shortest-time path.')) + ' ' +
-            t('Mean trafficability {pct}% ({ts} UTC).', { pct: fmt(s.traff,0), ts }),
-          kv:`${r.waypoints.join(' → ')}\n${fmt(r.km,1)} km · ${Math.round(r.min)} min${Math.abs(dk) > 0.05 ? `  (${dk>=0?'+':''}${fmt(dk,1)} km ${t('vs clear-weather path')})` : ''}`
+              : seg('All segments passable — you are on the shortest-time path.'),
+            seg('Mean trafficability {pct}% ({ts} UTC).', { pct: amount(s.traff,0), ts })],
+          kv:[...wayS(r.path), '\n', ...kmS(r.km), ` · ${minS(r.min)}`,
+              ...(Math.abs(dk) > 0.05
+                    ? ['  (' + (dk>=0?'+':''), amount(dk,1), ' km ', seg('vs clear-weather path'), ')']
+                    : [])]
         };
       }
 
       case 'order': {
         const revised = State.data.orders.filter(o => o.status === 'revised');
         return {
-          text: revised.length
-            ? t('{n} of {total} orders are currently revised — {cut} crates withdrawn against a booked {booked}. Revisions reverse automatically when the triggering advisory clears.',
+          text: [revised.length
+            ? seg('{n} of {total} orders are currently revised — {cut} crates withdrawn against a booked {booked}. Revisions reverse automatically when the triggering advisory clears.',
                 { n: revised.length, total: State.data.orders.length,
                   cut: Orders.baseTotal() - Orders.total(), booked: Orders.baseTotal() })
-            : t('All {n} orders stand at their booked quantities — {crates} crates total. No autonomous revisions are active.',
-                { n: State.data.orders.length, crates: Orders.total() }),
-          kv: State.data.orders.map(o => `${o.id}  ${String(o.crates).padStart(3)} ${t('cr')}  ${t('grade')} ${o.grade}  ${t(o.status)}`).join('\n')
+            : seg('All {n} orders stand at their booked quantities — {crates} crates total. No autonomous revisions are active.',
+                { n: State.data.orders.length, crates: Orders.total() })],
+          kv: State.data.orders.reduce((out, o, i) => out.concat([
+                `${i ? '\n' : ''}${o.id}  ${String(o.crates).padStart(3)} `, seg('cr'), '  ',
+                seg('grade'), ` ${o.grade}  `, seg(o.status)]), [])
         };
       }
 
       case 'backhaul': {
         const bh = Dispatch.backhaul();
-        if(!bh) return { text: t('No backhaul leg available on the current network state.') };
+        if(!bh) return { text: [seg('No backhaul leg available on the current network state.')] };
         return {
-          text: t('Backhaul optimised: after the depot drop you collect from Plot F-3 on the return rather than running empty. That recovers roughly {km} km of otherwise unloaded distance.',
-            { km: fmt(bh.km,1) }),
-          kv:`${bh.path.join(' → ')}\n${fmt(bh.km,1)} km · ${Math.round(bh.min)} min ${t('return leg')}`
+          text: [seg('Backhaul optimised: after the depot drop you collect from Plot F-3 on the return rather than running empty. That recovers roughly {km} km of otherwise unloaded distance.',
+            { km: amount(bh.km,1) })],
+          kv:[...wayS(bh.ids), '\n', ...kmS(bh.km), ` · ${minS(bh.min)} `, seg('return leg')]
         };
       }
 
       default:
-        return { text: t('I did not match that to a live data channel. I can answer on soil moisture, frost and temperature, NDVI crop health, roads and routing, order quantities, or backhaul. Try "status" for everything at once.') };
+        return { text: [seg('I did not match that to a live data channel. I can answer on soil moisture, frost and temperature, NDVI crop health, roads and routing, order quantities, or backhaul. Try "status" for everything at once.')] };
     }
   }
 
@@ -2763,12 +2762,13 @@ const Console = (() => {
 
   function greet(){
     const s = State.data.latest;
-    post('SYSTEM', t('Secure channel established · AURA-AgriNet 1.0 · 5 participants'), { channel:'ALL' });
+    post('SYSTEM', 'Secure channel established · AURA-AgriNet 1.0 · 5 participants', { channel:'ALL' });
     play([
-      { from:'BOT', delay:600, text: t('Good morning. I am monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.'),
-        kv:`${t('moisture')} ${fmt(s.moisture,1)}%  ·  NDVI ${fmt(s.ndvi,3)}\n${t('surface')} ${fmt(s.temp,1)}°C  ·  ${t('trafficability')} ${fmt(s.traff,0)}%` },
-      { from:'FARMER', delay:1000, text: t('Morning. Anything I should worry about on F-2 today?') },
-      { from:'BOT', delay:900, channel:'FARMER', text: t('Nothing yet. I will message you directly the moment any threshold is crossed — you do not need to watch the feed.') }
+      { from:'BOT', delay:600, text:'Good morning. I am monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.',
+        kv:[seg('moisture'), ' ', amount(s.moisture,1), '%  ·  NDVI ', amount(s.ndvi,3), '\n',
+            seg('surface'), ' ', amount(s.temp,1), '°C  ·  ', seg('trafficability'), ' ', amount(s.traff,0), '%'] },
+      { from:'FARMER', delay:1000, text:'Morning. Anything I should worry about on F-2 today?' },
+      { from:'BOT', delay:900, channel:'FARMER', text:'Nothing yet. I will message you directly the moment any threshold is crossed — you do not need to watch the feed.' }
     ]);
   }
 
@@ -2787,9 +2787,7 @@ const EventEngine = (() => {
       arm:   s => s.temp !== null && s.temp <= CFG.THRESH.frostArm,
       clear: s => s.temp !== null && s.temp >= CFG.THRESH.frostClear,
       detailKey: 'Surface temperature {temp}°C — at or below the {floor}°C frost floor.',
-      detailVars: s => ({ temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }),
-      detail: s => t('Surface temperature {temp}°C — at or below the {floor}°C frost floor.',
-                      { temp: fmt(s.temp,1), floor: fmt(CFG.THRESH.frostArm,1) }),
+      detailVars: s => ({ temp: amount(s.temp,1), floor: amount(CFG.THRESH.frostArm,1) }),
       onArm(){
         // Per-plot temperature decides which plots are actually frosted; only the
         // crops grown there can affect an order.
@@ -2813,9 +2811,7 @@ const EventEngine = (() => {
       arm:   s => s.temp !== null && s.temp >= CFG.THRESH.heatArm,
       clear: s => s.temp !== null && s.temp <= CFG.THRESH.heatClear,
       detailKey: 'Surface temperature {temp}°C — heat stress threshold exceeded.',
-      detailVars: s => ({ temp: fmt(s.temp,1) }),
-      detail: s => t('Surface temperature {temp}°C — heat stress threshold exceeded.',
-                      { temp: fmt(s.temp,1) }),
+      detailVars: s => ({ temp: amount(s.temp,1) }),
       onArm(){ Dispatch.setColdChain(true);  Console.cascade('HEAT', {}); },
       onClear(){ Dispatch.setColdChain(false); Console.cascade('HEAT_CLEAR', {}); }
     },
@@ -2824,9 +2820,7 @@ const EventEngine = (() => {
       arm:   s => s.traff !== null && s.traff <= CFG.THRESH.traffArm,
       clear: s => s.traff !== null && s.traff >= CFG.THRESH.traffClear,
       detailKey: 'Mean trafficability {pct}% — rural segments saturating.',
-      detailVars: s => ({ pct: fmt(s.traff,0) }),
-      detail: s => t('Mean trafficability {pct}% — rural segments saturating.',
-                      { pct: fmt(s.traff,0) }),
+      detailVars: s => ({ pct: amount(s.traff,0) }),
       onArm(){
         const before = State.data.route;
         const after  = Dispatch.recomputeRoute();
@@ -2842,9 +2836,7 @@ const EventEngine = (() => {
       arm:   s => s.moisture !== null && s.moisture <= CFG.THRESH.moistArm,
       clear: s => s.moisture !== null && s.moisture >= CFG.THRESH.moistClear,
       detailKey: 'Root-zone moisture {pct}% — below the {floor}% stress floor.',
-      detailVars: s => ({ pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0) }),
-      detail: s => t('Root-zone moisture {pct}% — below the {floor}% stress floor.',
-                      { pct: fmt(s.moisture,1), floor: fmt(CFG.THRESH.moistArm,0) }),
+      detailVars: s => ({ pct: amount(s.moisture,1), floor: amount(CFG.THRESH.moistArm,0) }),
       onArm(){ Console.cascade('DROUGHT', {}); },
       onClear(){ Console.cascade('DROUGHT_CLEAR', {}); }
     },
@@ -2853,9 +2845,7 @@ const EventEngine = (() => {
       arm:   s => s.ndvi !== null && s.ndvi <= CFG.THRESH.ndviArm,
       clear: s => s.ndvi !== null && s.ndvi >= CFG.THRESH.ndviClear,
       detailKey: 'NDVI {v} — canopy vigour below the {floor} health floor.',
-      detailVars: s => ({ v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }),
-      detail: s => t('NDVI {v} — canopy vigour below the {floor} health floor.',
-                      { v: fmt(s.ndvi,3), floor: fmt(CFG.THRESH.ndviArm,2) }),
+      detailVars: s => ({ v: amount(s.ndvi,3), floor: amount(CFG.THRESH.ndviArm,2) }),
       onArm(){ Console.cascade('NDVI', {}); },
       onClear(){ Console.cascade('NDVI_CLEAR', {}); }
     }
@@ -2888,10 +2878,15 @@ const EventEngine = (() => {
     State.emit('tick');
   }
 
+  /* An advisory outlives the moment it armed — it sits on the hero and on the
+     role cards until it clears — so it stores the same key-and-variables the log
+     does rather than a sentence. `label` is English source too, translated where
+     it is shown. Both are read in whatever language is active then, not the one
+     the threshold happened to be crossed in. */
   function arm(rule, s){
     State.data.alerts.set(rule.id, {
       id: rule.id, label: rule.label, severity: rule.severity,
-      since: State.data.clock, detail: rule.detail(s)
+      since: State.data.clock, detailKey: rule.detailKey, vars: rule.detailVars(s)
     });
     Log.add(rule.severity, rule.label, rule.detailKey, rule.detailVars(s));
     try{ rule.onArm(); }catch(e){ console.error('[rule.onArm]', rule.id, e); }
@@ -3068,13 +3063,13 @@ const Views = (() => {
 
     const chip = el('heroPosture');
     chip.className = 'chip ' + d.posture;
-    chip.innerHTML = `<span class="chip-icon">${SEV[d.posture].icon}</span><span>${SEV[d.posture].word}</span>`;
+    chip.innerHTML = `<span class="chip-icon">${SEV[d.posture].icon}</span><span>${esc(t(SEV[d.posture].word))}</span>`;
 
     const rank = { critical:0, serious:1, warning:2 };
     const alerts = [...d.alerts.values()].sort((a,b) => rank[a.severity] - rank[b.severity]);
     el('heroNote').textContent = alerts.length
-      ? alerts[0].detail
-      : 'All four orbital feeds within nominal bands. No autonomous interventions active.';
+      ? t(alerts[0].detailKey, alerts[0].vars)
+      : t('All four orbital feeds within nominal bands. No autonomous interventions active.');
   }
 
   /* ---------- stat tiles ---------- */
@@ -3556,16 +3551,51 @@ const Views = (() => {
   }
 
   /* ---------- chat ---------- */
-  /* Resolve a stored message to display text. Prose blocks win when present,
-     then the plain string; a message the user typed is returned untouched. */
-  /* Resolve a stored message at paint time. `text` is always the English source;
-     `pkey` names a prose block when the line is long-form dialogue. A message
-     the user typed carries `mine` and is returned untouched — those are their
-     words, not ours to translate. */
+  /* Map labels are rebuilt in the active language every time a region loads, so
+     a stored line keeps the node id and reads the label back here instead of
+     freezing the words. Walks into arrays and {list:…} so a chain of waypoints
+     or a set of neighbouring plots resolves the same way a single one does. */
+  const nodeName = id => (NODES[id] && NODES[id].name) || id;
+  function liveVar(v){
+    if(Array.isArray(v)) return v.map(liveVar);
+    if(v && typeof v === 'object'){
+      if(v.n !== undefined) return nodeName(v.n);
+      if(Array.isArray(v.list)) return { list: v.list.map(liveVar) };
+    }
+    return v;
+  }
+  const liveVars = vars => {
+    if(!vars) return vars;
+    const out = {};
+    Object.keys(vars).forEach(k => { out[k] = liveVar(vars[k]); });
+    return out;
+  };
+
+  /** Assemble a stored segment list. A bare string is a value and is emitted as
+      it stands; seg() and mapNode() are resolved in the language showing now. */
+  function segText(list, sep){
+    if(list === null || list === undefined) return '';
+    if(typeof list === 'string') return list;      // a line stored before segments
+    return list
+      .filter(p => p !== null && p !== undefined && p !== '')
+      .map(p => typeof p === 'string' ? p
+              : p.n !== undefined  ? nodeName(p.n)
+              : p.v !== undefined  ? fmt(p.v, p.dp)
+              : p.ms !== undefined ? clockStr(p.ms)
+              : t(p.s, liveVars(p.vars)))
+      .join(sep || '');
+  }
+
+  /* Resolve a stored message at paint time. `text` is always the English source
+     — one string, or a segment list when the line is assembled from several
+     pieces; `pkey` names a prose block when the line is long-form dialogue. A
+     message the user typed carries `mine` and is returned untouched — those are
+     their words, not ours to translate. */
   function msgText(m){
     if(m.mine) return m.text;
-    if(m.pkey) return tp(m.pkey, m.text, m.vars);
-    return t(m.text, m.vars);
+    if(m.pkey) return tp(m.pkey, m.text, liveVars(m.vars));
+    if(Array.isArray(m.text)) return segText(m.text, ' ');
+    return t(m.text, liveVars(m.vars));
   }
 
   function msgHtml(m){
@@ -3582,7 +3612,7 @@ const Views = (() => {
         ${m.mine ? '' : `<div class="msg-from" style="color:${p.colour}">${esc(p.name)}${p.role ? ` <span style="color:var(--text-muted);font-weight:500">· ${esc(t(p.role))}</span>` : ''}</div>`}
         ${sevMark}
         <div>${esc(msgText(m))}</div>
-        ${m.kv ? `<span class="kv">${esc(m.kv).replace(/\n/g,'<br>')}</span>` : ''}
+        ${m.kv ? `<span class="kv">${esc(segText(m.kv)).replace(/\n/g,'<br>')}</span>` : ''}
         <div class="msg-time">${clockStrFull(m.t)} UTC</div>
       </div>
     </div>`;
@@ -3800,8 +3830,7 @@ const Views = (() => {
     const cur = I18n.lang();
     menu.innerHTML = I18n.LANGS.map(l => `
       <button class="langopt" role="option" data-lang="${esc(l.code)}"
-              aria-selected="${l.code === cur}" dir="${esc(l.dir)}" data-dir="${esc(l.dir)}"
-              lang="${esc(l.locale)}">
+              aria-selected="${l.code === cur}" lang="${esc(l.locale)}">
         <span class="endo">${esc(l.endonym)}</span>
         <span class="exo">${esc(t(l.name))}</span>
       </button>`).join('');
@@ -3927,13 +3956,13 @@ const Views = (() => {
   function advisoryBlock(role){
     const list = alertsFor(role);
     if(!list.length){
-      return `<div class="mcard"><div class="mcard-head">${chipHtml('good','No advisories')}</div>
-        <div class="mlabel">Nothing needs your attention. AURA will message you the moment a threshold is crossed — you don't need to watch this screen.</div></div>`;
+      return `<div class="mcard"><div class="mcard-head">${chipHtml('good', t('No advisories'))}</div>
+        <div class="mlabel">${esc(t('Nothing needs your attention. AURA will message you the moment a threshold is crossed — you don\'t need to watch this screen.'))}</div></div>`;
     }
     return list.map(a => `<div class="mcard" style="border-color:${sevColour(a.severity)}66">
-      <div class="mcard-head">${chipHtml(a.severity, a.label)}
+      <div class="mcard-head">${chipHtml(a.severity, t(a.label))}
         <div class="flex-1"></div><span class="prov mono">${clockStr(a.since)} UTC</span></div>
-      <div class="mlabel" style="color:var(--text-primary);font-size:13px">${esc(a.detail)}</div>
+      <div class="mlabel" style="color:var(--text-primary);font-size:13px">${esc(t(a.detailKey, a.vars))}</div>
     </div>`).join('');
   }
 
@@ -4147,7 +4176,7 @@ const Views = (() => {
 
   return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderSatBar, renderLangMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
-           renderChat, appendChat, renderTyping, renderQuickReplies, renderTriggers,
+           renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
            setRole, renderRolePanes, renderRoleBadges, alertsFor,
            syncControls, openSheet, placeMap,
@@ -5305,28 +5334,20 @@ const Agronomy = (() => {
    so the app is fully functional with the entire i18n directory missing — which
    is also what happens on a first offline launch in a language never opened.
 
-   DIRECTION. Arabic and Urdu are right-to-left. That is a layout change, not a
-   string change: the document direction flips, and the stylesheet uses logical
-   properties so padding, borders and flex order follow. The two things that must
-   NOT flip are the map (geography is not mirrored) and the mission clock and
-   other latin-numeral readouts, which are isolated explicitly.
-
-   NUMBERS AND DATES go through Intl with the active locale, so a Bengali reader
-   sees ৩৬ মিমি and a German reader sees 36,0 mm without either being special
+   NUMBERS AND DATES go through Intl with the active locale, so a Spanish reader
+   sees 36,0 mm where an English one sees 36.0 mm, without either being special
    cased.                                                                      */
 
 const I18n = (() => {
-  /* Ordered roughly by speakers, weighted toward where smallholder agriculture
-     is. `dir` drives document direction; `locale` drives Intl. */
   /* Four languages, each maintained to full depth rather than a dozen kept as
-     headline-only stubs. Adding one back is a catalogue file plus a row here:
-     the engine, the RTL layout rules and the tests are all still in place, so
-     Arabic or Urdu can return without touching any of that machinery. */
+     headline-only stubs. `locale` drives Intl; all four are left-to-right, and
+     nothing in the app carries direction any more. Adding a fifth is a
+     catalogue file plus a row here. */
   const LANGS = [
-    { code:'en', locale:'en',    dir:'ltr', name:'English',    endonym:'English' },
-    { code:'es', locale:'es',    dir:'ltr', name:'Spanish',    endonym:'Español' },
-    { code:'pt', locale:'pt-BR', dir:'ltr', name:'Portuguese', endonym:'Português' },
-    { code:'fr', locale:'fr',    dir:'ltr', name:'French',     endonym:'Français' }
+    { code:'en', locale:'en',    name:'English',    endonym:'English' },
+    { code:'es', locale:'es',    name:'Spanish',    endonym:'Español' },
+    { code:'pt', locale:'pt-BR', name:'Portuguese', endonym:'Português' },
+    { code:'fr', locale:'fr',    name:'French',     endonym:'Français' }
   ];
 
 
@@ -5343,8 +5364,46 @@ const I18n = (() => {
 
   const langFor = c => LANGS.find(l => l.code === c) || LANGS[0];
   const current = () => langFor(code);
-  const dir = () => current().dir;
-  const isRTL = () => dir() === 'rtl';
+
+  /** Join a handful of things the way the target language writes a list —
+      "A, B and C" in English, "A, B y C" in Spanish. Saves a catalogue entry for
+      the conjunction, which no two languages place identically anyway. */
+  function listOf(parts){
+    try{
+      return new Intl.ListFormat(current().locale, { style:'long', type:'conjunction' }).format(parts);
+    }catch(e){ return parts.join(', '); }
+  }
+
+  /* A variable is usually a finished value — a number, a segment id, a name —
+     and is substituted as it stands. The object and array forms say the
+     opposite: the value is itself English source, and is translated NOW, at
+     paint time, rather than whenever the record was written. Freezing one of
+     these at write time is what once left a translated sentence carrying an
+     English rule name.
+
+       {t:'…'}             a source string
+       {t:'…', vars:{…}}   …with placeholders of its own
+       {t:'…', pre:'⚠ '}   …behind something untranslatable, e.g. a severity icon
+       {t:'…', lower:true} …lowercased in the target language, not in English
+       {v:33.4, dp:1}      a reading: the value is fixed, its decimal separator
+                           is not, so it prints 33,4 in Spanish and 33.4 here
+       {ms:…}              an instant, formatted in the active locale
+       [a, b, c]           resolved element-wise, joined with the dashboard ' · '
+       {list:[a, b, c]}    resolved element-wise, joined as prose: "a, b and c"  */
+  function resolveVar(v){
+    if(Array.isArray(v)) return v.map(resolveVar).join(' · ');
+    if(v && typeof v === 'object'){
+      if(Array.isArray(v.list)) return listOf(v.list.map(resolveVar));
+      if(v.v !== undefined) return num(v.v, v.dp);
+      if(v.ms !== undefined) return time(v.ms, { hour:'2-digit', minute:'2-digit' });
+      if(v.t !== undefined){
+        let s = t(v.t, v.vars);
+        if(v.lower) s = s.toLocaleLowerCase(current().locale);
+        return (v.pre || '') + s;
+      }
+    }
+    return String(v);
+  }
 
   /** Translate. `vars` fills {placeholders} in whichever language won, so word
       order can differ between languages without the call site caring. */
@@ -5357,10 +5416,7 @@ const I18n = (() => {
       out = out.replace(/\{(\w+)\}/g, (m, name) => {
         const v = vars[name];
         if(v === undefined || v === null) return m;
-        // {t:'…'} means "this value is itself a source string" — translate it
-        // now, at paint time, rather than whenever the record was created.
-        if(typeof v === 'object' && v.t !== undefined) return t(v.t);
-        return String(v);
+        return resolveVar(v);
       });
     }
     return out;
@@ -5503,7 +5559,6 @@ const I18n = (() => {
     const el = typeof document !== 'undefined' && document.documentElement;
     if(!el) return;
     el.setAttribute('lang', current().locale);
-    el.setAttribute('dir', dir());
   }
 
   /** The language to start in: an explicit past choice, else the browser's, else
@@ -5525,7 +5580,7 @@ const I18n = (() => {
 
   return { LANGS, t, tp, has, hasProse, proseReady, intents, loadProse,
            num, time, date, relative, set, apply, initial,
-           lang: () => code, current, dir, isRTL, coverage, reviewed, missingList,
+           lang: () => code, current, coverage, reviewed, missingList,
            STORE_KEY, langFor };
 })();
 
@@ -5535,6 +5590,26 @@ const t = (s, vars) => I18n.t(s, vars);
 /* Long-form counterpart. `english` is the block as written in this file, and is
    what renders whenever a translation is absent. */
 const tp = (key, english, vars) => I18n.tp(key, english, vars);
+
+/* A line the app STORES — a chat reply, a readout under one — is kept as
+   segments rather than as a finished sentence, because the sentence it should
+   read as depends on a language the reader can change afterwards. Four pieces:
+
+     seg('…', vars)  English source, translated when the line is painted
+     amount(v, dp)      a reading, formatted in the active locale — the VALUE is
+                     frozen at 33.4, the way it prints is not, so Spanish shows
+                     33,4 and English 33.4 from the same stored record
+     at(ms)          an instant, formatted the same way
+     mapNode(id)        a point on the map, whose label is read back live
+
+   A bare string among them is text that must not be touched: an order id, a
+   segment name, a unit. Views.segText assembles the lot at paint time, and that
+   is the whole reason a transcript follows the picker instead of freezing in
+   whichever language it happened to be written in. */
+const seg     = (s, vars) => ({ s, vars: vars || null });
+const mapNode = id => ({ n: id });
+const amount  = (v, dp) => ({ v, dp: dp || 0 });
+const instant = ms => ({ ms });
 
 
 /* ===================== MODULE 10: SATELLITE IMAGERY =====================
@@ -5961,7 +6036,16 @@ const Search = (() => {
       if(m && !m.hidden){ m.hidden = true; Views.renderLangMenu(); }
     }
   });
-  State.on('lang', () => Views.renderLangMenu());
+  /* Two shapes of language event. The plain one is the picker changing, and the
+     handler above already follows it with a full repaint. The `prose` one
+     arrives later — when the long-form catalogue finishes downloading, after
+     that repaint has run — so the briefing lines already in the transcript have
+     to be redrawn here or they sit in English until something unrelated happens
+     to repaint them. The manual watches for the same moment itself. */
+  State.on('lang', e => {
+    Views.renderLangMenu();
+    if(e && e.prose) Views.renderChat();
+  });
 
   /* --- satellite layer switcher --- */
   el('satBar').addEventListener('click', e => {

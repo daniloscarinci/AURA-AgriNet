@@ -542,14 +542,20 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(State.data.alerts.size, before, 'a null reading changed the advisory set');
     });
 
-    test('an armed rule records severity, label and a detail string', () => {
+    /* The advisory keeps source and variables, not a finished sentence, so the
+       card can be reread in another language later. What must hold is that both
+       halves are there and still make a sentence when put together. */
+    test('an armed rule records severity, label and a readable detail', () => {
       set({ temp: 24, moisture: 32, ndvi: 0.63, traff: 90 });
       for (let i = 0; i < 4; i++) EventEngine.evaluate();
       set({ temp: -5 }); EventEngine.evaluate();
       const a = State.data.alerts.get('FROST_EVENT');
       assert.ok(a, 'no advisory recorded');
       assert.equal(a.severity, 'critical', 'wrong severity');
-      assert.ok(a.detail && a.detail.length > 10, 'no human-readable detail');
+      assert.ok(a.detailKey && a.vars, 'the advisory kept no source to translate');
+      const said = app.I18n.t(a.detailKey, a.vars);
+      assert.greater(said.length, 10, 'no human-readable detail');
+      assert.notIncludes(said, '{', 'a placeholder reached the card unfilled');
       settle({ temp: 20 }, 3);
     });
   });
@@ -836,10 +842,14 @@ module.exports = ({ suite, test, assert }) => {
         assert.equal(Console.match(text), expected, 'wrong intent'));
     });
 
+    /* A reply is a segment list, not a finished sentence, so it is assembled the
+       way the chat assembles it before being judged. */
+    const said = r => (r && r.text) ? Views.msgText({ text: r.text }) : '';
+
     test('an unmatched question falls back rather than guessing', () => {
       const intent = Console.match('what is the airspeed velocity of an unladen swallow');
       const r = Console.reply(intent, 'FARMER');
-      assert.ok(r && r.text && r.text.length > 20, 'no fallback reply');
+      assert.ok(said(r).length > 20, 'no fallback reply');
     });
 
     /* Three of these buttons shipped sending text the matcher did not recognise.
@@ -850,7 +860,7 @@ module.exports = ({ suite, test, assert }) => {
           const intent = Console.match(q);
           assert.ok(intent, `"${q}" matched nothing`);
           const r = Console.reply(intent, persona);
-          assert.ok(r && r.text, `"${q}" produced no reply for ${persona}`);
+          assert.ok(said(r), `"${q}" produced no reply for ${persona}`);
         });
       });
     });
@@ -860,7 +870,7 @@ module.exports = ({ suite, test, assert }) => {
       ['FARMER', 'BUYER', 'DRIVER'].forEach(p =>
         intents.forEach(i => {
           const r = Console.reply(i, p);
-          assert.ok(r && r.text, `intent ${i} has no reply for ${p}`);
+          assert.ok(said(r), `intent ${i} has no reply for ${p}`);
         }));
     });
   });

@@ -6,7 +6,7 @@
 
    Bump CACHE_VERSION on every deploy. An installed copy keeps serving the old
    cache until a new version activates, so forgetting this ships nothing. */
-const CACHE_VERSION = 'aura-v7';
+const CACHE_VERSION = 'aura-v8';
 
 const PRECACHE = [
   './',
@@ -18,7 +18,7 @@ const PRECACHE = [
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon-180.png',
   // Locale catalogues. Precached rather than fetched on demand because a farmer
-  // who set the app to Kiswahili and then lost signal must not get English back.
+  // who set the app to Português and then lost signal must not get English back.
   './i18n/es.json', './i18n/fr.json', './i18n/pt.json'
 ];
 

@@ -255,7 +255,8 @@ function makeDocument(markup) {
      actually uses are supported -- an unsupported selector throws rather than
      silently returning [] and turning a real miss into a passing test. */
   doc.querySelectorAll = function (sel) {
-    const attr = sel.match(/^\[data-([a-z-]+)\]$/);
+    // Digits belong in an attribute name: the translator's own hook is data-i18n.
+    const attr = sel.match(/^\[data-([a-z0-9-]+)\]$/);
     if (attr) {
       const name = attr[1];
       const re = new RegExp(`data-${name}="([^"]*)"`, 'g');

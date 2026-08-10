@@ -24,6 +24,12 @@ module.exports = ({ suite, test, assert }) => {
     const { script, markup } = readSource();
     const set = new Set();
     for (const m of script.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
+    /* Two more shapes carry English source that is translated at paint time
+       rather than at the call: seg('…') inside a stored line, and the {t:'…'}
+       variable form. Both are as real as a t() call, and a catalogue key that
+       matches one of them is not stale. */
+    for (const m of script.matchAll(/\bseg\(\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
+    for (const m of script.matchAll(/\{\s*t:\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
     for (const m of markup.matchAll(/data-i18n[^>]*>([^<]+)</g)) set.add(m[1].trim());
     const tables = [/label:'([^']+)',\s+unit/g, /word:'([^']+)'/g, /label:'([^']+)',\s+glyph/g,
                     /note:'([^']+)'/g, /label:'([^']+)', severity/g, /product:'([^']+)'/g,
@@ -48,6 +54,14 @@ module.exports = ({ suite, test, assert }) => {
     for (const m of block('function statusWord(key, sev){', 'if(words[key]')
       .matchAll(/(?:good|warning|serious|critical):'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const QUICK = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    /* The opening exchange stores English source too, and its lines carry no
+       prose key to find them by. Every literal in that one function is either a
+       sentence or a participant id, and only the sentences contain a space. */
+    for (const m of block('function greet(){', 'return { post,')
+      .matchAll(/'((?:[^'\\]|\\.)*)'/g)) {
+      const v = m[1].replace(/\\'/g, "'");
+      if (v.includes(' ')) set.add(v);
+    }
 
     /* Log entries and advisory details are stored as English SOURCE and
        translated at paint time, so they appear as bare literals rather than
@@ -97,11 +111,10 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(I18n.t('Irrigate · {mm} mm', {}), '{mm}',
         'a missing variable must be obvious, never rendered as "undefined"'));
 
-    test('every declared language has a code, locale, direction and endonym', () =>
+    test('every declared language has a code, locale, name and endonym', () =>
       I18n.LANGS.forEach(l => {
         assert.ok(/^[a-z]{2}$/.test(l.code), `bad code ${l.code}`);
         assert.ok(l.locale && l.name && l.endonym, `${l.code} is missing metadata`);
-        assert.includes(['ltr', 'rtl'], l.dir, `${l.code} has no direction`);
       }));
 
     test('language codes are unique', () => {
@@ -109,19 +122,12 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(new Set(c).size, c.length, 'duplicate language code');
     });
 
-    /* No right-to-left language ships today, but the engine, the stylesheet rules
-       and this contract all remain so one can be added back as a catalogue file
-       alone. What must hold is that `dir` is always a valid direction. */
-    test('every language declares a usable direction', () =>
-      I18n.LANGS.forEach(l => assert.includes(['ltr', 'rtl'], l.dir, `${l.code} has no direction`)));
-
-    test('the RTL path still works if a language declares it', () => {
-      const h2 = boot();
-      const fake = { code:'xx', locale:'xx', dir:'rtl', name:'Test', endonym:'Test' };
-      assert.equal(fake.dir, 'rtl', 'sanity');
-      assert.includes(readSource().html, '[dir="rtl"]',
-        'the right-to-left rules were removed, so re-adding Arabic would need CSS work too');
-    });
+    /* The picker is the whole language surface. Anything offered here must have
+       a catalogue, and anything with a catalogue must be offered — the two are
+       checked against each other in the catalogue suite. Four is the set. */
+    test('exactly the four maintained languages are offered', () =>
+      assert.deepEqual(I18n.LANGS.map(l => l.code), ['en', 'es', 'pt', 'fr'],
+        'the picker offers a language the system no longer maintains'));
 
     test('an unknown language falls back to English rather than breaking', () =>
       assert.equal(I18n.langFor('xx').code, 'en', 'unknown code did not fall back'));
@@ -235,11 +241,11 @@ module.exports = ({ suite, test, assert }) => {
         Object.entries(json.intents || {}).forEach(([id, list]) =>
           list.forEach(w => {
             assert.equal(w, w.toLowerCase(), `${id} keyword "${w}" is not lowercase — matching is case-folded`);
-            /* One character is a whole word in a logographic script — 箱 is
-               "crate" — but a lone latin letter would match almost anything. */
-            const cjk = /[㐀-鿿぀-ヿ]/.test(w);
-            const min = cjk ? 1 : 2;
-            assert.ok(w.trim().length >= min, `${id} keyword "${w}" is too short and would match noise`);
+            /* Keywords are matched as substrings, so a single letter would fire
+               on almost any sentence. Two is the floor rather than one because
+               every shipping language is latin-script — and two is genuinely
+               needed: French "où" is the whole question. */
+            assert.ok(w.trim().length >= 2, `${id} keyword "${w}" is too short and would match noise`);
           })));
 
       test(`${code}: contains no markup`, () =>
@@ -413,6 +419,22 @@ module.exports = ({ suite, test, assert }) => {
       assert.deepEqual(subs, [], 'the translator function is being indexed');
     });
 
+    /* The segment helpers are the same hazard one level down: a local `val` or
+       `node` would turn a stored line into whatever that local happens to be,
+       and the line would still render — just wrong, and only in one language.
+       They are named for uniqueness, and this is what keeps them unique. */
+    test('nothing shadows the segment helpers', () => {
+      ['seg', 'mapNode', 'amount', 'instant'].forEach(name => {
+        const decls = script.split('\n')
+          .map(line => line.match(new RegExp(`^\\s*(?:const|let|var)\\s+${name}\\s*[=\\s]`)))
+          .filter(Boolean).length;
+        assert.equal(decls, 1, `${name} is declared more than once — one of them shadows the helper`);
+        assert.deepEqual(
+          [...script.matchAll(new RegExp(`function\\s+\\w+\\s*\\(\\s*${name}\\s*[,)]`, 'g'))].map(m => m[0]), [],
+          `a parameter named ${name} shadows the helper`);
+      });
+    });
+
     test('the manual renders no undefined, which is what shadowing looks like', () => {
       const h = boot();
       h.app.Telemetry.stop();
@@ -424,29 +446,21 @@ module.exports = ({ suite, test, assert }) => {
 
   /* ------------------------------------------------------------ document -- */
   suite('i18n · document and layout', () => {
-    test('the shell hardcodes no direction', () => {
-      const { html } = readSource();
-      assert.notIncludes(html.slice(0, 300), 'dir="rtl"', 'direction must come from the active language');
-    });
-
-    test('apply() sets both language and direction on the document', () => {
+    test('apply() puts the active locale on the document', () => {
       const h = boot();
       h.app.I18n.apply();
-      assert.equal(h.document.documentElement.getAttribute('dir'), 'ltr', 'direction not applied');
-      assert.ok(h.document.documentElement.getAttribute('lang'), 'lang not applied');
+      assert.equal(h.document.documentElement.getAttribute('lang'), 'en', 'lang not applied');
     });
 
-    test('right-to-left rules exist for the physically-placed controls', () => {
+    /* Every shipping language is left-to-right, so nothing in the app carries a
+       direction any more. A stray `dir` would be a leftover from a language that
+       no longer exists, and would quietly re-mirror the layout if one came back
+       without the stylesheet rules that used to accompany it. */
+    test('no direction survives anywhere in the shell', () => {
       const { html } = readSource();
-      ['.search-icon', '.search-geo', '.fab', '.manual-toc'].forEach(sel =>
-        assert.includes(html, `[dir="rtl"] ${sel}`, `${sel} is placed physically but has no RTL rule`));
-    });
-
-    test('geography and monospace readouts are isolated from RTL', () => {
-      // A map is not mirrored, and a clock that reorders its digits is unreadable.
-      const { html } = readSource();
-      assert.includes(html, '[dir="rtl"] #fieldMap', 'the map would be mirrored in Arabic');
-      assert.includes(html, '[dir="rtl"] #missionClock', 'the clock would reorder its digits');
+      assert.notIncludes(html, 'dir="rtl"', 'a right-to-left rule outlived its language');
+      assert.notIncludes(html, 'data-dir', 'the picker still stamps a script direction');
+      assert.notIncludes(html, 'unicode-bidi', 'bidi isolation is left over from a dropped language');
     });
 
     test('the picker offers every declared language', () => {
@@ -457,16 +471,14 @@ module.exports = ({ suite, test, assert }) => {
         assert.includes(menu, `data-lang="${l.code}"`, `${l.code} is missing from the picker`));
     });
 
-    /* Each option is stamped with its own script direction so an endonym renders
-       correctly inside the menu regardless of the page direction. All four
-       shipping languages are left-to-right today; the attribute is what makes
-       adding a right-to-left one a catalogue change rather than a code change. */
-    test('each option carries its own script direction', () => {
+    /* Each option is tagged with its own locale so a screen reader pronounces
+       "Português" as Portuguese rather than as English. */
+    test('each option declares its own locale', () => {
       const h = boot();
       h.app.Views.renderLangMenu();
       const menu = h.document.getElementById('langMenu').innerHTML;
       h.app.I18n.LANGS.forEach(l =>
-        assert.includes(menu, `data-dir="${l.dir}"`, `${l.code} option has no direction`));
+        assert.includes(menu, `lang="${l.locale}"`, `${l.code} option has no locale`));
     });
 
     test('typing in each language reaches the right intent', async () => {
@@ -526,6 +538,187 @@ module.exports = ({ suite, test, assert }) => {
       const { script } = readSource();
       assert.includes(script, 'translationBadge', 'no badge function');
       assert.includes(script, 'not reviewed by a native speaker', 'the caveat is stated nowhere');
+    });
+  });
+
+  /* ------------------------------------------------ the chat follows it --- */
+  /* A line is composed when it is said but READ when it is painted, and these
+     are the checks that keep those two moments apart. Every one of them switches
+     language AFTER the transcript already exists — the case that used to strand
+     it, because an answer assembled with t() had already collapsed into one
+     finished Spanish-or-English string that no later repaint could undo. */
+  suite('i18n · the chat follows the language', () => {
+    /* Serves the shipped catalogues off disk, so switching language in a test
+       loads exactly the JSON a browser would. */
+    const served = () => url => {
+      const file = path.join(ROOT, String(url).replace(/^\.?\//, ''));
+      if (!fs.existsSync(file)) return Promise.resolve({ ok: false, status: 404 });
+      return Promise.resolve({ ok: true, status: 200,
+        json: () => Promise.resolve(JSON.parse(fs.readFileSync(file, 'utf8'))) });
+    };
+
+    const ES = JSON.parse(fs.readFileSync(path.join(ROOT, 'i18n', 'es.json'), 'utf8')).strings;
+    // The Spanish of a key, up to its first placeholder — enough to identify the
+    // sentence on screen without depending on the numbers spliced into it.
+    const stem = key => (ES[key] || key).split('{')[0].trim();
+
+    /* Boot, let the opening exchange finish draining, then ask — otherwise the
+       greeting's own queued lines arrive after the answer and the last message
+       in the transcript is not the one under test. */
+    async function asked(question) {
+      const h = boot({ fetch: served() });
+      h.app.Telemetry.stop();
+      await h.advance(20000);
+      const from = h.app.State.data.chat.length;
+      h.app.Console.handleUserMessage(question);
+      await h.advance(8000);
+      h.answer = h.app.State.data.chat.slice(from).find(m => m.from === 'BOT');
+      return h;
+    }
+    // What the picker does: load the catalogue, then repaint everything.
+    async function switchTo(h, code) {
+      await h.app.I18n.set(code);
+      h.app.Views.repaintAll();
+      await h.advance(200);          // let the prose fetch land
+    }
+
+    test('an answer given in English is reread in Spanish', async () => {
+      const h = await asked('soil moisture');
+      const m = h.answer;
+      const english = h.app.Views.msgText(m);
+      await switchTo(h, 'es');
+      const spanish = h.app.Views.msgText(m);
+      assert.notEqual(spanish, english, 'the answer stayed in the language it was written in');
+      assert.includes(spanish, stem('Plot F-2 root-zone moisture is {pct}% ({src}, {ts} UTC).'),
+        'the answer did not retranslate');
+      assert.notIncludes(spanish, 'root-zone moisture is', 'English survived the switch');
+    });
+
+    test('the readout under an answer retranslates with it', async () => {
+      const h = await asked('soil moisture');
+      const m = h.answer;
+      await switchTo(h, 'es');
+      const kv = h.app.Views.segText(m.kv);
+      assert.includes(kv, ES['field mean'], 'the readout kept its English labels');
+      assert.notIncludes(kv, 'field mean', 'an English label survived in the readout');
+    });
+
+    test('a reading frozen into an answer is not retranslated along with it', async () => {
+      const h = await asked('soil moisture');
+      const m = h.answer;
+      const pct = h.app.Views.segText(m.kv).match(/(\d+[.,]\d)%/);
+      await switchTo(h, 'es');
+      assert.ok(pct, 'no reading in the readout to begin with');
+      assert.includes(h.app.Views.segText(m.kv), pct[1].replace('.', ','),
+        'the number changed with the language — it is a record, not a live value');
+    });
+
+    /* Map labels are not translated anywhere in this app — the map itself draws
+       them as they come — so a waypoint chain is not a language surface. What it
+       must not be is a frozen COPY: the line stores node ids and reads the
+       labels back, so the transcript and the map cannot disagree about where the
+       driver is going. Changing region is what makes the difference visible. */
+    test('a waypoint chain is read back from the map, not copied into the line', async () => {
+      const h = await asked('route check');
+      const kv = () => h.app.Views.segText(h.answer.kv);
+      assert.includes(kv(), 'Somanya Depot', 'no waypoint chain to check');
+      h.app.Region.load('nigeria-oyo');
+      assert.includes(kv(), 'Ojoo Depot', 'the chain is a stale copy of labels the map no longer shows');
+    });
+
+    test('a distance inside a stored line follows the locale', async () => {
+      const h = await asked('route check');
+      assert.ok(/\d\.\d km/.test(h.app.Views.segText(h.answer.kv)), 'no distance to check');
+      await switchTo(h, 'es');
+      const kv = h.app.Views.segText(h.answer.kv);
+      assert.ok(/\d,\d km/.test(kv), `the decimal separator stayed English: ${kv}`);
+      assert.ok(!/\d\.\d km/.test(kv), `an English decimal separator survived the switch: ${kv}`);
+    });
+
+    test('what the user typed is never translated', async () => {
+      const h = await asked('soil moisture');
+      const mine = h.app.State.data.chat.find(m => m.mine);
+      await switchTo(h, 'es');
+      assert.equal(h.app.Views.msgText(mine), 'soil moisture',
+        'the app translated the words the user typed');
+    });
+
+    /* The prose catalogue is fetched separately and lands AFTER the repaint that
+       the language switch triggers. Without a second repaint on arrival, every
+       briefing line in the transcript sits in English until something unrelated
+       happens to redraw it. */
+    test('briefing lines repaint when the prose arrives', async () => {
+      const h = boot({ fetch: served() });
+      h.app.Telemetry.stop();
+      h.app.Console.cascade('FROST', { cut: 20 });
+      await h.advance(20000);
+      h.app.Views.renderChat();
+      const before = h.document.getElementById('chatStream').innerHTML;
+      assert.includes(before, 'FROST EVENT', 'the briefing never ran');
+      await switchTo(h, 'es');
+      const after = h.document.getElementById('chatStream').innerHTML;
+      assert.notIncludes(after, 'FROST EVENT', 'the briefing stayed English after the prose landed');
+    });
+
+    test('no reply is finished at the moment it is written', () => {
+      const { script } = readSource();
+      const body = script.slice(script.indexOf('function reply(intent, persona){'),
+                                script.indexOf('function handleUserMessage('));
+      assert.deepEqual([...body.matchAll(/[^.\w]t\(/g)].map(m => m[0].trim()), [],
+        'a reply is calling the translator at write time, which freezes it in that language');
+    });
+
+    /* An advisory outlives the moment it armed — it sits on the hero and on the
+       role cards until the metric recovers — so it is the surface where a
+       sentence frozen at write time survives longest and reads worst. */
+    async function armFrost() {
+      const h = boot({ fetch: served() });
+      h.app.Telemetry.stop();
+      Object.assign(h.app.State.data.latest, { temp: 24, moisture: 32, ndvi: 0.63, traff: 90 });
+      for (let i = 0; i < 4; i++) h.app.EventEngine.evaluate();
+      Object.assign(h.app.State.data.latest, { temp: -5 });
+      h.app.EventEngine.evaluate();
+      await h.advance(2000);
+      return h;
+    }
+
+    test('an advisory armed in English reads in Spanish', async () => {
+      const h = await armFrost();
+      const a = h.app.State.data.alerts.get('FROST_EVENT');
+      assert.ok(a, 'no advisory armed');
+      assert.ok(!('detail' in a), 'the advisory still stores a finished sentence');
+      const english = h.app.I18n.t(a.detailKey, a.vars);
+      await switchTo(h, 'es');
+      const spanish = h.app.I18n.t(a.detailKey, a.vars);
+      assert.notEqual(spanish, english, 'the advisory stayed in the language it armed in');
+      assert.includes(spanish, stem('Surface temperature {temp}°C — at or below the {floor}°C frost floor.'),
+        'the advisory did not retranslate');
+      assert.ok(/-5,0|\d,\d/.test(spanish), `the reading kept an English decimal separator: ${spanish}`);
+    });
+
+    test('the advisory card and the hero note are painted in the active language', async () => {
+      const h = await armFrost();
+      h.app.Views.setRole('FARMER');
+      await switchTo(h, 'es');
+      h.app.Views.setRole('FARMER');
+      const card = h.document.getElementById('paneFarmer').innerHTML;
+      assert.includes(card, ES['Frost event'], 'the card chip kept the English rule name');
+      assert.notIncludes(card, 'Frost event', 'an English rule name survived on the card');
+      assert.notIncludes(card, 'Surface temperature', 'an English advisory sentence survived on the card');
+      assert.equal(h.document.getElementById('heroNote').textContent,
+        h.app.I18n.t(h.app.State.data.alerts.get('FROST_EVENT').detailKey,
+                     h.app.State.data.alerts.get('FROST_EVENT').vars),
+        'the hero note disagrees with the advisory it is showing');
+    });
+
+    test('the all-clear state is translated too, not just the alarm', async () => {
+      const h = boot({ fetch: served() });
+      h.app.Telemetry.stop();
+      await switchTo(h, 'es');
+      assert.equal(h.app.State.data.alerts.size, 0, 'something is advising, so this is not the all-clear');
+      assert.includes(h.document.getElementById('heroNote').textContent,
+        stem('All four orbital feeds within nominal bands. No autonomous interventions active.'),
+        'the all-clear line is still English');
     });
   });
 };
