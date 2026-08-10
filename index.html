@@ -4365,7 +4365,7 @@ const Manual = (() => {
     {
       id:'what', nav:'What it does', title:'What AURA-AgriNet does',
       render: () => tp('manual.what', `
-        <p>Four satellite feeds land every few seconds. A set of rules watches them. When a
+        <p>Live observations land every few seconds. A set of rules watches them. When a
         reading crosses a threshold and stays there, the app does not simply colour a tile
         red — it <em>changes the plan</em>: it revises buyer orders, moves the harvest window,
         and reroutes the delivery driver around roads that are no longer passable.</p>
@@ -4437,9 +4437,10 @@ const Manual = (() => {
     {
       id:'scope', nav:'Real vs simulated', title:'What is real, and what is not',
       render: () => tp('manual.scope', `
-        <div class="note warn"><p><strong>Every telemetry reading in this app is synthetic.</strong>
-        No network call is made to NASA, ESA or anyone else. The numbers come from a bounded
-        random walk around a per-region climate baseline.</p></div>
+        <div class="note warn"><p><strong>Not everything you see comes from an instrument.</strong>
+        With a location loaded, soil moisture and temperature are land-surface model output,
+        trafficability is derived here, and NDVI is simulated. With no location loaded, every
+        value is a bounded random walk. The header chip always says which you are getting.</p></div>
 
         <p>What is real is everything downstream of the numbers: the Dijkstra pathfinding, the
         haversine distances, the map projection, the hysteresis on every rule, the crop-aware
@@ -4448,7 +4449,7 @@ const Manual = (() => {
         real WGS-84 points near real towns; <code>Ford X-1</code> is not a real crossing.</p>
 
         <h3>The part most demos get wrong</h3>
-        <p>Instrument resolution differs by three orders of magnitude across these four feeds, and
+        <p>Instrument resolution differs by three orders of magnitude across these sources, and
         that difference decides what you are allowed to claim.</p>
 
         {granularityTable}
@@ -4460,9 +4461,9 @@ const Manual = (() => {
         offset standing in for soil type and slope.</p>
 
         <div class="note"><p>This is why plot cards label soil moisture
-        <code>≈ downscaled · conf 0.55</code> and NDVI <code>✓ measured</code>. Showing three
-        different soil-moisture figures for three plots without that label would imply three
-        independent measurements that no instrument in orbit took.</p></div>`, {
+        <code>≈ downscaled</code> rather than <code>measured</code>. Showing three different
+        soil-moisture figures for three plots without that label would imply three independent
+        measurements that no instrument in orbit took.</p></div>`, {
         liveNote: liveNote(), provenanceTable: provenanceTable(), granularityTable: granularityTable(),
         cropTable: cropTable(), thresholdTable: thresholdTable(), scenarios: scenarioCards(),
         frostArm: fmt(thr('frostArm'),1), frostClear: fmt(thr('frostClear'),1),
