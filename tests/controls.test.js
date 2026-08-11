@@ -205,6 +205,33 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(h.errors.length, 0, `role switching logged: ${h.errors[0]}`);
     });
 
+    /* The map is one node, moved into the driver pane on a phone rather than
+       drawn twice. Rewriting that pane therefore destroys it unless it is
+       lifted out first -- and the pane is rewritten on every telemetry tick, so
+       the driver's map used to disappear seconds after they opened it, and the
+       next repaint threw on a null #fieldMap. */
+    test('the driver keeps the map when the pane re-renders', () => {
+      /* Read from the source, because a stub DOM cannot show this: assigning
+         innerHTML there does not detach the real node, so the destruction is
+         invisible to any check that walks the tree. What must hold is the
+         order of two statements -- lift the map out, THEN rewrite the pane. */
+      const { script } = readSource();
+      const body = script.slice(script.indexOf('function renderDriver(){'),
+                               script.indexOf('function placeMap()'));
+      const lift = body.indexOf('home.appendChild(panel)');
+      const wipe = body.indexOf('pane.innerHTML');
+      assert.greater(lift, -1, 'renderDriver never moves the map out before rewriting the pane');
+      assert.greater(wipe, lift, 'the pane is rewritten before the map is lifted out, which destroys it');
+      assert.includes(body, 'placeMap()', 'nothing puts the map back afterwards');
+    });
+
+    test('a repaint with no map to draw into is skipped, not thrown', () => {
+      const { script } = readSource();
+      const body = script.slice(script.indexOf('function renderMap('), script.indexOf('function renderRouteStats'));
+      assert.ok(/const svg = el\('fieldMap'\);\s*\n\s*if\(!svg\) return;/.test(body),
+        'renderMap writes into #fieldMap without checking it exists');
+    });
+
     test('a non-OPS role also switches the chat persona', () => {
       const h = boot();
       h.app.Telemetry.stop();

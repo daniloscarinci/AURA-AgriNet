@@ -256,7 +256,12 @@ body{
   display:inline-flex; align-items:center; gap:5px;
   padding:2px 8px; border-radius:999px;
   font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
-  border:1px solid transparent; white-space:nowrap;
+  border:1px solid transparent;
+  /* A chip wraps rather than leaves its container. It reads best as one
+     unbroken unit and usually stays that way, because it only breaks when the
+     alternative is running off the edge -- "Riesgo de marchitez" needs 194px in
+     a 155px tile, and the list of blocked segments grows with the flood. */
+  white-space:normal; max-width:100%;
 }
 .chip-icon{ font-size:10px; line-height:1; }
 .chip.good    { color:var(--good-ink);     background:var(--good-wash);     border-color:var(--good-line); }
@@ -936,7 +941,18 @@ body{
 .tile-head{ flex-direction:column; align-items:flex-start; gap:5px; }
 .panel-head,
 .mcard-head,
-.agro-head{ flex-wrap:wrap; row-gap:5px; }
+.agro-head,
+.persona-row{ flex-wrap:wrap; row-gap:5px; }
+
+/* The sparkline sits beside the reading until the two of them stop fitting,
+   then drops underneath it rather than pushing out of the tile. */
+.tile-body{ flex-wrap:wrap; row-gap:6px; }
+.tile-body > div{ min-width:0; }
+
+/* A <select> will happily report a min-content width of its longest option and
+   push the row apart; it is allowed to be narrower than "Amara — Farmer,
+   Plot F-2" and show what fits. */
+.persona-row > select{ min-width:0; flex:1 1 auto; }
 
 .gap-5{ gap:1.25rem; }
 .grid-cols-3{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
@@ -1203,7 +1219,7 @@ body{
       </div>
 
       <div class="p-2.5 flex flex-col gap-2" style="border-top:1px solid var(--hairline)">
-        <div class="flex items-center gap-2">
+        <div class="persona-row flex items-center gap-2">
           <label for="personaSel" class="text-[9px] tracking-[.1em] uppercase flex-none" style="color:var(--text-muted)" data-i18n>Send as</label>
           <select id="personaSel" class="field" style="width:auto;padding:5px 8px;font-size:11px">
             <option value="FARMER" data-i18n>Amara — Farmer, Plot F-2</option>
@@ -3225,7 +3241,7 @@ const Views = (() => {
           <span class="tile-label">${esc(t(m.label))}</span>
           <span class="chip ${sev}" style="padding:1px 6px"><span class="chip-icon">${SEV[sev].icon}</span><span>${esc(t(statusWord(key, sev)))}</span></span>
         </div>
-        <div class="flex items-end justify-between gap-2 mt-1.5 ${stale ? 'stale' : ''}">
+        <div class="tile-body flex items-end justify-between gap-2 mt-1.5 ${stale ? 'stale' : ''}">
           <div>
             <div class="tile-value">${fmt(v, m.decimals)}<span class="tile-unit">${esc(m.unit)}</span></div>
             <div class="tile-delta mt-0.5" style="color:${deltaColour}">${esc(deltaTxt)}</div>
@@ -3517,7 +3533,12 @@ const Views = (() => {
       <text class="node-sub" x="325" y="3">✕ ${esc(t('Blocked'))}</text>
     </g>`;
 
-    el('fieldMap').innerHTML = out;
+    // The map panel travels between the Ops column and the driver pane, so it
+    // can be mid-move when something asks for a repaint. Nothing to draw into
+    // is a reason to skip, never a reason to throw.
+    const svg = el('fieldMap');
+    if(!svg) return;
+    svg.innerHTML = out;
     startDriver();
     renderRouteStats();
   }
@@ -4133,6 +4154,17 @@ const Views = (() => {
   function renderDriver(){
     const pane = el('paneDriver');
     if(!pane) return;
+
+    /* The map is ONE node, moved between panes rather than drawn twice, so it
+       has to be lifted out before this pane is rewritten. Without this, the
+       first re-render after switching to Driver -- a telemetry tick, seconds
+       later -- replaced the innerHTML the map was living inside and destroyed
+       it. placeMap() then found no #mapPanel to move back, so the driver's map
+       simply never returned, and the next renderMap() had nothing to draw
+       into. On a phone that is the one view where the map matters most. */
+    const home = el('mapHome'), panel = el('mapPanel');
+    if(home && panel && pane.contains(panel)) home.appendChild(panel);
+
     const r = State.data.route;
     const blocked = Dispatch.blockedEdges();
     const base = State.data.baselineRoute;

@@ -169,7 +169,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 580 checks, no dependencies, no network
+node tests/run.js              # 583 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -211,6 +211,15 @@ outside it — which is not theoretical. Opening the app in a browser found four
 
 The first three are now guarded by tests. The fourth is a habit: **bump `CACHE_VERSION`
 whenever you change a precached file**, or your testers will be looking at yesterday.
+
+A second pass walked every rendered element at eight widths in four languages, with a
+field in trouble so every alert branch was on screen, checking four things: content wider
+than its own box, a child past its parent's edge, SVG text outside the graphic that owns
+it, and the document scrolling sideways. It found headline chips leaving their cards in
+*every* language, the sparkline pushing out of a narrow tile, the persona `<select>`
+forcing the composer apart — and, not an overflow at all, that **the driver's map was
+destroyed by its own pane's next re-render**, seconds after a phone user opened it. All
+fixed. What remains is a 2px status dot deliberately overlapping the avatar it sits on.
 
 ## Licence
 

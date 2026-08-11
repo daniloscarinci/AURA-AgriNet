@@ -290,11 +290,20 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(tile, 'the tile headline has no rule of its own');
       assert.includes(tile[1], 'flex-direction:column',
         'the tile headline puts its chip beside the label, so a long status overflows the card');
-      ['.panel-head', '.mcard-head', '.agro-head'].forEach(sel => {
+      ['.panel-head', '.mcard-head', '.agro-head', '.persona-row', '.tile-body'].forEach(sel => {
         const rule = style.match(new RegExp(`${sel.replace('.', '\\.')}[^{]*\\{([^}]*)\\}`, 'g')) || [];
         assert.ok(rule.some(r => r.includes('flex-wrap:wrap')),
           `${sel} cannot wrap, so a long title pushes its neighbour off the edge`);
       });
+
+      /* A chip is the widest thing in a headline and the one most likely to
+         leave the card: every language has an alert wording that does not fit
+         a tile on a 360px phone, English included. */
+      const chip = style.match(/\.chip\{([^}]*)\}/);
+      assert.ok(chip, 'no chip rule');
+      assert.includes(chip[1], 'max-width:100%', 'a chip can grow wider than the card it labels');
+      assert.notIncludes(chip[1], 'white-space:nowrap',
+        'a chip that cannot wrap can only resolve by overflowing');
     });
 
     test('every class the app uses is defined in a stylesheet', () => {
