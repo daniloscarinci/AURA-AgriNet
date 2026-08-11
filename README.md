@@ -53,8 +53,41 @@ says so, on screen.
   chip — *Offline · cached*, exact age on hover.
 - NASA imagery is cached tile-by-tile (cache-first: a published granule never changes).
 - A location never visited falls back to simulation, labelled as such.
+- The **city list is precached**, so choosing where to look never needs a network
+  even though the geocoder does.
 
 The app never presents a stale number as current, and never invents one.
+
+## Choosing a location
+
+The search box does two things at once, and says which is which.
+
+Focus it and a list of **cities** appears immediately, drawn from a precached
+file — no request, no spinner. Type, and it filters as you press each key,
+folding accents so `sao` finds *São Paulo* and `cordoba` finds *Córdoba*. Under a
+second heading, the Open-Meteo geocoder answers for **anywhere on Earth**, which
+is what you want for an actual smallholding that no list would ever carry.
+
+The two halves fail independently, which is the point. Lose the connection and
+the geocoder half is replaced by a sentence explaining why — while the cities are
+still sitting above it, still selectable, still loading real cached observations.
+You lose the long tail, not the feature.
+
+396 cities across 117 countries, 12 KB gzipped. They are **curated for
+agricultural relevance and weighted toward the global South** rather than ranked
+by population: Kano, Ludhiana, Sorriso, Chipata and Bahir Dar earn a place here
+that they would not on a list of world capitals. Every row — coordinates, admin
+region, population — was resolved once against the same geocoder the box queries
+and then frozen, so a city picked from the list and the same city found by typing
+are the same record. Writing coordinates from memory would have put a farm in the
+sea and fetched real weather for it without ever saying so.
+
+The **◎ button** beside the box is still there and still the fastest answer when
+it applies: one tap, browser geolocation, straight to where you are standing. It
+asks only on an explicit tap, never on load.
+
+City names are not translated. They are proper nouns, and neither is *Bodija
+Market*.
 
 ## Real-time decisions
 
@@ -145,8 +178,10 @@ enforces that HTML tag structure in prose blocks matches the English.
 
 Delivery is split by what must survive a lost connection. Short strings — labels,
 advisories, the event log — are **precached**. Long-form prose — the manual and
-the briefings — is **fetched on first use** and then cached, keeping the install
-around 100 KB.
+the briefings — is **fetched on first use** and then cached. The precached shell
+is **151 KB gzipped**, of which `index.html` is 95 KB and the three catalogues
+36 KB. (An earlier draft of this file claimed "around 100 KB", which was the
+figure for `index.html` alone.)
 
 All four are left-to-right, and the app carries no notion of direction at all —
 no `dir` attribute, no mirrored stylesheet, no per-language direction field. A
@@ -169,7 +204,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 583 checks, no dependencies, no network
+node tests/run.js              # 597 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 

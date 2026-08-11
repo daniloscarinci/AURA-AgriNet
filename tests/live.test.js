@@ -9,7 +9,9 @@
    (a frost, a drought, a flood) and assert the decision that follows. */
 'use strict';
 
-const { boot } = require('./harness');
+const fs = require('fs');
+const path = require('path');
+const { boot, ROOT } = require('./harness');
 
 module.exports = ({ suite, test, assert }) => {
 
@@ -633,6 +635,93 @@ module.exports = ({ suite, test, assert }) => {
       await h.app.Search.run('kisumu');
       assert.includes(h.document.getElementById('placeResults').innerHTML, 'res-empty',
         'a failure rendered as "no results" rather than as a failure');
+    });
+
+    /* ---- the curated city list ---- */
+
+    /* Serves cities.json off disk, the way a browser would get it from the
+       precache, so these exercise the real file rather than a fixture. */
+    const withCities = async (opts = {}) => {
+      const h = boot({
+        fetch: url => {
+          const u = String(url);
+          if (u.includes('cities.json'))
+            return Promise.resolve({ ok: true, status: 200,
+              json: () => Promise.resolve(JSON.parse(fs.readFileSync(path.join(ROOT, 'cities.json'), 'utf8'))) });
+          return (opts.fetch || (() => Promise.reject(new Error('network disabled'))))(url);
+        },
+      });
+      h.app.Telemetry.stop();
+      await h.app.Cities.load();
+      return h;
+    };
+
+    test('the city list loads and is worth browsing', async () => {
+      const h = await withCities();
+      assert.ok(h.app.Cities.ready(), 'no cities loaded');
+      assert.greater(h.app.Cities.count(), 100, 'too few cities to browse');
+    });
+
+    /* The person typing is often on a keyboard that cannot produce the accent
+       that the city is spelled with. */
+    test('matching folds accents, so "sao" finds São Paulo', async () => {
+      const h = await withCities();
+      const hit = h.app.Cities.match('sao', 8).find(c => c.name.startsWith('São'));
+      assert.ok(hit, 'an unaccented query missed the accented city');
+      assert.equal(hit.countryCode, 'BR', 'wrong São Paulo');
+    });
+
+    test('a name that starts with the term outranks one that merely contains it', async () => {
+      const h = await withCities();
+      const names = h.app.Cities.match('kan', 6).map(c => c.name.toLowerCase());
+      assert.ok(names.length, 'no matches at all');
+      assert.ok(names[0].startsWith('kan'), `a mid-word match ranked first: ${names.join(', ')}`);
+    });
+
+    /* A city must synthesise a catchment like any searched place. Carrying a
+       `builtin` key would send it down the built-in branch instead, and it
+       would load the wrong region entirely. */
+    test('a city carries what catchmentFor needs, and no builtin flag', async () => {
+      const h = await withCities();
+      const c = h.app.Cities.match('ludhiana', 1)[0];
+      assert.ok(c, 'Ludhiana is not in the list');
+      assert.notOk(c.builtin, 'a city marked builtin would never synthesise a catchment');
+      ['name', 'lat', 'lon'].forEach(k => assert.ok(c[k] !== undefined && c[k] !== '', `city has no ${k}`));
+      const region = h.app.Places.catchmentFor(c);
+      assert.ok(region.synthesised, 'a picked city did not synthesise a catchment');
+      assert.includes(region.name, 'Ludhiana', 'the catchment is not named after the city');
+    });
+
+    /* The whole point of curating a list: offline you lose the long tail, not
+       the feature. */
+    test('cities still list when the geocoder is unreachable', async () => {
+      const h = await withCities({ fetch: () => Promise.reject(new Error('offline')) });
+      await h.app.Search.run('lag');
+      const html = h.document.getElementById('placeResults').innerHTML;
+      assert.includes(html, 'Lagos', 'the city list vanished when the geocoder failed');
+      assert.includes(html, 'res-empty', 'the failure was not reported alongside the cities');
+    });
+
+    test('an empty query shows cities and the built-ins together', async () => {
+      const h = await withCities();
+      await h.app.Search.run('');
+      const html = h.document.getElementById('placeResults').innerHTML;
+      assert.greater((html.match(/res-head/g) || []).length, 1, 'the two sections did not both render');
+      assert.greater(h.app.Search.current().length, 3, 'the flat result list is missing the cities');
+    });
+
+    /* Sections are a rendering detail; picking must stay an index into one flat
+       list, because that is what pick() and the arrow keys use. */
+    test('picking indexes across both sections', async () => {
+      const h = await withCities();
+      await h.app.Search.run('');
+      const all = h.app.Search.current();
+      const last = all.length - 1;
+      let picked = null;
+      h.app.Search.setHandler(p => { picked = p; });
+      h.app.Search.pick(last);
+      assert.ok(picked, 'the last row across the sections did not pick');
+      assert.equal(picked.name, all[last].name, 'pick(i) selected a different row than results[i]');
     });
   });
 

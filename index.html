@@ -1250,7 +1250,7 @@ body{
     <div class="flex items-center gap-2 mb-3">
       <span id="simSheetTitle" class="panel-title" data-i18n>Event Simulation</span>
       <div class="flex-1"></div>
-      <button id="simClose" class="toggle" aria-label="Close simulation controls" data-i18n-attr="aria-label">Close</button>
+      <button id="simClose" class="toggle" aria-label="Close simulation controls" data-i18n-attr="aria-label" data-i18n>Close</button>
     </div>
 
     <div id="triggerButtonsMobile" class="flex flex-col gap-2"></div>
@@ -1263,7 +1263,7 @@ body{
     </div>
 
     <div class="mb-3">
-      <div class="text-[9px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)">Location</div>
+      <div class="text-[9px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)" data-i18n>Location</div>
       <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
         <span class="search-icon" aria-hidden="true">⌕</span>
         <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
@@ -1288,7 +1288,7 @@ body{
       <span id="manualTitle" class="panel-title" data-i18n>Manual</span>
       <span class="panel-sub wide-only" data-i18n>How AURA-AgriNet reads the sky and acts on it</span>
       <div class="flex-1"></div>
-      <button id="manualClose" class="toggle" aria-label="Close the manual" data-i18n-attr="aria-label">Close</button>
+      <button id="manualClose" class="toggle" aria-label="Close the manual" data-i18n-attr="aria-label" data-i18n>Close</button>
     </div>
     <div class="manual-body">
       <nav id="manualToc" class="manual-toc" aria-label="Manual contents" data-i18n-attr="aria-label"></nav>
@@ -5272,7 +5272,94 @@ const Places = (() => {
 })();
 
 
-/* ===================== MODULE 9c: AGRONOMY =====================
+/* ===================== MODULE 9c: CURATED CITIES =====================
+
+   A list of world cities the reader can pick from instead of having to know
+   what to type. It exists for the two things the geocoder cannot do.
+
+   IT WORKS WITH NO NETWORK. cities.json is precached, so this is the one half
+   of location search that survives a lost connection -- offline you lose the
+   long tail, not the feature.
+
+   IT CAN BE BROWSED. Someone opening the app for the first time has something
+   to choose before they know any place name to search for.
+
+   The rows were resolved ONCE against the same Open-Meteo geocoder the search
+   box queries, and frozen. That matters: a city picked from this list and the
+   same city found by typing are the same record, with the same coordinates, so
+   nothing downstream can tell them apart. Coordinates recalled from memory
+   would have been silently wrong, and this app fetches real weather for
+   whatever point it is handed.
+
+   The selection is curated for agricultural relevance and weighted toward the
+   global South rather than ranked purely by population -- Kano and Ludhiana
+   earn their place here in a way they would not on a list of world capitals.
+
+   City names are proper nouns and are not translated, exactly as Bodija Market
+   is not.                                                                    */
+
+const Cities = (() => {
+  let rows = [];                        // positional, exactly as stored
+  let loading = null;
+
+  /* An accent is a spelling detail, not a different word: "sao" has to find
+     "São Paulo" and "cordoba" has to find "Córdoba", because the person typing
+     is often on a keyboard that cannot produce the accent. */
+  const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  /** Expand a stored row into the SAME shape Places.search returns, so
+      goToLocation and catchmentFor cannot tell the two sources apart. */
+  const place = r => ({
+    name: r[0], admin: r[1] || '', country: r[6] || '', countryCode: r[2],
+    lat: r[3], lon: r[4], elevation: null, timezone: null, population: r[5]
+  });
+
+  /** Fetched once at boot rather than on first keystroke, so the very first
+      focus is instant. A failure is NOT an error: the list is simply empty and
+      the geocoder path is untouched, the same way loadProse() degrades. */
+  async function load(){
+    if(loading) return loading;
+    loading = (async () => {
+      try{
+        const res = await fetch('cities.json');
+        if(!res.ok) throw new Error('cities HTTP ' + res.status);
+        const j = await res.json();
+        rows = Array.isArray(j.cities) ? j.cities : [];
+      }catch(e){
+        rows = [];
+      }
+      return rows.length;
+    })();
+    return loading;
+  }
+
+  /** The opening list. Rows are stored most-populous first, so a slice is
+      already the answer. */
+  const top = n => rows.slice(0, n || 8).map(place);
+
+  /** Name-prefix matches first, then anything containing the term or starting
+      an admin region or country. Each bucket is already in population order
+      because the file is, so "san" offers Santiago before Sanandaj without any
+      scoring. 400 rows is small enough to scan whole -- no index, no early
+      exit, no chance of missing a country match near the end. */
+  function match(term, limit){
+    const q = fold(term).trim();
+    const cap = limit || 6;
+    if(!q) return top(cap);
+    const starts = [], inside = [];
+    rows.forEach(r => {
+      const n = fold(r[0]);
+      if(n.startsWith(q)) starts.push(r);
+      else if(n.includes(q) || fold(r[1]).startsWith(q) || fold(r[6]).startsWith(q)) inside.push(r);
+    });
+    return starts.concat(inside).slice(0, cap).map(place);
+  }
+
+  return { load, match, top, count: () => rows.length, ready: () => rows.length > 0 };
+})();
+
+
+/* ===================== MODULE 9d: AGRONOMY =====================
 
    The four things a grower actually acts on, computed from the live series.
    Every one of these is a decision with a cost attached: irrigate or don't,
@@ -5864,7 +5951,7 @@ const Sat = (() => {
 })();
 
 
-/* ===================== MODULE 9d: SEARCH UI =====================
+/* ===================== MODULE 9e: SEARCH UI =====================
 
    One combobox, mirrored into the desktop header and the mobile sheet. Both
    copies share this module's state, so whichever one the user reaches, the app
@@ -5897,18 +5984,29 @@ const Search = (() => {
     }));
   }
 
-  function render(list, heading, message){
-    results = list || [];
+  /* The list can hold more than one section -- the curated cities and whatever
+     the geocoder returned -- but `results` stays FLAT. data-pick, pick() and the
+     arrow-key wrap in highlight() all index one array, and there is no reason to
+     teach any of them that sections exist.
+
+     A message renders BELOW the sections rather than replacing them, which is
+     the whole offline story: "search needs a connection" underneath a list of
+     cities that still works reads very differently from the same sentence on
+     its own. */
+  function render(sections, message){
+    const groups = (sections || []).filter(g => g && g.items && g.items.length);
+    results = groups.reduce((all, g) => all.concat(g.items), []);
     active = -1;
-    const html = message
-      ? `<div class="res-empty">${esc(message)}</div>`
-      : (heading ? `<div class="res-head">${esc(heading)}</div>` : '') +
-        results.map((r, i) => `
-          <button class="res" role="option" aria-selected="false" data-pick="${i}">
+    let n = 0;
+    const html = groups.map(g =>
+        (g.heading ? `<div class="res-head">${esc(g.heading)}</div>` : '') +
+        g.items.map(r => `
+          <button class="res" role="option" aria-selected="false" data-pick="${n++}">
             <span class="res-flag" aria-hidden="true">${flag(r.countryCode)}</span>
             <span class="res-name">${esc(r.name)}</span>
             <span class="res-sub">${esc([r.admin, r.country].filter(Boolean).join(', '))}</span>
-          </button>`).join('');
+          </button>`).join('')).join('') +
+      (message ? `<div class="res-empty">${esc(message)}</div>` : '');
     boxes.forEach(b => {
       const box = el(b.results);
       if(!box) return;
@@ -5943,18 +6041,28 @@ const Search = (() => {
 
   async function run(term){
     const gen = ++generation;
-    if(!term || term.trim().length < 2){ render(suggestions(), 'Suggested catchments'); return; }
-    render([], null, 'Searching…');
+    const q = String(term || '').trim();
+
+    /* The curated half is local and synchronous, so it paints straight away
+       rather than behind a spinner. The geocoder's half arrives underneath it
+       when the network allows -- or does not, and the cities are still there. */
+    const cities = { heading: t('Cities'), items: Cities.match(q, q.length < 2 ? 8 : 6) };
+
+    if(q.length < 2){
+      render([cities, { heading: t('Suggested catchments'), items: suggestions() }]);
+      return;
+    }
+    render([cities], t('Searching…'));
     try{
-      const hits = await Places.search(term);
+      const hits = await Places.search(q);
       if(gen !== generation) return;                     // a newer query won
-      if(!hits.length){ render([], null, `Nothing found for "${term}".`); return; }
-      render(hits, 'Locations');
+      render([cities, { heading: t('Locations'), items: hits }],
+        (cities.items.length || hits.length) ? null : t('Nothing found for "{term}".', { term: q }));
     }catch(e){
       if(gen !== generation) return;
-      render([], null, Live.online()
-        ? 'Search unavailable right now. Previously visited locations still work offline.'
-        : 'Offline — search needs a connection. Cached locations still work.');
+      render([cities], Live.online()
+        ? t('Search unavailable right now. Previously visited locations still work offline.')
+        : t('Offline — search needs a connection. Cached locations still work.'));
     }
   }
 
@@ -5972,22 +6080,24 @@ const Search = (() => {
     onPick(r);
   }
 
-  /** Browser geolocation, used only on an explicit tap. Never on load. */
+  /** Browser geolocation, used only on an explicit tap. Never on load.
+      Where you are beats any list, so this stays exactly where it is: the ◎
+      button next to the box, in both the desktop header and the mobile sheet. */
   function locate(){
     if(typeof navigator === 'undefined' || !navigator.geolocation){
-      render([], null, 'This browser cannot report a location.');
+      render([], t('This browser cannot report a location.'));
       return;
     }
-    render([], null, 'Locating…');
+    render([], t('Locating…'));
     navigator.geolocation.getCurrentPosition(pos => {
       const { latitude:lat, longitude:lon } = pos.coords;
       close();
-      onPick({ name:`${fmt(lat,3)}, ${fmt(lon,3)}`, admin:'Your location', country:'', countryCode:'',
+      onPick({ name:`${fmt(lat,3)}, ${fmt(lon,3)}`, admin:t('Your location'), country:'', countryCode:'',
                lat, lon, elevation:null, timezone:null });
     }, err => {
-      render([], null, err && err.code === 1
-        ? 'Location permission denied.'
-        : 'Could not get a location fix.');
+      render([], err && err.code === 1
+        ? t('Location permission denied.')
+        : t('Could not get a location fix.'));
     }, { enableHighAccuracy:false, timeout:10000, maximumAge:600000 });
   }
 
@@ -6034,6 +6144,12 @@ const Search = (() => {
       .then(() => Views.repaintAll())
       .catch(() => { /* stays English, which is a complete UI */ });
   }
+
+  /* --- the curated city list ---
+     Started here rather than on the first keystroke so that focusing the search
+     box is instant. Nothing waits on it: until it lands the box behaves exactly
+     as it did before, and if it never lands it stays that way. */
+  Cities.load();
 
   /* --- first paint --- */
   Views.renderLangMenu();

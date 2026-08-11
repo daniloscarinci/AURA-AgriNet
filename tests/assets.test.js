@@ -273,6 +273,53 @@ module.exports = ({ suite, test, assert }) => {
     test('a meta description is present', () =>
       assert.includes(html, '<meta name="description"', 'no meta description'));
 
+    /* The curated city list is the only part of location search that works with
+       no network, which is worth nothing if the rows are wrong: every one of
+       these coordinates is fetched real weather for. They were resolved once
+       against the geocoder rather than written from memory, and this is what
+       stops a hand-edit putting a city in the sea. */
+    suiteCities();
+    function suiteCities() {
+      const cities = JSON.parse(fs.readFileSync(path.join(ROOT, 'cities.json'), 'utf8'));
+
+      test('cities.json declares what it holds', () => {
+        assert.ok(Array.isArray(cities.cities), 'no cities array');
+        assert.greater(cities.cities.length, 100, 'too few to be worth browsing');
+        assert.equal(cities.meta.count, cities.cities.length, 'meta.count disagrees with the rows');
+      });
+
+      test('every city row is complete and on Earth', () => {
+        const bad = cities.cities.filter(c =>
+          c.length !== 7 || !c[0] || !/^[A-Z]{2}$/.test(c[2]) ||
+          typeof c[3] !== 'number' || Math.abs(c[3]) > 90 ||
+          typeof c[4] !== 'number' || Math.abs(c[4]) > 180 ||
+          typeof c[5] !== 'number');
+        assert.deepEqual(bad.slice(0, 3), [], 'malformed rows — a bad coordinate fetches the wrong weather');
+      });
+
+      test('no city appears twice', () => {
+        const keys = cities.cities.map(c => c[0] + '|' + c[2]);
+        assert.equal(new Set(keys).size, keys.length, 'a duplicate would appear twice in the list');
+      });
+
+      /* Not a population ranking — the point of curating it. But it must not be
+         parochial either: a list that cannot reach a grower is no use to them. */
+      test('the list spans the world, not one continent', () =>
+        assert.greater(new Set(cities.cities.map(c => c[2])).size, 60,
+          'too few countries for a list that claims to be worldwide'));
+
+      test('cities.json is precached, or it is useless offline', () => {
+        const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+        const precache = (sw.match(/const PRECACHE = \[([\s\S]*?)\]/) || [, ''])[1];
+        assert.includes(precache, './cities.json',
+          'the city list is fetched but not precached, so offline it 404s and the list is empty');
+      });
+
+      test('the list stays small enough to precache', () =>
+        assert.less(bytes('cities.json'), 120 * 1024,
+          'the city list has grown past a reasonable share of the install'));
+    }
+
     /* Tailwind here is PREBUILT and committed, and there is no build step, so a
        utility class that was not in the source when app.css was compiled is
        silently inert: it reads correctly in the markup and does nothing on
