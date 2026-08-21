@@ -19,7 +19,7 @@ command in this plan begins with this exact prefix, which is self-healing — it
 persistent variables if the shell inherited them and rediscovers them if it did not:
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 ```
 
@@ -41,28 +41,38 @@ assertion is that the tools answer when called.
 
 - [ ] **Step 1: Install JDK 17**
 
+winget is installed on this machine but unusable: its execution alias is a zero-byte stub,
+and the real binary under `WindowsApps` denies access even when called by full path. Fetch
+the JDK directly instead. This needs no elevation and no installer, and it pins the exact
+build rather than whatever a package feed happens to hold.
+
 ```bash
-winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-package-agreements --accept-source-agreements
+mkdir -p /c/Users/danil/AppData/Local/Programs/Java
+curl -L --fail -o /tmp/jdk17.zip "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse"
+cd /c/Users/danil/AppData/Local/Programs/Java && unzip -q -o /tmp/jdk17.zip
 ```
 
-Expected: `Successfully installed`. If winget reports it is already installed, continue.
+Expected: roughly 181 MB downloaded, then a directory named `jdk-17.<minor>.<patch>+<build>`.
 
 - [ ] **Step 2: Confirm the JDK answers and record its path**
 
 ```bash
-export JAVA_HOME="$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)"
+export JAVA_HOME="$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)"
 echo "JAVA_HOME=$JAVA_HOME"
 "$JAVA_HOME/bin/java" -version
 ```
 
-Expected: a path ending in `-hotspot`, then `openjdk version "17.0.x"` on stderr. If the
-`ls` finds nothing, the install went elsewhere — locate it with
-`ls -d '/c/Program Files/'*/*jdk*` before continuing.
+Expected: a path ending in a build number such as `jdk-17.0.20+8`, then
+`openjdk version "17.0.x"` and `Temurin-17.0.x` on stderr. If the `ls` finds nothing, the
+archive unpacked elsewhere — locate it with
+`ls -d /c/Users/danil/AppData/Local/Programs/Java/*` before continuing.
 
 - [ ] **Step 3: Persist JAVA_HOME for future shells**
 
-```bash
-cmd //c "setx JAVA_HOME \"$(cygpath -w "$JAVA_HOME")\""
+Git Bash cannot reach `setx`, so use PowerShell. Substitute the path printed by Step 2.
+
+```powershell
+setx JAVA_HOME "C:\Users\danil\AppData\Local\Programs\Java\jdk-17.0.20+8"
 ```
 
 Expected: `SUCCESS: Specified value was saved.`
@@ -93,7 +103,7 @@ Expected: `SUCCESS: Specified value was saved.`
 - [ ] **Step 6: Accept the SDK licences**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="/c/Users/danil/AppData/Local/Android/Sdk"
 yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" --licenses
 ```
@@ -104,7 +114,7 @@ Expected: several `Accept? (y/N):` prompts answered, ending in
 - [ ] **Step 7: Install the platform and build tools**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="/c/Users/danil/AppData/Local/Android/Sdk"
 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 ```
@@ -122,14 +132,19 @@ Expected: both paths print. If either is missing, re-run Step 7 before continuin
 
 - [ ] **Step 9: Write `android/local.properties`**
 
+Use forward slashes. A `.properties` file treats backslash as an escape character, so
+`sdk.dir=C\:\Users\danil\...` loads as `C:UsersdanilAppData...` with the separators eaten
+and no warning printed.
+
 ```bash
 mkdir -p "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android"
-printf 'sdk.dir=C\\:\\\\Users\\\\danil\\\\AppData\\\\Local\\\\Android\\\\Sdk\n' \
-  > "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android/local.properties"
+cat > "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android/local.properties" <<'EOF'
+sdk.dir=C:/Users/danil/AppData/Local/Android/Sdk
+EOF
 cat "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android/local.properties"
 ```
 
-Expected: `sdk.dir=C\:\\Users\\danil\\AppData\\Local\\Android\\Sdk`
+Expected: `sdk.dir=C:/Users/danil/AppData/Local/Android/Sdk`
 
 Nothing is committed in this task — `local.properties` names a path that belongs to this
 machine alone, and Task 9 tells git to ignore it.
@@ -185,15 +200,28 @@ agp = "8.7.3"
 webkit = "1.12.1"
 activity = "1.9.3"
 core = "1.13.1"
+# Nothing here is written in Kotlin. AndroidX is, though, and androidx.core drags
+# in coroutines 1.6.4, which still asks for the separate kotlin-stdlib-jdk7/jdk8
+# artifacts at 1.6.21 -- classes that Kotlin 1.8 folded back into kotlin-stdlib.
+# Two copies of the same class fail the build. The BOM below aligns them.
+kotlin = "1.8.22"
 
 [libraries]
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-core = { module = "androidx.core:core", version.ref = "core" }
+kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 ```
+
+The Kotlin entry is not optional and not decoration. Without it the build fails at
+`mergeExtDexDebug` with several hundred `Duplicate class kotlin.*` lines. The chain is
+`androidx.core:core:1.13.1` → `androidx.lifecycle:lifecycle-runtime:2.6.2` →
+`kotlinx-coroutines-android:1.6.4` → `kotlin-stdlib-jdk8:1.6.21`, against a
+`kotlin-stdlib` that resolves to 1.8.22. Confirm it with
+`./gradlew :app:dependencies --configuration debugRuntimeClasspath` rather than guessing.
 
 - [ ] **Step 3: Write `android/build.gradle.kts`**
 
@@ -249,6 +277,11 @@ android {
 }
 
 dependencies {
+    // Aligns the Kotlin artifacts AndroidX pulls in transitively. See the note in
+    // libs.versions.toml: without this, kotlin-stdlib 1.8.22 and kotlin-stdlib-jdk8
+    // 1.6.21 both define the same classes and dexing fails.
+    implementation(platform(libs.kotlin.bom))
+
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.core)
@@ -289,7 +322,7 @@ There is no Gradle on this machine yet, so download one distribution and use it 
 write the wrapper into the project.
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 curl -L -o /tmp/gradle-8.9-bin.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
 unzip -q -o /tmp/gradle-8.9-bin.zip -d /c/Users/danil/AppData/Local/gradle-dist
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android"
@@ -303,7 +336,7 @@ Expected: `BUILD SUCCESSFUL`, then a listing showing `gradle-wrapper.jar`,
 - [ ] **Step 8: Assemble**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -459,7 +492,7 @@ Expected: PASS, with a total higher than the previous 597 checks.
 - [ ] **Step 5: Rebuild and confirm the assets are inside the APK**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 unzip -l app/build/outputs/apk/debug/app-debug.apk | grep 'assets/' | sort -k4
@@ -621,7 +654,7 @@ Replace the self-closing `<application ... />` element in
 - [ ] **Step 3: Build**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -736,7 +769,7 @@ service-worker block, add:
 - [ ] **Step 5: Build**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -879,7 +912,7 @@ Expected: PASS in full.
 - [ ] **Step 7: Build**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -1008,7 +1041,7 @@ Then add these two methods to the class, below `onSaveInstanceState`:
 - [ ] **Step 6: Build**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -1134,7 +1167,7 @@ In `android/app/src/main/AndroidManifest.xml`, add these two attributes to the
 - [ ] **Step 5: Build**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew assembleDebug
 ```
@@ -1264,7 +1297,7 @@ git commit -m "Say what the APK costs, and what has not been tested"
 - [ ] **Step 1: Build clean from nothing**
 
 ```bash
-export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Program Files/Eclipse Adoptium/jdk-17'* | head -1)}"
+export JAVA_HOME="${JAVA_HOME:-$(ls -d '/c/Users/danil/AppData/Local/Programs/Java/jdk-17'* | head -1)}"
 export ANDROID_HOME="${ANDROID_HOME:-/c/Users/danil/AppData/Local/Android/Sdk}"
 cd "C:/Users/danil/Desktop/AURA-AgriNet 1.0/android" && ./gradlew clean assembleDebug
 ```
