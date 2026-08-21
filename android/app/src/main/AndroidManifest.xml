@@ -3,6 +3,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Without ACCESS_NETWORK_STATE, WebView reports navigator.onLine as true
+         forever. The header's "Offline · cached" chip would then never appear and
+         a stale reading would present itself as current, which is the one thing
+         this app promises never to do. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- The locate button. Asked for on an explicit tap, never on load. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:hardwareAccelerated="true"

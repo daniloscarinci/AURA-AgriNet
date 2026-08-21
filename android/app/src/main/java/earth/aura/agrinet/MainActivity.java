@@ -1,7 +1,11 @@
 package earth.aura.agrinet;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.ViewGroup;
+import android.webkit.GeolocationPermissions;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -9,6 +13,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 import androidx.webkit.ServiceWorkerClientCompat;
 import androidx.webkit.ServiceWorkerControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
@@ -30,6 +37,20 @@ public class MainActivity extends ComponentActivity {
     private static final String START_URL = "https://" + APP_HOST + "/index.html";
 
     private WebView webView;
+
+    private GeolocationPermissions.Callback pendingGeoCallback;
+    private String pendingGeoOrigin;
+
+    /* Registered as a field initializer, which runs during construction -- the
+       last moment at which ActivityResultRegistry still accepts a registration. */
+    private final ActivityResultLauncher<String> locationPermission =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (pendingGeoCallback != null) {
+                    pendingGeoCallback.invoke(pendingGeoOrigin, granted, false);
+                    pendingGeoCallback = null;
+                    pendingGeoOrigin = null;
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +82,24 @@ public class MainActivity extends ComponentActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+        });
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin,
+                                                           GeolocationPermissions.Callback callback) {
+                boolean granted = ContextCompat.checkSelfPermission(
+                        MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED;
+                if (granted) {
+                    callback.invoke(origin, true, false);
+                    return;
+                }
+                // Hold the callback until Android answers. The page is waiting on it.
+                pendingGeoOrigin = origin;
+                pendingGeoCallback = callback;
+                locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION);
             }
         });
 
