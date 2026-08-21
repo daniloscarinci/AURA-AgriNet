@@ -1,7 +1,10 @@
 package earth.aura.agrinet;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.webkit.GeolocationPermissions;
@@ -17,8 +20,14 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.ServiceWorkerClientCompat;
 import androidx.webkit.ServiceWorkerControllerCompat;
+import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewFeature;
 
@@ -70,6 +79,10 @@ public class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // targetSdk 35 draws edge to edge whether asked to or not, so ask, and then
+        // keep the content out from under the bars deliberately.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(APP_HOST)
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -80,6 +93,16 @@ public class MainActivity extends ComponentActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(webView);
 
+        /* The IME inset is included on purpose. The chat composer sits at the
+           bottom of the shell, and without it the keyboard covers the field you
+           are typing into. */
+        ViewCompat.setOnApplyWindowInsetsListener(webView, (view, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);          // localStorage: the app's own data cache
@@ -87,6 +110,13 @@ public class MainActivity extends ComponentActivity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setSupportZoom(false);               // the page sets its own viewport
         settings.setBuiltInZoomControls(false);
+
+        /* Makes prefers-color-scheme report the system setting. The page declares
+           color-scheme: light dark and ships its own warm dark palette, so Android
+           honours that instead of force-inverting a stylesheet built by hand. */
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true);
+        }
 
         // No device was available to test this on, so leave the door open: with a
         // debug build installed, chrome://inspect reaches the running page.
@@ -96,6 +126,22 @@ public class MainActivity extends ComponentActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if (APP_HOST.equals(uri.getHost())) {
+                    return false;
+                }
+                // Attribution links belong in a browser, not inside the console.
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (Exception ignored) {
+                    // No browser installed. Refusing to navigate is still correct.
+                }
+                return true;
             }
         });
 
@@ -150,11 +196,31 @@ public class MainActivity extends ComponentActivity {
                 });
             }
         });
+
+        applyBarAppearance();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         webView.saveState(outState);
+    }
+
+    /* uiMode is in configChanges, so the system hands us the switch rather than
+       recreating the Activity -- which is what keeps the driver's map alive. */
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applyBarAppearance();
+    }
+
+    /** Dark icons on the oat background, light icons on the bark one. */
+    private void applyBarAppearance() {
+        boolean night = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), webView);
+        controller.setAppearanceLightStatusBars(!night);
+        controller.setAppearanceLightNavigationBars(!night);
     }
 }
