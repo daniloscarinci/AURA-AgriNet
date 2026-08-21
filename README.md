@@ -267,19 +267,19 @@ around a hosted URL could not manage.
 
 ```
 cd android
-./gradlew assembleDebug        # writes dist/AURA-AgriNet-1.0-debug.apk
+./gradlew assembleDebug        # writes android/AURA-AgriNet-1.0-debug.apk
 ```
 
 Gradle's own output lands five directories down at
 `android/app/build/outputs/apk/debug/app-debug.apk`, under a name that says neither which
-app nor which version, so every assemble copies it into `dist/` as well. The copy is wired
-into the build rather than made by hand: a stale package that looks current is worse than a
-buried one that is honest.
+app nor which version, so every assemble copies it up beside the build file as
+`android/AURA-AgriNet-1.0-debug.apk`. The copy is wired into the build rather than made by
+hand: a stale package that looks current is worse than a buried one that is honest.
 
-Install it with `adb install -r dist/AURA-AgriNet-1.0-debug.apk`. It carries the debug
-signing key, so it is for sideloading and testing, not for the Play Store. Both the APK and
-`dist/` are **gitignored build output** — this repository carries the project that produces
-the package, never the package itself.
+Install it with `adb install -r android/AURA-AgriNet-1.0-debug.apk`. It carries the debug
+signing key, so it is for sideloading and testing, not for the Play Store. The APK is
+**gitignored build output** — this repository carries the project that produces the
+package, never the package itself.
 
 **This adds a build step and dependencies — to the APK, not to the web app.** The root of
 this repository still has neither. `android/` wants JDK 17 and the Android SDK, and Gradle

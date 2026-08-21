@@ -71,21 +71,24 @@ tasks.named("preBuild") { dependsOn(syncWebAssets) }
    assemble rather than once by hand: a stale binary that looks current is worse
    than a buried one that is honest.
 
-   It lands in dist/ rather than the repository root, and that is not tidiness.
-   Gradle fingerprints a copy task's whole destination directory, so the root as a
-   destination means hashing .git -- which fails outright on the files git holds
-   open. Worse, declaring the root as an output makes every other task's output sit
-   nominally inside this one, and Gradle rejects the overlap. A directory that
-   contains nothing else avoids both.
+   It lands beside this build file, in android/, which a Copy task cannot do.
+   Gradle fingerprints a copy task's destination directory, and android/ contains
+   app/build -- so declaring it as an output puts every AGP output nominally inside
+   this task's output, which Gradle rejects as an overlap. A hand-written copy that
+   declares no outputs sidesteps the check entirely, which is honest here: the
+   input is one file that was just rebuilt, and the work is a single stream copy.
 
-   The name is resolved at configuration time rather than inside rename {}, which
-   would reach back into the project while the task runs. */
-val distApkName = "AURA-AgriNet-${android.defaultConfig.versionName}-debug.apk"
+   Paths resolve at configuration time so the action holds no project reference. */
+val apkName = "AURA-AgriNet-${android.defaultConfig.versionName}-debug.apk"
+val apkSource = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
+val apkTarget = rootProject.layout.projectDirectory.file(apkName)
 
-val copyApkToDist = tasks.register<Copy>("copyApkToDist") {
-    from(layout.buildDirectory.file("outputs/apk/debug/app-debug.apk"))
-    into(rootProject.layout.projectDirectory.dir("../dist"))
-    rename { distApkName }
+val copyApkToAndroidDir = tasks.register("copyApkToAndroidDir") {
+    doNotTrackState("writes into the android/ project directory, which holds the build tree")
+    doLast {
+        apkSource.get().asFile.copyTo(apkTarget.asFile, overwrite = true)
+        logger.lifecycle("APK: ${apkTarget.asFile.path}")
+    }
 }
 
 /* matching{}.configureEach{} rather than named(): AGP creates the per-variant
@@ -93,4 +96,4 @@ val copyApkToDist = tasks.register<Copy>("copyApkToDist") {
    configuration time with "task not found". This collection is live and catches
    the task whenever it appears. (preBuild above is safe because AGP creates that
    one eagerly.) */
-tasks.matching { it.name == "assembleDebug" }.configureEach { finalizedBy(copyApkToDist) }
+tasks.matching { it.name == "assembleDebug" }.configureEach { finalizedBy(copyApkToAndroidDir) }
