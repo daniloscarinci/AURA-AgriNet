@@ -256,6 +256,53 @@ forcing the composer apart — and, not an overflow at all, that **the driver's 
 destroyed by its own pane's next re-render**, seconds after a phone user opened it. All
 fixed. What remains is a 2px status dot deliberately overlapping the avatar it sits on.
 
+## Android
+
+An installable APK lives in `android/`. It is a wrapper, not a port: the same `index.html`,
+`app.css` and `sw.js` that serve the web app are copied into the package and served from
+`https://appassets.androidplatform.net/` by `WebViewAssetLoader`. That is a real secure
+origin rather than `file://`, so the service worker registers and every caching strategy
+described above works unchanged — including a first launch with no network, which a wrapper
+around a hosted URL could not manage.
+
+```
+cd android
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+```
+
+Install it with `adb install -r app-debug.apk`. It carries the debug signing key, so it is
+for sideloading and testing, not for the Play Store.
+
+**This adds a build step and dependencies — to the APK, not to the web app.** The root of
+this repository still has neither. `android/` wants JDK 17 and the Android SDK, and Gradle
+downloads three AndroidX artifacts: `webkit` for the asset loader, `activity` for the back
+dispatcher, `core` for window insets. Every version is pinned in
+`android/gradle/libs.versions.toml` — including a Kotlin BOM, which a project containing no
+Kotlin needs anyway because `androidx.core` pulls in coroutines 1.6.4, which still asks for
+`kotlin-stdlib-jdk8` after Kotlin 1.8 folded those classes back into `kotlin-stdlib`.
+
+The wrapper replaces what a browser supplied for free. Geolocation is bridged to a runtime
+permission, asked for on a tap as before. `ACCESS_NETWORK_STATE` is granted, without which
+WebView reports `navigator.onLine` as true forever and the *Offline · cached* chip would
+never appear. Back closes the manual or the simulation sheet before it closes the app,
+because the shell registers no history entries and would otherwise quit under an open
+dialog. Rotation is handled without recreating the Activity, which would reload the app and
+destroy the driver's map.
+
+The asset copy is defined by **exclusion**, so a web file added later ships by default and
+the failure mode is a slightly larger APK rather than a file that 404s in a field. Two tests
+guard the seams that no build error would catch: one fails if anything `sw.js` precaches has
+been excluded from the package, the other if either element id the back button probes stops
+existing in `index.html`. The `i18n/prose` catalogues ride along too, so the manual works
+offline from first launch rather than first use.
+
+**Not yet run on hardware.** It builds, and the package contains what it should. No device
+was available, so service-worker registration, the geolocation prompt, the back button and
+the window insets have not been exercised on a real Android runtime. `chrome://inspect`
+reaches a debug build once installed, which is the fastest way to check the first of those.
+The practical floor is not `minSdk 24` but the installed Android System WebView, which
+updates independently of the OS: `minSdk` describes what will install, not what will render.
+
 ## Licence
 
 MIT — see `LICENSE`. The observations come from third parties on their own terms

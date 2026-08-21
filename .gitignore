@@ -1,1 +1,7 @@
-# nothing to ignore — this is a zero-dependency static app
+# The web app still has nothing to ignore. The Android wrapper in android/ does:
+# Gradle writes build output, and local.properties names an SDK path that belongs
+# to one machine and no other.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
