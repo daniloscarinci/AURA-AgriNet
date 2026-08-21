@@ -13,6 +13,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
@@ -35,6 +36,19 @@ public class MainActivity extends ComponentActivity {
 
     private static final String APP_HOST = "appassets.androidplatform.net";
     private static final String START_URL = "https://" + APP_HOST + "/index.html";
+
+    /* The shell registers no history entries at all, so canGoBack() is always
+       false and a plain back press would close the app with the manual open over
+       it. Ask the page instead: if either dismissible layer is showing, hand it an
+       Escape and let its own keydown handler resolve the innermost one first.
+       Dispatching rather than closing directly keeps that ordering in one place.
+       tests/assets.test.js checks both ids still exist in index.html. */
+    private static final String DISMISS_TOP_LAYER =
+            "(function(){var ids=['manualLayer','simSheet'];"
+            + "var open=ids.some(function(id){var n=document.getElementById(id);return n&&!n.hidden;});"
+            + "if(!open)return false;"
+            + "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
+            + "return true;})()";
 
     private WebView webView;
 
@@ -123,6 +137,19 @@ public class MainActivity extends ComponentActivity {
         } else {
             webView.restoreState(savedInstanceState);
         }
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                webView.evaluateJavascript(DISMISS_TOP_LAYER, value -> {
+                    if (!"true".equals(value)) {
+                        // Nothing was open, so let the press mean what it usually means.
+                        setEnabled(false);
+                        getOnBackPressedDispatcher().onBackPressed();
+                    }
+                });
+            }
+        });
     }
 
     @Override

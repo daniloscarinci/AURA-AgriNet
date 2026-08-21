@@ -436,4 +436,46 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(excluded.some(p => matches(p, 'tests/run.js')),
         'tests/ would ship inside the APK for no reason'));
   });
+
+  /* ------------------------------------------------------------------------ */
+  /* The Android back button names two element ids in Java, where nothing else in
+     this suite can see them. The shell registers no history entries, so a back
+     press has nothing to pop and would close the app outright. Rename either id
+     in index.html and back silently stops dismissing the layer on screen and
+     starts quitting instead — with no error anywhere to say so. */
+  suite('assets · android back button', () => {
+    const JAVA = 'android/app/src/main/java/earth/aura/agrinet/MainActivity.java';
+
+    test('MainActivity.java exists', () => assert.ok(exists(JAVA), `${JAVA} missing`));
+
+    const java = exists(JAVA) ? read(JAVA) : '';
+    const decl = java.match(/var ids\s*=\s*\[([^\]]*)\]/);
+
+    test('the back handler declares the layer ids it dismisses', () =>
+      assert.ok(decl, 'no "var ids=[...]" in MainActivity.java — the back button probes nothing'));
+
+    const ids = decl ? [...decl[1].matchAll(/'([^']+)'/g)].map(m => m[1]) : [];
+
+    test('it probes at least one layer', () =>
+      assert.greater(ids.length, 0, 'the id list parsed to nothing'));
+
+    const { markup } = readSource();
+    ids.forEach(id => {
+      test(`#${id} exists in the shell`, () =>
+        assert.includes(markup, `id="${id}"`,
+          `MainActivity dismisses #${id} on back, but no such element is in index.html — ` +
+          'back would close the app with that layer still open'));
+    });
+
+    test('the manual is one of them', () =>
+      assert.includes(ids, 'manualLayer', 'back would close the app with the manual open'));
+
+    test('the simulation sheet is one of them', () =>
+      assert.includes(ids, 'simSheet', 'back would close the app with the sheet open'));
+
+    test('the handler dispatches Escape rather than reaching into the page', () =>
+      assert.includes(java, "key:'Escape'",
+        'the back handler should hand the page an Escape and let its own keydown ' +
+        'handler resolve the innermost layer, not duplicate that ordering in Java'));
+  });
 };
