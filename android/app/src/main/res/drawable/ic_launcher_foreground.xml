@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An adaptive foreground layer is 108dp, of which only the middle 72dp is
+     guaranteed visible once a launcher applies its mask. A maskable web icon
+     fills 80% of its own canvas, so drawing it at 86dp puts its content at
+     roughly 64dp: inside the safe zone, with nothing clipped on a round mask. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <bitmap
+            android:src="@drawable/ic_launcher_source"
+            android:gravity="center"
+            android:width="86dp"
+            android:height="86dp" />
+    </item>
+</layer-list>

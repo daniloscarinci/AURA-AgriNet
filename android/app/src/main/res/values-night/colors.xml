@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dark theme_color. The launcher icon background stays light in both, so
+     the mark reads the same on every home screen. -->
+<resources>
+    <color name="aura_background">#15120e</color>
+</resources>
