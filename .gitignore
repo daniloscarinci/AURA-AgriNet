@@ -5,3 +5,9 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# The APK itself, which every assemble drops into dist/. Machine-produced, 2.4 MB,
+# and one command away at any time — this repository carries the project that
+# builds the package, never the package.
+/dist/
+*.apk
