@@ -5,6 +5,7 @@ agp = "8.7.3"
 webkit = "1.12.1"
 activity = "1.9.3"
 core = "1.13.1"
+splashscreen = "1.0.1"
 # Nothing here is written in Kotlin. AndroidX is, though, and androidx.core drags
 # in coroutines 1.6.4, which still asks for the separate kotlin-stdlib-jdk7/jdk8
 # artifacts at 1.6.21 -- classes that Kotlin 1.8 folded back into kotlin-stdlib.
@@ -15,6 +16,7 @@ kotlin = "1.8.22"
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-core = { module = "androidx.core:core", version.ref = "core" }
+androidx-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlin" }
 
 [plugins]

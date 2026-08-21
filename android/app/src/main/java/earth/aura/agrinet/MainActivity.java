@@ -24,6 +24,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.ServiceWorkerClientCompat;
 import androidx.webkit.ServiceWorkerControllerCompat;
@@ -70,7 +71,11 @@ public class MainActivity extends ComponentActivity {
             "try{State.save()}catch(e){"
             + "try{window.dispatchEvent(new Event('pagehide'))}catch(e2){}}";
 
+    /** A load that never commits must not leave the user staring at a splash. */
+    private static final long SPLASH_TIMEOUT_MS = 4000L;
+
     private WebView webView;
+    private boolean firstPaint;
 
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
@@ -88,6 +93,13 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        /* Installed before super.onCreate, which is the only point the system
+           accepts it, and held until the shell paints. Otherwise tapping the icon
+           shows a blank window while a 320 KB document is parsed -- on a modest
+           phone that is long enough to look broken. */
+        SplashScreen splash = SplashScreen.installSplashScreen(this);
+        splash.setKeepOnScreenCondition(() -> !firstPaint);
+
         super.onCreate(savedInstanceState);
 
         // targetSdk 35 draws edge to edge whether asked to or not, so ask, and then
@@ -137,6 +149,14 @@ public class MainActivity extends ComponentActivity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+
+            /* The first pixels of the shell are on screen. Not onPageFinished:
+               that waits for every subresource, long after there is something
+               worth looking at. */
+            @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                firstPaint = true;
             }
 
             @Override
@@ -209,6 +229,9 @@ public class MainActivity extends ComponentActivity {
         });
 
         applyBarAppearance();
+
+        // Belt and braces: release the splash even if the load never commits.
+        webView.postDelayed(() -> firstPaint = true, SPLASH_TIMEOUT_MS);
     }
 
     /* Save before pausing, not after: onPause() stops the page's JavaScript, and a

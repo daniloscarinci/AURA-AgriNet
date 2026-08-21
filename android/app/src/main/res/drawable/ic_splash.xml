@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch icon. With windowSplashScreenIconBackgroundColor set, the system
+     gives this a 240dp canvas and shows the middle 160dp of it, so the mark is
+     scaled to two thirds and centred: 32 x 2 = 64 of 96, and (96 - 64) / 2 = 16.
+
+     A 96-unit canvas rather than 108 because this drawable is never masked by a
+     launcher — only by the splash screen's own circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <group
+        android:scaleX="2"
+        android:scaleY="2"
+        android:translateX="16"
+        android:translateY="16">
+
+        <path
+            android:pathData="M3,16 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0"
+            android:strokeColor="#2b5f8f"
+            android:strokeWidth="1.8"
+            android:strokeAlpha="0.32" />
+
+        <path
+            android:pathData="M20.3,8.55 A8.6,8.6 0 1 1 11.7,8.55"
+            android:strokeColor="#4a7a29"
+            android:strokeWidth="2.2"
+            android:strokeAlpha="0.9" />
+
+        <path
+            android:pathData="M12.2,16 a3.8,3.8 0 1,0 7.6,0 a3.8,3.8 0 1,0 -7.6,0"
+            android:fillColor="#2b5f8f" />
+
+        <path
+            android:pathData="M13.6,3 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0"
+            android:fillColor="#8a6a14" />
+    </group>
+</vector>

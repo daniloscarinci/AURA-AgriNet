@@ -971,11 +971,18 @@ body{
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">
+      <!-- The mark: a sensor footprint over a point of ground, with the platform
+           passing overhead. The orbit carries the satellite; the scan ring is
+           broken at the top so the downlink path reads through it; the core is the
+           point being measured. Every number here comes from MARK in
+           icons/build-icons.js, which generates the PNG icons from the same
+           geometry — a test fails if the two ever disagree. No round linecaps:
+           the generator draws butt ends, and these have to match. -->
       <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="16" cy="16" r="14" fill="none" stroke="var(--series-1)" stroke-width="1.4" opacity=".45"/>
-        <circle cx="16" cy="16" r="8.5" fill="none" stroke="var(--series-3)" stroke-width="1.4" opacity=".75"/>
-        <circle cx="16" cy="16" r="3.1" fill="var(--series-1)"/>
-        <circle cx="16" cy="2" r="2.1" fill="var(--series-4)"/>
+        <circle cx="16" cy="16" r="13" fill="none" stroke="var(--series-1)" stroke-width="1.8" opacity=".32"/>
+        <path d="M20.3,8.55 A8.6,8.6 0 1 1 11.7,8.55" fill="none" stroke="var(--series-3)" stroke-width="2.2" opacity=".9"/>
+        <circle cx="16" cy="16" r="3.8" fill="var(--series-1)"/>
+        <circle cx="16" cy="3" r="2.4" fill="var(--series-4)"/>
       </svg>
       <div class="leading-tight">
         <div class="font-bold text-[15px] tracking-tight">AURA-AgriNet <span style="color:var(--text-muted)" class="font-medium">1.0</span></div>

@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.core)
+    implementation(libs.androidx.splashscreen)
 }
 
 /* The web app is the repository root, and the APK carries a copy of it. That copy
@@ -56,7 +57,9 @@ val syncWebAssets = tasks.register<Sync>("syncWebAssets") {
         exclude(
             ".git/**", ".github/**", ".gitignore", ".claude/**",
             "android/**", "docs/**", "tests/**",
-            "serve.cmd", "README.md", "LICENSE"
+            "serve.cmd", "README.md", "LICENSE",
+            // Generates the icons at author time; the app never loads it.
+            "icons/build-icons.js"
         )
     }
     into(webAssets)

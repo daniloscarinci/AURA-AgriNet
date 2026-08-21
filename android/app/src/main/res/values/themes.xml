@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- What the window wears once the app is running. -->
     <style name="Theme.Aura" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/aura_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+
+    <!-- The launch theme. Without one, tapping the icon shows a blank window
+         until the WebView has parsed a 320 KB document and painted, which on a
+         modest phone is long enough to look broken.
+
+         The icon gets its own oat disc rather than sitting straight on the
+         window background: the mark's outer ring is a 32%-alpha blue that would
+         all but disappear against the dark theme's bark. -->
+    <style name="Theme.Aura.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/aura_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/aura_icon_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.Aura</item>
+    </style>
+
 </resources>

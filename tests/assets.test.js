@@ -519,4 +519,62 @@ module.exports = ({ suite, test, assert }) => {
         'the page would stay paused after the user comes back');
     });
   });
+
+  /* ------------------------------------------------------------------------ */
+  /* One mark, drawn in four places: the header SVG, four PNGs, and two Android
+     vector drawables. Hand-copied geometry drifts, and nothing breaks loudly when
+     it does — you just end up with a launcher icon that is not quite the logo.
+     So icons/build-icons.js holds the numbers, and these check the rest agrees. */
+  suite('assets · brand mark', () => {
+    const { MARK, render } = require('../icons/build-icons.js');
+    const { markup } = readSource();
+    const svg = (markup.match(/<svg[^>]*viewBox="0 0 32 32"[\s\S]*?<\/svg>/) || [''])[0];
+
+    test('the header carries the mark', () =>
+      assert.greater(svg.length, 0, 'no 32x32 svg in the header'));
+
+    test('the orbit ring matches the generator', () => {
+      assert.includes(svg, `r="${MARK.orbit.r}"`, 'orbit radius differs from MARK.orbit.r');
+      assert.includes(svg, `stroke-width="${MARK.orbit.width}"`, 'orbit stroke differs from MARK.orbit.width');
+    });
+
+    test('the scan ring matches the generator', () => {
+      assert.includes(svg, `A${MARK.scan.r},${MARK.scan.r}`, 'scan arc radius differs from MARK.scan.r');
+      assert.includes(svg, `stroke-width="${MARK.scan.width}"`, 'scan stroke differs from MARK.scan.width');
+    });
+
+    test('the core and the satellite match the generator', () => {
+      assert.includes(svg, `r="${MARK.core.r}"`, 'core radius differs from MARK.core.r');
+      assert.includes(svg, `cy="${MARK.satellite.cy}" r="${MARK.satellite.r}"`,
+        'satellite position or radius differs from MARK.satellite');
+    });
+
+    test('round linecaps have not crept into the arc', () =>
+      assert.notIncludes(svg, 'stroke-linecap',
+        'the generator draws butt ends, so a round cap here makes the SVG and the PNGs different marks'));
+
+    /* Decoded pixels rather than file bytes: deflate output is not guaranteed
+       identical across the Node versions CI runs, but inflate always is. */
+    test('the shipped icon-192.png is what the generator produces today', () => {
+      const buf = fs.readFileSync(path.join(ROOT, 'icons/icon-192.png'));
+      let off = 8, w = 0, h = 0;
+      const idat = [];
+      while (off + 8 <= buf.length) {
+        const len = buf.readUInt32BE(off);
+        const type = buf.toString('ascii', off + 4, off + 8);
+        const data = buf.subarray(off + 8, off + 8 + len);
+        if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); }
+        if (type === 'IDAT') idat.push(data);
+        off += 12 + len;
+      }
+      const raw = require('zlib').inflateSync(Buffer.concat(idat));
+      const stride = w * 4;
+      const pixels = Buffer.alloc(w * h * 4);
+      for (let y = 0; y < h; y++) {
+        raw.copy(pixels, y * stride, y * (stride + 1) + 1, (y + 1) * (stride + 1));
+      }
+      assert.ok(pixels.equals(render(192, false, 1.0)),
+        'icons/icon-192.png no longer matches the geometry that generated it — run node icons/build-icons.js');
+    });
+  });
 };

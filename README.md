@@ -297,6 +297,22 @@ because the shell registers no history entries and would otherwise quit under an
 dialog. Rotation is handled without recreating the Activity, which would reload the app and
 destroy the driver's map.
 
+Launching shows the mark on the app's own oat ground rather than a blank window, and the
+splash is held until the shell actually paints — `onPageCommitVisible`, not
+`onPageFinished`, which would wait for every subresource long after there is something
+worth looking at. A four-second timeout releases it if a load never commits. The launcher
+icon is a vector, with a monochrome layer so Android 13's themed icons follow the wallpaper
+like everything else on the home screen.
+
+**The mark has one source.** It is a sensor footprint over a point of ground with the
+platform passing overhead: a faint orbit carrying the satellite, a scan ring broken where
+the downlink passes through, a solid core for the point being measured. That geometry
+appears in six places — the header SVG, four PNGs, and two Android vector drawables — so
+`icons/build-icons.js` holds the numbers and generates the PNGs, and a test fails if the
+header SVG or the shipped `icon-192.png` stops agreeing with it. The generator writes PNGs
+by hand with `zlib`, because adding an image library to a repository that advertises zero
+dependencies in order to draw four circles would be a poor trade.
+
 The asset copy is defined by **exclusion**, so a web file added later ships by default and
 the failure mode is a slightly larger APK rather than a file that 404s in a field. Two tests
 guard the seams that no build error would catch: one fails if anything `sw.js` precaches has
