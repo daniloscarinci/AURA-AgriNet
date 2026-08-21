@@ -41,3 +41,27 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.core)
 }
+
+/* The web app is the repository root, and the APK carries a copy of it. That copy
+   is never committed: the root stays the single source of truth.
+
+   Note the direction. This excludes what must not ship rather than listing what
+   must, so a web asset added next year is bundled by default. The failure mode is
+   then a marginally larger APK -- never a file that 404s on a farm with no signal.
+   tests/assets.test.js fails if anything sw.js precaches appears below. */
+val webAssets = layout.buildDirectory.dir("generated/webassets")
+
+val syncWebAssets = tasks.register<Sync>("syncWebAssets") {
+    from(rootProject.layout.projectDirectory.dir("..")) {
+        exclude(
+            ".git/**", ".github/**", ".gitignore", ".claude/**",
+            "android/**", "docs/**", "tests/**",
+            "serve.cmd", "README.md", "LICENSE"
+        )
+    }
+    into(webAssets)
+    includeEmptyDirs = false
+}
+
+android.sourceSets["main"].assets.srcDir(webAssets)
+tasks.named("preBuild") { dependsOn(syncWebAssets) }

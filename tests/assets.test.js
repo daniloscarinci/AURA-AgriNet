@@ -373,4 +373,67 @@ module.exports = ({ suite, test, assert }) => {
         'class names that style nothing — app.css is prebuilt, so a new utility must be written by hand');
     });
   });
+
+  /* ------------------------------------------------------------------------ */
+  /* The APK carries a copy of this directory, and that copy is defined by
+     exclusion. So the danger is not a forgotten include — it is an exclude
+     pattern that quietly swallows something sw.js precaches. cache.addAll is
+     atomic, so such a package installs, launches, and then dies the first time
+     the phone loses signal. The cheapest guard against the worst failure. */
+  suite('assets · android package', () => {
+    const GRADLE = 'android/app/build.gradle.kts';
+
+    test('the Android build file exists', () =>
+      assert.ok(exists(GRADLE), `${GRADLE} missing — what the APK carries is undefined`));
+
+    const gradle = exists(GRADLE) ? read(GRADLE) : '';
+    const block = gradle.match(/exclude\(([\s\S]*?)\)/);
+
+    test('the Android build declares an asset exclude list', () =>
+      assert.ok(block, `no exclude(...) call in ${GRADLE} — what the APK carries is unstated`));
+
+    const excluded = block ? [...block[1].matchAll(/"([^"]+)"/g)].map(m => m[1]) : [];
+
+    test('the exclude list is non-empty', () =>
+      assert.greater(excluded.length, 0, 'exclude(...) parsed to nothing'));
+
+    /* Gradle uses Ant glob patterns. Scanned character by character rather than
+       rewritten by chained replaces, because chaining needs placeholder characters
+       and a placeholder that can occur in real input is a bug lying in wait.
+       A doubled star before a separator spans whole directories, a doubled star
+       alone spans anything, and a single star stops at a separator. */
+    const META = '.+^$()|[]{}?\\';
+    const matches = (pattern, file) => {
+      let re = '';
+      for (let i = 0; i < pattern.length; i++) {
+        const c = pattern[i];
+        if (c !== '*') { re += META.includes(c) ? '\\' + c : c; continue; }
+        if (pattern[i + 1] !== '*') { re += '[^/]*'; continue; }
+        if (pattern[i + 2] === '/') { re += '(?:.*/)?'; i += 2; } else { re += '.*'; i += 1; }
+      }
+      return new RegExp('^' + re + '$').test(file);
+    };
+
+    const swList = read('sw.js').match(/const PRECACHE = \[([\s\S]*?)\]/);
+    const precached = swList ? [...swList[1].matchAll(/'([^']+)'/g)].map(m => m[1]) : [];
+
+    precached.forEach(entry => {
+      // './' is the navigation root, which the worker serves out of index.html.
+      const file = entry === './' ? 'index.html' : entry.replace(/^\.\//, '');
+      test(`the APK ships precached ${entry}`, () => {
+        const hit = excluded.find(pattern => matches(pattern, file));
+        assert.notOk(hit,
+          `sw.js precaches ${entry}, but the Android build excludes it via "${hit}" — ` +
+          'cache.addAll is atomic, so the installed app would fail offline entirely');
+      });
+    });
+
+    test('the build excludes its own output', () =>
+      assert.ok(excluded.some(p => matches(p, 'android/app/build/outputs/apk/debug/app-debug.apk')),
+        'android/ is not excluded, so the copy task would recurse into its own build directory'));
+
+    test('the build excludes the test suite', () =>
+      assert.ok(excluded.some(p => matches(p, 'tests/run.js')),
+        'tests/ would ship inside the APK for no reason'));
+  });
 };
