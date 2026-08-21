@@ -9,7 +9,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ROOT, readSource } = require('./harness');
+const { ROOT, readSource, boot } = require('./harness');
+const vm = require('vm');
 
 module.exports = ({ suite, test, assert }) => {
 
@@ -477,5 +478,45 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(java, "key:'Escape'",
         'the back handler should hand the page an Escape and let its own keydown ' +
         'handler resolve the innermost layer, not duplicate that ordering in Java'));
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* When the screen goes off or the app is backgrounded, the page's own
+     visibilitychange is not guaranteed to run before Android freezes the process,
+     and its periodic snapshot is twenty seconds wide. So the Activity runs a
+     snippet of JavaScript on pause. That snippet is a string in a Java file: no
+     compiler checks it, and nothing in the app would fail if it stopped working.
+     Here it is run against the real shipped script, and it has to write. */
+  suite('assets · android lifecycle', () => {
+    const JAVA = 'android/app/src/main/java/earth/aura/agrinet/MainActivity.java';
+    const java = exists(JAVA) ? read(JAVA) : '';
+    // The constant is written as several Java literals joined by +, so take the
+    // whole declaration and concatenate every quoted run inside it.
+    const decl = java.match(/SAVE_ON_PAUSE\s*=([\s\S]*?);\n/);
+    const parts = decl ? [...decl[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1]) : [];
+
+    test('MainActivity declares a save-on-pause snippet', () =>
+      assert.ok(decl && parts.length,
+        'no SAVE_ON_PAUSE constant — nothing forces a save when the screen goes off'));
+
+    test('the snippet writes to storage when run against the shipped script', () => {
+      if (!parts.length) return;               // already reported above
+      const snippet = parts.join('').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      const h = boot();
+      h.app.State.data.role = 'DRIVER';
+      h.storage.clear();
+      // Same footing Android gives it: a separate script evaluated in global scope.
+      vm.runInContext(snippet, h.window);
+      assert.greater(h.storage.size, 0,
+        'the snippet Android runs on pause wrote nothing — State is out of reach ' +
+        'from a global eval, so closing the app would lose the session');
+    });
+
+    test('the Activity pauses and resumes the WebView', () => {
+      assert.includes(java, 'webView.onPause()',
+        'the page keeps its timers running behind a dark screen, draining the battery');
+      assert.includes(java, 'webView.onResume()',
+        'the page would stay paused after the user comes back');
+    });
   });
 };

@@ -773,6 +773,45 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(h2.app.State.data.role, 'DRIVER', 'role was not restored');
     });
 
+    /* The failure these guard is quiet and total: search your own farm, close the
+       app, open it again, and you are somewhere else entirely. REGIONS is rebuilt
+       in memory on every load, so a synthesised catchment can never be found by id
+       alone — only the coordinates that generated it can bring it back. */
+    test('a searched location survives a restart', () => {
+      const h = boot();
+      const place = { name:'Bahir Dar', admin:'Amhara', country:'Ethiopia', countryCode:'ET',
+                      lat:11.5936, lon:37.3908, elevation:1800, timezone:'Africa/Addis_Ababa' };
+      const region = h.app.Places.catchmentFor(place);
+      h.app.REGIONS[region.id] = region;
+      h.app.State.data.place = place;
+      h.app.State.data.regionId = region.id;
+      h.app.State.save();
+
+      const h2 = boot({ storage: Object.fromEntries(h.storage) });
+      assert.ok(h2.app.State.data.place, 'the place seed never reached the snapshot');
+      assert.equal(h2.app.State.data.place.name, 'Bahir Dar', 'a different place came back');
+      assert.equal(h2.app.State.data.regionId, region.id, 'the searched catchment was not restored');
+    });
+
+    test('the restored catchment sits where the search put it', () => {
+      const h = boot();
+      const place = { name:'Sorriso', admin:'Mato Grosso', country:'Brazil', countryCode:'BR',
+                      lat:-12.5453, lon:-55.7112, elevation:365, timezone:'America/Cuiaba' };
+      const region = h.app.Places.catchmentFor(place);
+      h.app.REGIONS[region.id] = region;
+      h.app.State.data.place = place;
+      h.app.State.data.regionId = region.id;
+      h.app.State.save();
+
+      const h2 = boot({ storage: Object.fromEntries(h.storage) });
+      assert.notEqual(h2.app.State.data.regionId, h2.app.DEFAULT_REGION,
+        'fell back to the default region, so the grower lost their own farm');
+      // catchmentFor is seeded off the coordinates, so the same place regenerates
+      // the same catchment rather than merely a similar one.
+      assert.close(h2.app.REGION.centre.lat, place.lat, 0.5, 'restored catchment is at the wrong latitude');
+      assert.close(h2.app.REGION.centre.lon, place.lon, 0.5, 'restored catchment is at the wrong longitude');
+    });
+
     test('a corrupt store does not stop the app booting', () => {
       const h = boot({ storage: { 'aura-agrinet-v1': '{not json' } });
       assert.ok(h.app.State.data.regionId, 'a corrupt store broke the boot');

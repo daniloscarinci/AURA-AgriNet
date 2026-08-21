@@ -59,6 +59,17 @@ public class MainActivity extends ComponentActivity {
             + "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
             + "return true;})()";
 
+    /* Android can freeze or kill this process the moment the screen goes off, and
+       the page's own visibilitychange is not guaranteed to run first. Its periodic
+       snapshot is twenty seconds wide, so without this a grower can lose the farm
+       they just searched for. State is a top-level binding in the shipped script,
+       which a global eval can reach; the fallback dispatches the same pagehide the
+       web app already saves on, so neither path depends on the other holding.
+       tests/assets.test.js runs this exact string against the real script. */
+    private static final String SAVE_ON_PAUSE =
+            "try{State.save()}catch(e){"
+            + "try{window.dispatchEvent(new Event('pagehide'))}catch(e2){}}";
+
     private WebView webView;
 
     private GeolocationPermissions.Callback pendingGeoCallback;
@@ -198,6 +209,21 @@ public class MainActivity extends ComponentActivity {
         });
 
         applyBarAppearance();
+    }
+
+    /* Save before pausing, not after: onPause() stops the page's JavaScript, and a
+       snippet handed to a stopped engine never runs. */
+    @Override
+    protected void onPause() {
+        webView.evaluateJavascript(SAVE_ON_PAUSE, null);
+        webView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        webView.onResume();
     }
 
     @Override

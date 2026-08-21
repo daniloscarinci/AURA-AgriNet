@@ -1739,6 +1739,11 @@ const State = (() => {
       v: 1,
       savedAt: Date.now(),
       regionId: data.regionId,
+      /* The seed a searched catchment was seeded from, not the catchment itself.
+         REGIONS is rebuilt in memory on every load, so the id below cannot find a
+         synthesised region again -- these coordinates can, and catchmentFor is
+         deterministic over them, so the same point rebuilds the same catchment. */
+      place: data.place || null,
       role: data.role,
       persona: data.persona,
       channel: data.channel,
@@ -1766,6 +1771,9 @@ const State = (() => {
       const s = JSON.parse(raw);
       if(!s || s.v !== 1) return null;
       if(s.regionId && REGIONS[s.regionId]) data.regionId = s.regionId;
+      // Boot rebuilds the catchment from this before it seeds a region.
+      if(s.place && typeof s.place.lat === 'number' && typeof s.place.lon === 'number')
+        data.place = s.place;
       if(s.role)    data.role    = s.role;
       if(s.persona) data.persona = s.persona;
       if(s.channel) data.channel = s.channel;
@@ -6128,6 +6136,19 @@ const Search = (() => {
     Scoring.recompute();
     return region;
   }
+  /* Rebuild a searched catchment before seeding. It was synthesised at runtime and
+     registered into REGIONS, which is empty of it again on this load, so restoring
+     the id alone would silently drop the grower back on the default region — their
+     own farm gone every time they closed the app. catchmentFor is seeded off the
+     coordinates, so this regenerates the same catchment, not a similar one. */
+  if(State.data.place){
+    try{
+      const restoredRegion = Places.catchmentFor(State.data.place);
+      REGIONS[restoredRegion.id] = restoredRegion;
+      State.data.regionId = restoredRegion.id;
+    }catch(e){ State.data.place = null; }   // malformed seed: fall back, never fail to boot
+  }
+
   const region = seedRegion(State.data.regionId || DEFAULT_REGION);
   // Default to a role view on phones, the full console on desktop.
   if(!restored && !urlRole && window.matchMedia('(max-width:1023px)').matches){
