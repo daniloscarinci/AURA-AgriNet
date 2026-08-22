@@ -834,4 +834,95 @@ module.exports = ({ suite, test, assert }) => {
         'rows rendered without verdicts');
     });
   });
+  /* ================================================ the detail screens ===== */
+  suite('live · a call at full depth', () => {
+
+    const loaded = async () => {
+      const h = live();
+      await h.app.Live.ensure(6.095, 0.042, 'Somanya');
+      h.app.State.data.clock = NOW;
+      return h;
+    };
+
+    const CALLS = ['water', 'spray', 'thermal', 'gdd'];
+
+    test('every call renders a body', async () => {
+      const h = await loaded();
+      CALLS.forEach(id =>
+        assert.greater(h.app.Views.detailFor(id).length, 100, `${id} rendered almost nothing`));
+    });
+
+    test('every body says where the number came from', async () => {
+      const h = await loaded();
+      /* Stripping provenance off the deck is only defensible because it lands
+         here. A detail screen without it breaks the app's central claim. */
+      CALLS.forEach(id =>
+        assert.includes(h.app.Views.detailFor(id), 'prov-block',
+          `${id} has no provenance block`));
+    });
+
+    test('no body claims a modelled number was measured', async () => {
+      const h = await loaded();
+      CALLS.forEach(id =>
+        assert.notIncludes(h.app.Views.detailFor(id).toLowerCase(), '>measured<',
+          `${id} presents an estimate as an instrument reading`));
+    });
+
+    test('every body leads with a verdict', async () => {
+      const h = await loaded();
+      CALLS.forEach(id =>
+        assert.includes(h.app.Views.detailFor(id), 'detail-call',
+          `${id} opens with something other than its call`));
+    });
+
+    test('an unknown call renders nothing rather than a broken screen', async () => {
+      const h = await loaded();
+      assert.equal(h.app.Views.detailFor('nonsense'), '');
+      assert.equal(h.app.Views.detailFor(null), '');
+    });
+
+    test('opening a call fills the sheet and names it', async () => {
+      const h = await loaded();
+      h.app.Views.openDetail('water');
+      assert.notOk(h.document.getElementById('detailSheet').hidden, 'the sheet stayed closed');
+      assert.greater(h.document.getElementById('detailBody').innerHTML.length, 100);
+      assert.greater(h.document.getElementById('detailTitle').textContent.length, 0,
+        'the sheet opened with no title');
+    });
+
+    test('closing it hides the sheet again', async () => {
+      const h = await loaded();
+      h.app.Views.openDetail('water');
+      h.app.Views.openDetail(null);
+      assert.ok(h.document.getElementById('detailSheet').hidden, 'the sheet would not close');
+    });
+
+    test('the pane carries the same body as the sheet', async () => {
+      const h = await loaded();
+      h.app.Views.openDetail('water');
+      assert.equal(h.document.getElementById('paneBody').innerHTML,
+                   h.document.getElementById('detailBody').innerHTML,
+                   'the two hosts have drifted apart');
+    });
+
+    test('an armed advisory opens as its own call', async () => {
+      const h = await loaded();
+      h.app.State.data.alerts.set('NDVI_DECLINE',
+        { id:'NDVI_DECLINE', label:'Canopy vigour decline', severity:'warning',
+          since: NOW, detailKey:'Canopy vigour decline', vars:{} });
+      const html = h.app.Views.detailFor('alert:NDVI_DECLINE');
+      assert.includes(html, 'detail-call', 'an armed rule has no detail screen');
+    });
+
+    test('an advisory no card claims still reaches the deck', async () => {
+      const h = await loaded();
+      h.app.State.data.alerts.set('NDVI_DECLINE',
+        { id:'NDVI_DECLINE', label:'Canopy vigour decline', severity:'warning',
+          since: NOW, detailKey:'Canopy vigour decline', vars:{} });
+      h.app.Views.renderDeck();
+      assert.includes(h.document.getElementById('farmerDeck').innerHTML,
+        'data-call="alert:NDVI_DECLINE"',
+        'a rule the engine armed is invisible on the screen that lists what needs you');
+    });
+  });
 };

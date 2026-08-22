@@ -829,6 +829,24 @@ body{
   font-size:12px; color:var(--text-secondary); line-height:1.55;
 }
 
+/* The rail and the pane are hand-written rather than composed from utilities.
+   app.css is prebuilt and this project has no build step, so lg:col-span-3 and
+   xl:col-span-5 are not in it and would have been silently inert -- the same
+   failure gap-5 shipped with. A test now fails on exactly that. */
+#deckRail, #detailPane{ display:none; }
+
+@media (min-width:1024px){
+  body:not([data-role="OPS"]) #deckRail{ display:block; grid-column:span 3 / span 3; }
+  body:not([data-role="OPS"]) #detailPane{ display:block; grid-column:span 4 / span 4; }
+  body:not([data-role="OPS"]) #opsColumn{ display:none; }
+  /* Ops keeps the full-width console it already had. */
+  body[data-role="OPS"] #deckRail,
+  body[data-role="OPS"] #detailPane{ display:none; }
+}
+@media (min-width:1280px){
+  body:not([data-role="OPS"]) #detailPane{ grid-column:span 5 / span 5; }
+}
+
 /* ==========================================================================
    DETAIL
 
@@ -1164,6 +1182,23 @@ body{
   <section class="rolepane lg:col-span-12" data-pane="DRIVER" id="paneDriver"></section>
 
   <!-- ─────────── LEFT: TELEMETRY + CONTROLS ─────────── -->
+  <!-- ─────────── DESKTOP: DECK RAIL + DETAIL PANE ───────────
+       Above 1024px the deck becomes a rail and the sheet's body becomes the
+       pane beside it: same renderer, same markup, a different host. Nothing
+       waits behind a tap on a screen with the room to show it. -->
+  <section id="deckRail">
+    <div class="panel" style="padding:11px 12px">
+      <div id="railDeck" class="deck"></div>
+    </div>
+  </section>
+
+  <section id="detailPane">
+    <div class="panel" style="padding:15px 17px">
+      <div id="paneTitle" class="panel-title" style="display:block;margin-bottom:10px"></div>
+      <div id="paneBody"></div>
+    </div>
+  </section>
+
   <section id="opsColumn" class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
 
     <!-- HERO + KPI ROW -->
@@ -1400,6 +1435,23 @@ body{
     </div>
 
     <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run, so they land on the next downlink. Raise the speed to compress the wait.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════ DETAIL SHEET ══════════════════════
+     One call at full depth: the verdict, the chart that justifies it, the
+     inputs, and where every number came from. The body is rendered by
+     Views.detailFor, which also fills the desktop pane -- the same markup in
+     both places, so a change cannot land in one and miss the other. -->
+<div id="detailSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle" hidden>
+  <div class="sheet-panel">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div class="flex items-center gap-2 mb-3">
+      <span id="detailTitle" class="panel-title"></span>
+      <div class="flex-1"></div>
+      <button id="detailClose" class="toggle" aria-label="Close this call" data-i18n-attr="aria-label" data-i18n>Close</button>
+    </div>
+    <div id="detailBody"></div>
   </div>
 </div>
 
@@ -4307,7 +4359,7 @@ const Views = (() => {
   }
 
   function renderDeck(){
-    const hosts = [el('farmerDeck')].filter(Boolean);
+    const hosts = [el('farmerDeck'), el('railDeck')].filter(Boolean);
     if(!hosts.length) return;
 
     const items = deckItems();
@@ -4333,6 +4385,14 @@ const Views = (() => {
     });
 
     hosts.forEach(h => { h.innerHTML = html; });
+
+    /* The pane always shows something: whatever the reader last picked, or the
+       first call that needs them. An empty pane beside a full rail reads as
+       broken rather than as calm. */
+    if(el('paneBody')){
+      const still = State.data.openCall && items.some(i => i.id === State.data.openCall);
+      openDetail(still ? State.data.openCall : items[0].id);
+    }
   }
 
   /* Everything on screen is generated, so a language change is a full repaint
@@ -4603,10 +4663,172 @@ const Views = (() => {
     renderRoleBadges();
   }
 
-  /* Filled in by the detail renderer below. Declared here so the deck can be
-     read and committed before the sheet it opens exists. */
-  function detailFor(){ return ''; }
-  function openDetail(){}
+
+  /* ---------- DETAIL ----------
+
+     Every detail body has the same skeleton -- verdict, the evidence for it,
+     the inputs, where it came from -- and a middle that changes completely with
+     the subject. Water is a depletion problem, spray is a timetable,
+     trafficability is a road.
+
+     Provenance is a fixed section rather than a grey line at the bottom of a
+     tile. Taking the labels off the home screen is only defensible if they land
+     somewhere a reader can always find them, and this is that place. */
+
+  function provBlock(paras, tags){
+    return `<div class="prov-block">
+      <div class="label">${esc(t('Where this came from'))}</div>
+      ${paras.map(p => `<p>${esc(p)}</p>`).join('')}
+      <div class="prov-tags">${tags.map(g =>
+        `<span class="prov-tag${g.warn ? ' warn' : ''}">${esc(g.text)}</span>`).join('')}</div>
+    </div>`;
+  }
+
+  function rowsBlock(pairs){
+    return `<dl class="agro-rows">${pairs.map(([k, v]) =>
+      `<div class="agro-row"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+  }
+
+  function detailSect(label, body){
+    return `<div class="detail-sect"><span class="label">${esc(label)}</span>${body}</div>`;
+  }
+
+  const DETAIL = {
+    water(m){
+      const tone = Triage.baseTone('water', m);
+      return `<div class="detail-call ${tone}">${esc(deckVerdict('water', m))}</div>
+        <div class="detail-why">${esc(m.why)}</div>
+        ${detailSect(t('Depletion against the refill point'), deckChart('water', m))}
+        ${rowsBlock([
+          [t('Depletion'),       `${fmt(m.depletion,0)} / ${fmt(m.taw,0)} mm`],
+          [t('Rain, 7 d'),       m.rain7 === null ? '—' : fmt(m.rain7,1) + ' mm'],
+          [t('ET₀, 7 d'),        m.et7   === null ? '—' : fmt(m.et7,1)   + ' mm'],
+          [t('Balance'),         m.balance7 === null ? '—' : (m.balance7 > 0 ? '+' : '') + fmt(m.balance7,1) + ' mm'],
+          [t('Rain, next 48 h'), m.rain48 === null ? '—' : fmt(m.rain48,1) + ' mm']
+        ])}
+        ${provBlock(
+          [t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Agronomy.ROOT_DEPTH_MM }),
+           t('Its inputs are modelled rather than measured: soil moisture and ET₀ from ECMWF IFS / DWD ICON at roughly 11 km. One model cell covers this whole holding.')],
+          [{ text: t('Derived') }, { text: t('Modelled input') }, { text: '~11 km' }])}`;
+    },
+
+    spray(m){
+      const tone = Triage.baseTone('spray', m);
+      return `<div class="detail-call ${tone}">${esc(deckVerdict('spray', m))}</div>
+        <div class="detail-why">${esc(deckWhy('spray', m))}</div>
+        ${detailSect(t('Hour by hour'), deckChart('spray', m))}
+        ${rowsBlock([
+          [t('Good hours'),      `${m.blocks.filter(b => b.rating === 'good').length} / 48`],
+          [t('Wind limit'),      `${Agronomy.SPRAY.windMax} km/h`],
+          [t('Gust limit'),      `${Agronomy.SPRAY.gustMax} km/h`],
+          [t('Humidity floor'),  `${Agronomy.SPRAY.rhMin}%`]
+        ])}
+        ${provBlock(
+          [t('Conventional limits, not a regulation · wind, gusts, humidity and rain probability')],
+          [{ text: t('Derived') }, { text: t('Our thresholds') }])}`;
+    },
+
+    thermal(m){
+      const tone = Triage.baseTone('thermal', m);
+      return `<div class="detail-call ${tone}">${esc(deckVerdict('thermal', m))}</div>
+        <div class="detail-why">${esc(deckWhy('thermal', m))}</div>
+        ${detailSect(t('Next 72 hours'), deckChart('thermal', m))}
+        ${rowsBlock([
+          [t('Minimum'), m.minC === null ? '—' : `${fmt(m.minC,1)} °C`],
+          [t('Maximum'), m.maxC === null ? '—' : `${fmt(m.maxC,1)} °C`],
+          [`${t('Hours at or below')} ${fmt(CFG.THRESH.frostArm,1)} °C`, fmt(m.frostHours)]
+        ])}
+        ${provBlock(
+          [t('2 m air temperature · ECMWF IFS / DWD ICON forecast')],
+          [{ text: t('Modelled') }, { text: '~11 km' }])}`;
+    },
+
+    traffic(m){
+      const tone = Triage.baseTone('traffic', m);
+      return `<div class="detail-call ${tone}">${esc(deckVerdict('traffic', m))}</div>
+        <div class="detail-why">${esc(deckWhy('traffic', m))}</div>
+        ${rowsBlock([
+          [t('Mean'),               `${fmt(m.traff,0)} %`],
+          [t('Blocked segments'),   fmt(m.blocked)],
+          [t('Degraded segments'),  fmt(m.degraded)],
+          [t('Passability floor'),  `${fmt(CFG.THRESH.edgeImpassable,0)} %`]
+        ])}
+        ${provBlock(
+          [t('Derived — ours. Soil water, 24 and 72 hour rain, and river percentile. This index is our formula, not a published product.'),
+           t('River discharge is Copernicus GloFAS via Open-Meteo, modelled at roughly 5 km. Farm tracks are synthesised from the coordinates — no open dataset publishes plot roads.')],
+          [{ text: t('Derived · ours') }, { text: '~5 km' }, { text: t('Synthesised layout'), warn: true }])}`;
+    },
+
+    gdd(m){
+      return `<div class="detail-call ok">${esc(deckVerdict('gdd', m))}</div>
+        <div class="detail-why">${esc(deckWhy('gdd', m))}</div>
+        ${rowsBlock([
+          [t('Crop'),         t(m.crop)],
+          [t('Base'),         `${fmt(m.baseTempC,1)} °C`],
+          [t('To maturity'),  m.toMaturity ? fmt(m.toMaturity,0) + ' GDD' : '—'],
+          [t('At this rate'), m.daysAtRate ? t('~{n} days', { n: m.daysAtRate }) : '—']
+        ])}
+        ${provBlock(
+          [t('Assumes a textbook accumulation for the crop; cultivar varies')],
+          [{ text: t('Derived') }])}`;
+    }
+  };
+
+  /** The detail body for one call, or '' when nothing can be said about it. */
+  function detailFor(id){
+    if(!id) return '';
+    if(id.indexOf('alert:') === 0){
+      const a = State.data.alerts.get(id.slice(6));
+      if(!a) return '';
+      return `<div class="detail">
+        <div class="detail-call ${a.severity === 'warning' ? 'warn' : 'act'}">${esc(t(a.label))}</div>
+        <div class="detail-why">${esc(t(a.detailKey, a.vars))}</div>
+        ${rowsBlock([[t('Armed'), clockStr(a.since) + ' UTC'], [t('Severity'), t(SEV[a.severity].word)]])}
+      </div>`;
+    }
+    const models = deckModels();
+    const m = models && models[id];
+    if(!m || !DETAIL[id]) return '';
+    return `<div class="detail">${DETAIL[id](m)}</div>`;
+  }
+
+  /** The name shown above a detail body, in either host. */
+  function detailName(id){
+    if(!id) return '';
+    if(id.indexOf('alert:') === 0){
+      const a = State.data.alerts.get(id.slice(6));
+      return a ? t(a.label) : '';
+    }
+    return DECK_NAME[id] ? t(DECK_NAME[id]) : '';
+  }
+
+  /** Open a call, or pass nothing to close. Below 1024px the sheet is the
+      detail; above it the pane already shows the same body, so raising a sheet
+      over it would be a second copy of what the reader is looking at. */
+  function openDetail(id){
+    const sheet = el('detailSheet'), body = el('detailBody'), title = el('detailTitle');
+    const html = detailFor(id), name = detailName(id);
+
+    const pane = el('paneBody'), paneTitle = el('paneTitle');
+    if(pane && html){
+      pane.innerHTML = html;
+      if(paneTitle) paneTitle.textContent = name;
+    }
+
+    if(!sheet || !body) return;
+    if(!html){ sheet.hidden = true; State.data.openCall = null; return; }
+
+    if(title) title.textContent = name;
+    body.innerHTML = html;
+    sheet.hidden = wide();
+    State.data.openCall = id;
+  }
+
+  /** The one breakpoint the script needs to know about, asked rather than
+      assumed: matchMedia is absent in the test harness's stub window. */
+  function wide(){
+    return !!(window.matchMedia && window.matchMedia('(min-width:1024px)').matches);
+  }
 
   function renderRoleBadges(){
     document.querySelectorAll('[data-badge]').forEach(b => {
@@ -6778,6 +7000,18 @@ const Search = (() => {
   /* --- mobile simulation sheet --- */
   el('fabSim').addEventListener('click', () => Views.openSheet(true));
   el('simClose').addEventListener('click', () => Views.openSheet(false));
+  /* Deck rows open the sheet. Delegated from the document, because the deck is
+     repainted on every downlink and a listener bound to a row would die with
+     the node that carried it. */
+  document.addEventListener('click', e => {
+    const row = e.target.closest && e.target.closest('[data-call]');
+    if(row) Views.openDetail(row.dataset.call);
+  });
+  el('detailClose').addEventListener('click', () => Views.openDetail(null));
+  el('detailSheet').addEventListener('click', e => {       // tap the scrim to dismiss
+    if(e.target.id === 'detailSheet') Views.openDetail(null);
+  });
+
   el('simSheet').addEventListener('click', e => {          // tap the scrim to dismiss
     if(e.target.id === 'simSheet') Views.openSheet(false);
   });
