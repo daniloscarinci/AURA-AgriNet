@@ -914,6 +914,34 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(html, 'detail-call', 'an armed rule has no detail screen');
     });
 
+    test('a card promoted by a rule states the rule, not its own calm verdict', async () => {
+      /* A browser pass found this and no stub-DOM check could have: an injected
+         frost is not in the forecast series, so the thermal model still read
+         "Clear 72 h" while the advisory had lifted the card into Needs you. The
+         deck filed it under "needs you" and the card said everything was fine. */
+      const h = await loaded();
+      h.app.State.data.alerts.set('FROST_EVENT',
+        { id:'FROST_EVENT', label:'Frost event', severity:'critical',
+          since: NOW, detailKey:'Surface temperature at the frost floor.', vars:{} });
+      h.app.Views.renderDeck();
+      const html = h.document.getElementById('farmerDeck').innerHTML;
+
+      assert.includes(html, 'deck-group act', 'the advisory did not reach Needs you');
+      const open = html.slice(html.indexOf('deck-card'), html.indexOf('</button>', html.indexOf('deck-card')));
+      assert.includes(open, 'Frost event', 'the promoted card does not name the rule that promoted it');
+      assert.notIncludes(open, 'Clear 72 h',
+        'the card contradicts the group it was filed under');
+    });
+
+    test('a card no rule promoted keeps its own verdict', async () => {
+      const h = await loaded();
+      h.app.State.data.alerts.clear();
+      h.app.Views.renderDeck();
+      const html = h.document.getElementById('farmerDeck').innerHTML;
+      assert.notIncludes(html, 'Frost event',
+        'a rule that is not armed is being named on the deck');
+    });
+
     test('an advisory no card claims still reaches the deck', async () => {
       const h = await loaded();
       h.app.State.data.alerts.set('NDVI_DECLINE',

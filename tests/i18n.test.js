@@ -745,7 +745,14 @@ module.exports = ({ suite, test, assert }) => {
       h.app.Views.setRole('FARMER');
       await switchTo(h, 'es');
       h.app.Views.setRole('FARMER');
-      const card = h.document.getElementById('paneFarmer').innerHTML;
+      /* Read the two hosts the app writes to rather than the section holding
+         them: the Farmer pane is now a deck plus a role block, and the stub DOM
+         has no element tree, so the parent's innerHTML is empty even when both
+         children are full. The advisory itself moved from a card in the pane to
+         a ranked entry in the deck. Same claim as before: no English rule name
+         and no English advisory sentence survive a language switch. */
+      const card = h.document.getElementById('farmerDeck').innerHTML
+                 + h.document.getElementById('farmerExtra').innerHTML;
       assert.includes(card, ES['Frost event'], 'the card chip kept the English rule name');
       assert.notIncludes(card, 'Frost event', 'an English rule name survived on the card');
       assert.notIncludes(card, 'Surface temperature', 'an English advisory sentence survived on the card');

@@ -1167,7 +1167,13 @@ body{
 
   <!-- ─────────── MOBILE ROLE PANES (hidden ≥1024px) ─────────── -->
   <section class="rolepane lg:col-span-12" data-pane="FARMER" id="paneFarmer">
+    <!-- Two hosts, not one. renderFarmer replaces its own innerHTML on every
+         downlink, and a deck rendered into the same element is destroyed by the
+         next repaint seconds later -- the failure that already cost this app a
+         driver's map. The deck owns the first; the role renderer owns the second
+         and never touches the first. -->
     <div id="farmerDeck" class="deck"></div>
+    <div id="farmerExtra" style="margin-top:12px"></div>
   </section>
   <section class="rolepane lg:col-span-12" data-pane="BUYER"  id="paneBuyer"></section>
   <section class="rolepane lg:col-span-12" data-pane="DRIVER" id="paneDriver"></section>
@@ -4316,38 +4322,63 @@ const Views = (() => {
     return '';
   }
 
-  /** Advisories no card claims, so nothing the engine armed is ever off screen. */
-  function orphanAlerts(){
-    const claimed = new Set();
-    Object.keys(Triage.CLAIMS).forEach(k => Triage.CLAIMS[k].forEach(r => claimed.add(r)));
-    return [...State.data.alerts.values()].filter(a => !claimed.has(a.id));
+  /** The most severe armed rule this card claims. */
+  function promotingAlert(id, alerts){
+    const rank = { critical:0, serious:1, warning:2 };
+    return (Triage.CLAIMS[id] || [])
+      .map(r => alerts.get(r)).filter(Boolean)
+      .sort((a, b) => (rank[a.severity] === undefined ? 9 : rank[a.severity])
+                    - (rank[b.severity] === undefined ? 9 : rank[b.severity]))[0] || null;
   }
 
   function deckItems(){
     const models = deckModels();
-    if(!models) return null;
     const alerts = State.data.alerts;
+    const items = [];
 
-    const items = Object.keys(DECK_NAME)
-      .filter(id => models[id])
-      .map(id => ({
+    if(models) Object.keys(DECK_NAME).filter(id => models[id]).forEach(id => {
+      const base = Triage.baseTone(id, models[id]);
+      const tone = Triage.toneOf(id, models[id], alerts);
+      items.push({
         id,
         model:    models[id],
-        tone:     Triage.toneOf(id, models[id], alerts),
-        deadline: Triage.deadlineOf(id, models[id])
-      }));
+        tone,
+        /* The advisory that lifted this card, if one did. A rule can promote a
+           card whose own arithmetic still reads calm -- an injected frost is
+           not in the forecast series -- and then the headline has to be the
+           rule, or the deck files a card under "Needs you" and the card itself
+           says "Clear 72 h". Which is what it did. */
+        promoted: tone !== base ? promotingAlert(id, alerts) : null,
+        deadline: tone !== base ? 0 : Triage.deadlineOf(id, models[id])
+      });
+    });
 
-    orphanAlerts().forEach(a => items.push({
+    /* Armed rules reach the deck whether or not a location is loaded. The
+       agronomy needs real coordinates and says so; the event engine does not,
+       and an advisory nobody can see is worse than no advisory at all. With no
+       models, nothing has claimed anything, so every armed rule stands alone. */
+    const claimed = new Set();
+    if(models) Object.keys(Triage.CLAIMS).forEach(k => Triage.CLAIMS[k].forEach(r => claimed.add(r)));
+    [...alerts.values()].filter(a => !claimed.has(a.id)).forEach(a => items.push({
       id: 'alert:' + a.id, alert: a, model: a,
       tone: a.severity === 'warning' ? 'warn' : 'act', deadline: 0
     }));
 
-    return Triage.order(items);
+    return { items: Triage.order(items), live: !!models };
   }
 
   function deckName(item){ return item.alert ? t(item.alert.label) : t(DECK_NAME[item.id]); }
   function deckHead(item){
-    return item.alert ? t(SEV[item.alert.severity].word) : deckVerdict(item.id, item.model);
+    if(item.alert)    return t(SEV[item.alert.severity].word);
+    if(item.promoted) return t(item.promoted.label);
+    return deckVerdict(item.id, item.model);
+  }
+
+  /** The sentence under an open card: the rule's if a rule put it there. */
+  function deckReason(item){
+    if(item.alert)    return t(item.alert.detailKey, item.alert.vars);
+    if(item.promoted) return t(item.promoted.detailKey, item.promoted.vars);
+    return deckWhy(item.id, item.model);
   }
 
   function deckRow(item){
@@ -4366,7 +4397,7 @@ const Views = (() => {
   function deckCard(item){
     const tone = Triage.groupOf(item.tone);
     const name = deckName(item), verdict = deckHead(item);
-    const why  = item.alert ? t(item.alert.detailKey, item.alert.vars) : deckWhy(item.id, item.model);
+    const why  = deckReason(item);
     return `<button type="button" class="deck-card ${tone}" data-call="${esc(item.id)}"
               aria-label="${esc(name + ' — ' + verdict)}">
       <span class="head"><span class="name">${esc(name)}</span>${chipHtml(GROUP_CHIP[tone], t(GROUP_LABEL[tone]))}</span>
@@ -4380,11 +4411,12 @@ const Views = (() => {
     const hosts = [el('farmerDeck'), el('railDeck')].filter(Boolean);
     if(!hosts.length) return;
 
-    const items = deckItems();
-    if(!items || !items.length){
-      const empty = `<div class="deck-empty">${esc(t(
-        'These calls need a real location. Search for one above — they are computed from live forecast data and are not simulated.'))}</div>`;
-      hosts.forEach(h => { h.innerHTML = empty; });
+    const { items, live } = deckItems();
+    const notice = live ? '' : `<div class="deck-empty">${esc(t(
+      'These calls need a real location. Search for one above — they are computed from live forecast data and are not simulated.'))}</div>`;
+
+    if(!items.length){
+      hosts.forEach(h => { h.innerHTML = notice; });
       return;
     }
 
@@ -4402,12 +4434,17 @@ const Views = (() => {
       else html += deckRow(item);
     });
 
-    hosts.forEach(h => { h.innerHTML = html; });
+    hosts.forEach(h => { h.innerHTML = html + notice; });
 
     /* The pane always shows something: whatever the reader last picked, or the
        first call that needs them. An empty pane beside a full rail reads as
-       broken rather than as calm. */
-    if(el('paneBody')){
+       broken rather than as calm.
+
+       Gated on the width, not on the element. #paneBody exists at every width
+       and is merely hidden below 1024px, so testing for it opened the detail
+       SHEET on a phone -- unasked, on every downlink, over the deck the reader
+       was trying to read. */
+    if(wide() && el('paneBody')){
       const still = State.data.openCall && items.some(i => i.id === State.data.openCall);
       openDetail(still ? State.data.openCall : items[0].id);
     }
@@ -4496,7 +4533,7 @@ const Views = (() => {
 
   /* ---- FARMER: my plots, what to do, and how good the data actually is ---- */
   function renderFarmer(){
-    const pane = el('paneFarmer');
+    const pane = el('farmerExtra');
     if(!pane) return;
     const d = State.data;
     const win = Dispatch.getHarvestWindow() === 'EARLY';
@@ -4536,7 +4573,8 @@ const Views = (() => {
           ? t('Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.')
           : t('No change to your usual schedule. Harvest as planned.'))}</div>
       </div>
-      ${advisoryBlock('FARMER')}
+      ${/* Advisories are ranked by the deck above and detailed inside the call
+           they concern, so a second copy of them here would be duplication. */''}
       <div class="mcard">
         <div class="mcard-head"><span class="mcard-title">${esc(t('My plots'))}</span><div class="flex-1"></div>
           <span class="prov">${esc(REGION.name)}</span></div>
@@ -4807,7 +4845,24 @@ const Views = (() => {
     const models = deckModels();
     const m = models && models[id];
     if(!m || !DETAIL[id]) return '';
-    return `<div class="detail">${DETAIL[id](m)}</div>`;
+    return `<div class="detail">${armedBlock(id)}${DETAIL[id](m)}</div>`;
+  }
+
+  /* An armed rule this card claims, shown inside the call it promoted. Without
+     it the deck says "Needs you" and the detail screen never says which rule
+     decided that -- the tone would be the only trace of a fired rule. */
+  function armedBlock(id){
+    const armed = (Triage.CLAIMS[id] || [])
+      .map(r => State.data.alerts.get(r)).filter(Boolean);
+    if(!armed.length) return '';
+    return armed.map(a => `<div class="deck-card ${a.severity === 'warning' ? 'warn' : 'act'}"
+        style="cursor:default">
+        <span class="head"><span class="name">${esc(t('Advisory'))}</span>
+          ${chipHtml(a.severity, t(SEV[a.severity].word))}</span>
+        <span class="deck-call ${a.severity === 'warning' ? 'warn' : 'act'}"
+          style="font-size:15px">${esc(t(a.label))}</span>
+        <span class="deck-why">${esc(t(a.detailKey, a.vars))}</span>
+      </div>`).join('');
   }
 
   /** The name shown above a detail body, in either host. */
