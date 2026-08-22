@@ -1124,14 +1124,6 @@ body{
       </div>
     </div>
 
-    <div class="hidden md:block h-8 w-px" style="background:var(--hairline)"></div>
-
-    <div class="flex items-center gap-2 flex-none">
-      <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)" data-i18n>Mission Clock</span>
-      <span id="missionClock" class="mono tnum text-[13px] font-semibold">--:--:--</span>
-      <span class="text-[9px]" style="color:var(--text-muted)">UTC</span>
-    </div>
-
     <div id="posturePill" class="chip good flex-none"><span class="chip-icon">✓</span><span>All Systems Nominal</span></div>
 
     <!-- Worldwide place search. A combobox rather than a select: the list is
@@ -1167,7 +1159,6 @@ body{
       <span aria-hidden="true">📖</span><span class="wide-only">&nbsp;Manual</span>
     </button>
 
-    <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite" aria-label="Satellite downlink status" data-i18n-attr="aria-label"></div>
   </div>
 </header>
 
@@ -1200,6 +1191,23 @@ body{
   </section>
 
   <section id="opsColumn" class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
+
+    <!-- The console, kept rather than deleted. A grower deciding whether to
+         spray never meets a mission clock; anyone who wants one finds it here,
+         which is a different thing from throwing it away. -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title" data-i18n>Downlink</span>
+        <div class="flex-1"></div>
+        <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)" data-i18n>Mission Clock</span>
+        <span id="missionClock" class="mono tnum text-[13px] font-semibold">--:--:--</span>
+        <span class="text-[9px]" style="color:var(--text-muted)">UTC</span>
+      </div>
+      <div class="p-3">
+        <div id="linkChips" class="flex items-center gap-2 flex-wrap" role="status" aria-live="polite"
+             aria-label="Satellite downlink status" data-i18n-attr="aria-label"></div>
+      </div>
+    </div>
 
     <!-- HERO + KPI ROW -->
     <div class="panel">
