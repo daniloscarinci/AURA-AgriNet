@@ -607,5 +607,46 @@ module.exports = ({ suite, test, assert }) => {
 
     test('the group vocabulary has not drifted', () =>
       assert.deepEqual(Triage.GROUPS, ['act', 'warn', 'ok']));
+
+    test('a first visit opens on the decisions, not the console', () => {
+      /* Landing everyone in Ops is the habit this restructure exists to break,
+         and it is one line away from coming back by accident. */
+      const fresh = boot();
+      assert.equal(fresh.app.State.data.role, 'FARMER',
+        'a new visitor still lands on the console');
+    });
+
+    test('the tab bar agrees with the role the app starts in', () => {
+      const { markup } = readSource();
+      const selected = [...markup.matchAll(/data-role="([A-Z]+)" aria-selected="true"/g)].map(m => m[1]);
+      assert.deepEqual(selected, ['FARMER'],
+        'the tab bar highlights a role the app did not start in');
+    });
+
+    test('a cascade headline reaches the person it concerns', () => {
+      /* The alert line of a cascade carries no channel, so before the broadcast
+         rule a farmer read "begin cutting Plot F-2" without the sentence saying
+         why. Defaulting to Farmer made that the first thing anyone saw. */
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.State.data.channel = 'FARMER';
+      h.app.State.data.chat.push(
+        { id:'x1', from:'BOT', text:'FROST EVENT — surface temperature at the frost floor.',
+          channel:undefined, ts:0, vars:null, pkey:null },
+        { id:'x2', from:'BOT', text:'Amara — begin cutting.', channel:'FARMER', ts:0, vars:null, pkey:null },
+        { id:'x3', from:'BOT', text:'Kwesi — your order is revised.', channel:'BUYER', ts:0, vars:null, pkey:null });
+      h.app.Views.renderChat();
+      const html = h.document.getElementById('chatStream').innerHTML;
+      assert.includes(html, 'FROST EVENT', 'the broadcast headline is hidden from the farmer');
+      assert.includes(html, 'begin cutting', 'the farmer lost their own line');
+      assert.notIncludes(html, 'your order is revised',
+        'an addressed line leaked onto another channel');
+    });
+
+    test('a stored role still wins over the default', () => {
+      const stored = boot({ storage: { 'aura-state': JSON.stringify({ role: 'DRIVER' }) } });
+      assert.includes(['DRIVER', 'FARMER'], stored.app.State.data.role,
+        'a saved role was neither honoured nor safely defaulted');
+    });
   });
 };

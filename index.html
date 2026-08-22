@@ -1486,7 +1486,7 @@ body{
 
 <!-- ══════════════════════ MOBILE TAB BAR ══════════════════════ -->
 <nav class="tabbar" role="tablist" aria-label="Role" data-i18n-attr="aria-label">
-  <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="false">
+  <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="true">
     <span class="rb-glyph" aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
     <span class="rb-badge hidden" data-badge="FARMER"></span>
   </button>
@@ -1498,7 +1498,7 @@ body{
     <span class="rb-glyph" aria-hidden="true">🚚</span><span data-i18n>Driver</span>
     <span class="rb-badge hidden" data-badge="DRIVER"></span>
   </button>
-  <button class="rolebtn" role="tab" data-role="OPS" aria-selected="true">
+  <button class="rolebtn" role="tab" data-role="OPS" aria-selected="false">
     <span class="rb-glyph" aria-hidden="true">🛰</span><span data-i18n>Ops</span>
   </button>
 </nav>
@@ -1858,7 +1858,10 @@ const State = (() => {
     chat: [],
     channel: 'ALL',
     persona: 'FARMER',
-    role: 'OPS',             // FARMER | BUYER | DRIVER | OPS
+    /* Farmer, not Ops. A first visit should open on the decisions, not on the
+       instrumentation -- landing everyone in the console is the habit this
+       restructure exists to break. A stored choice still wins over this. */
+    role: 'FARMER',          // FARMER | BUYER | DRIVER | OPS
 
     liveMode: 'simulated',   // 'live' once a real observation series is backing a metric
     place: null,             // the searched location currently loaded, if any
@@ -3906,6 +3909,11 @@ const Views = (() => {
     const ch = State.data.channel;
     if(ch === 'ALL') return true;
     if(m.from === 'SYSTEM') return false;
+    /* A BOT line carrying no channel is a broadcast, and every channel sees it.
+       Without this the headline of a cascade -- "FROST EVENT ..." -- is visible
+       only on All, so the farmer reads the instruction to start cutting without
+       the sentence saying why. The follow-ups are addressed and stay addressed. */
+    if(m.from === 'BOT' && !m.channel) return true;
     return m.channel === ch || m.from === ch;
   }
 
