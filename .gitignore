@@ -10,3 +10,6 @@ android/local.properties
 # Machine-produced, 2.4 MB, and one command away at any time: this repository
 # carries the project that builds the package, never the package.
 *.apk
+
+# Visual brainstorming session files: mockups and server state, machine-local.
+.superpowers/
