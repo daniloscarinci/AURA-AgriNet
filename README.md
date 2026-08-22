@@ -58,6 +58,17 @@ says so, on screen.
 
 The app never presents a stale number as current, and never invents one.
 
+## Held upright
+
+`env(safe-area-inset-*)` appeared four times in the stylesheet and resolved to zero every
+time, because the viewport meta never opted in — so on a phone held upright the header ran
+under the status bar and the tab bar under the gesture bar. `viewport-fit=cover` turns the
+four on, and every surface that touches an edge now reads `--safe-t` or `--safe-b`,
+resolved once on `:root`, rather than repeating an `env()` call that is easy to forget.
+
+The Android wrapper pads the WebView itself, so this fixed the browser and the installed
+PWA and left the APK exactly as it was.
+
 ## Choosing a location
 
 The search box does two things at once, and says which is which.
@@ -91,7 +102,7 @@ Market*.
 
 ## Real-time decisions
 
-Four cards, computed from the live series:
+Five calls, computed from the live series:
 
 - **Water balance** — FAO-56 over a 300 mm root zone. Depletion against the refill point,
   7-day rain and ET₀, and an *irrigate N mm* / *hold* call that defers when rain is coming.
@@ -101,6 +112,49 @@ Four cards, computed from the live series:
   into good / marginal / do-not-spray hours and the next usable run.
 - **Heat units** — growing-degree days against the crop's base temperature, with days to
   maturity at the current rate.
+- **Trafficability** — blocked, degrading or passable. It decides whether the crop can
+  leave the farm at all, which is too large a question to answer from a tile.
+
+## The deck
+
+The app does not show you five calls at once. It ranks them.
+
+Each call resolves itself to a tone — act, warn, ok — for its own headline, and the deck
+reads that same field rather than inventing a second severity vocabulary that could
+disagree with the one on screen. The three groups follow:
+
+- **Needs you** — the first one stays open, with the chart that justifies it.
+- **Watching** — one line each.
+- **All clear** — one line each.
+
+A quiet day collapses to a short screen and looks quiet from the doorway. That is the
+point of the grouping rather than a side effect of it: five identical cards make you read
+all five to find out nothing is wrong.
+
+Two rules sit on top of the tone. **An armed advisory outranks its card**, so the rule
+engine and the deck can never contradict each other, and it only ever promotes — a rule
+firing must not make a call look calmer than the arithmetic already found it. **Ties break
+by deadline**: whatever bites soonest sorts first.
+
+A promoted card states the rule that promoted it. An injected frost is not in the forecast
+series, so the thermal arithmetic can honestly still read *Clear 72 h* while the advisory
+is the only thing that knows better; showing the model's verdict there filed a card under
+*Needs you* that said everything was fine.
+
+An advisory no call claims becomes a card of its own, and armed rules reach the deck with
+or without a location loaded. The agronomy needs real coordinates and says so; the event
+engine does not, and an advisory nobody can see is worse than no advisory.
+
+Tapping any row opens a **detail sheet**: the verdict, the chart behind it, the inputs, and
+a fixed *Where this came from* block. At 1024px and above the deck becomes a left rail and
+that same body fills the pane beside it — the same renderer and the same markup, so the two
+hosts cannot drift, and a test compares them to keep it that way. Nothing waits behind a tap
+on a screen with the room to show it.
+
+Provenance moved into that block rather than being dropped. Taking the labels off the home
+screen is only defensible if they land somewhere a reader can always find them: *derived*
+rather than measured, *~11 km*, *our formula, not a published product*, *farm tracks
+synthesised from the coordinates*. Four checks fail if any detail screen loses it.
 
 ## Run it
 
@@ -179,9 +233,10 @@ enforces that HTML tag structure in prose blocks matches the English.
 Delivery is split by what must survive a lost connection. Short strings — labels,
 advisories, the event log — are **precached**. Long-form prose — the manual and
 the briefings — is **fetched on first use** and then cached. The precached shell
-is **151 KB gzipped**, of which `index.html` is 95 KB and the three catalogues
-36 KB. (An earlier draft of this file claimed "around 100 KB", which was the
-figure for `index.html` alone.)
+is **191 KB gzipped**, of which `index.html` is 106 KB and the three catalogues
+39 KB. (Two earlier drafts of this file were wrong here: one claimed "around
+100 KB", the figure for `index.html` alone, and one left 151 KB standing after
+the deck and its detail screens had grown the shell.)
 
 All four are left-to-right, and the app carries no notion of direction at all —
 no `dir` attribute, no mirrored stylesheet, no per-language direction field. A
@@ -191,9 +246,18 @@ accumulates rules nobody can test.
 
 ## Roles
 
-Below 1024px a bottom tab bar switches between Farmer, Buyer, Driver and Ops views. Each
-shows only what that person acts on; chat and simulation controls stay reachable in every
-role.
+A tab bar switches between Farmer, Buyer, Driver and Ops. Each shows only what that person
+acts on; chat and simulation controls stay reachable in every role.
+
+The app **opens on Farmer**, not on Ops. A first visit should land on the decisions rather
+than on the instrumentation, and a stored choice still wins over that.
+
+Ops is where the console lives. The mission clock, the four downlink chips, the readiness
+tiles, the thermal chart, the raw table and the event log used to greet every visitor,
+including the one whose question was whether to spray this afternoon. They are not deleted
+— deleting them would answer *this reads like a console* by throwing away the part of the
+app that earns the name. They are in Ops, where anyone who wants a downlink table finds
+one and a grower never meets it.
 
 ## Simulation on top of real data
 
@@ -204,22 +268,30 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 597 checks, no dependencies, no network
+node tests/run.js              # 720 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
-Five groups: **151 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
-downscaling, intent matching), **77 live** (fetch and cache, metric mapping, geocoding,
-catchment synthesis, agronomy, satellite tiling), **i18n** (engine, catalogue and prose
-integrity — placeholders and HTML tag structure must survive translation — intent
+Six groups: **153 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
+downscaling, intent matching), **45 triage** (which group each call lands in, how an armed
+advisory promotes a card and never demotes one, deadline ordering, and a check that every
+rule a card claims is a rule the engine can actually arm), **101 live** (fetch and cache,
+metric mapping, geocoding, catchment synthesis, agronomy, satellite tiling, and the deck
+and its detail screens driven over a real payload), **106 i18n** (engine, catalogue and
+prose integrity — placeholders and HTML tag structure must survive translation — intent
 keywords per language, a suite that switches language *after* a transcript and its advisories exist and
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**control-reachability** (every referenced element exists, every trigger names a real
-code path, every quick reply resolves to an intent, the manual's numbers match the
-engine), and **PWA asset integrity** (precache completeness, icon dimensions, cache
-strategy, no embedded credential).
+**168 control-reachability** (every referenced element exists, every trigger names a real
+code path, every quick reply resolves to an intent, every deck row opens a detail the
+renderer answers for, the manual's numbers match the engine), and **147 PWA asset
+integrity** (precache completeness, icon dimensions, cache strategy, safe-area insets, no
+embedded credential).
+
+The triage suite touches no DOM, which is what lets the ranking be tested on its own. That
+matters more here than elsewhere: *All clear* is a promise, and a frost filed under it is a
+lie the reader has no reason to go and check.
 
 `tests/harness.js` boots the shipped inline script in a `vm` context against a stub DOM,
 with a seeded PRNG, a virtual clock and a stubbed network — so the code under test is the
@@ -246,6 +318,21 @@ outside it — which is not theoretical. Opening the app in a browser found four
 
 The first three are now guarded by tests. The fourth is a habit: **bump `CACHE_VERSION`
 whenever you change a precached file**, or your testers will be looking at yesterday.
+
+Restructuring the UI proved the point again. Driving the real app at five widths in four
+languages found four more things that 718 passing checks did not:
+
+- the deck was **invisible on every phone width**, because the Farmer pane's renderer
+  assigns to its own `innerHTML` on every downlink and destroyed the deck seconds after it
+  was filled — the same failure that once cost this app a driver's map;
+- the detail sheet **opened by itself over the deck** on a phone, because the auto-select
+  was gated on the desktop pane *existing* rather than being visible, and it exists at
+  every width;
+- a card promoted by an armed rule kept its own verdict, so the deck filed *Next 72 hours*
+  under **Needs you** while the card read **Clear 72 h**;
+- and with no location loaded the deck hid armed advisories behind *search for a location*.
+
+The third is now a test. The first two are layout and stay the browser's job.
 
 A second pass walked every rendered element at eight widths in four languages, with a
 field in trouble so every alert branch was on screen, checking four things: content wider
