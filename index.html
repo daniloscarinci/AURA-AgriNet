@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AURA-AgriNet 1.0 — Autonomous Remote-Sensing Agent for Agricultural Micro-Logistics</title>
 <meta name="description" content="Mission console simulating NASA/ESA telemetry ingestion, autonomous hazard detection, and multi-stakeholder micro-logistics dispatch.">
 
@@ -44,6 +44,14 @@
    ========================================================================== */
 :root{
   color-scheme: light;
+
+  /* The window's own furniture. Resolved once here so every surface that has to
+     clear the status bar or the gesture bar reads a variable rather than
+     repeating an env() call that is easy to forget. Zero in a desktop browser,
+     zero in the Android wrapper -- which pads the WebView itself -- and non-zero
+     on a phone held upright, which is the case that was broken. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
 
   /* ground: oat → linen */
   --plane:        #f4efe6;
@@ -498,7 +506,7 @@ body{
   background:var(--header-bg); backdrop-filter:blur(14px);
   border-top:1px solid var(--hairline);
   /* clear the iPhone home indicator */
-  padding-bottom:env(safe-area-inset-bottom, 0px);
+  padding-bottom:var(--safe-b);
 }
 .rolebtn{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -570,7 +578,7 @@ body{
    sheet reachable from every role. */
 .fab{
   position:fixed; right:16px; z-index:55;
-  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom:calc(84px + var(--safe-b));
   width:56px; height:56px; border-radius:50%;
   display:none; align-items:center; justify-content:center;
   background:var(--series-1); color:var(--on-accent); border:none;
@@ -590,7 +598,7 @@ body{
   background:var(--surface-1);
   border-top:1px solid var(--hairline-2);
   border-radius:18px 18px 0 0;
-  padding:8px 14px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding:8px 14px calc(20px + var(--safe-b));
   animation:sheetup .22s cubic-bezier(.2,.7,.3,1);
 }
 @keyframes sheetup{ from{ transform:translateY(14%); opacity:.6 } to{ transform:none; opacity:1 } }
@@ -908,7 +916,7 @@ body{
   }
   .manual-toc::-webkit-scrollbar{ display:none; }
   .toc-link{ width:auto; flex:none; white-space:nowrap; border-color:var(--hairline); background:var(--surface-2); }
-  .manual-scroll{ padding:4px 18px calc(48px + env(safe-area-inset-bottom, 0px)); }
+  .manual-scroll{ padding:4px 18px calc(48px + var(--safe-b)); }
   .doc .scn{ flex-direction:column; align-items:stretch; }
   .doc .scn-go{ align-self:stretch; min-height:44px; }
 }
@@ -967,7 +975,7 @@ body{
 <body>
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
-<header class="sticky top-0 z-40" style="background:var(--header-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline)">
+<header class="sticky top-0 z-40" style="background:var(--header-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline);padding-top:var(--safe-t)">
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">

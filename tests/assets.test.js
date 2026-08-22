@@ -577,4 +577,29 @@ module.exports = ({ suite, test, assert }) => {
         'icons/icon-192.png no longer matches the geometry that generated it — run node icons/build-icons.js');
     });
   });
+  /* ================================================= safe areas =========== */
+  suite('assets · safe areas', () => {
+    const { html, markup } = readSource();
+
+    test('the viewport opts into the display cutout', () =>
+      assert.includes(html, 'viewport-fit=cover',
+        'env(safe-area-inset-*) resolves to zero without viewport-fit=cover'));
+
+    test(':root resolves the insets into custom properties', () => {
+      assert.includes(html, '--safe-t: env(safe-area-inset-top, 0px)');
+      assert.includes(html, '--safe-b: env(safe-area-inset-bottom, 0px)');
+    });
+
+    test('the header clears the status bar', () =>
+      assert.includes(html, 'padding-top:var(--safe-t)',
+        'the header must not run under the status bar'));
+
+    test('the tab bar clears the gesture bar', () =>
+      assert.includes(html, 'padding-bottom:var(--safe-b)',
+        'the tab bar must not run under the gesture bar'));
+
+    test('the shell still declares a translucent iOS status bar', () =>
+      assert.includes(markup, 'black-translucent',
+        'dropping this changes the inset contract'));
+  });
 };
