@@ -527,6 +527,28 @@ body{
   display:grid; place-items:center;
 }
 
+/* The wide-screen role switcher. Hidden below 1024px, where the fixed bottom
+   tab bar does this job with a bigger tap target. */
+.roleswitch{ display:none; }
+@media (min-width:1024px){
+  .roleswitch{
+    display:flex; gap:2px; padding:2px;
+    background:var(--surface-2); border:1px solid var(--hairline); border-radius:99px;
+  }
+}
+.rolechip{
+  position:relative; display:flex; align-items:center; gap:5px;
+  padding:5px 11px; border:none; border-radius:99px; background:transparent;
+  color:var(--text-muted); font-size:11.5px; font-weight:650; font-family:inherit;
+  cursor:pointer; white-space:nowrap; min-height:32px;
+}
+.rolechip:hover{ color:var(--text-secondary); }
+.rolechip[aria-selected="true"]{
+  background:var(--surface-1); color:var(--text-primary);
+  box-shadow:0 1px 2px rgba(43,38,34,.10);
+}
+.rolechip .rb-badge{ position:static; }
+
 /* Role panes: hidden on desktop, where Ops shows everything. */
 .rolepane{ display:none; }
 
@@ -835,16 +857,31 @@ body{
    failure gap-5 shipped with. A test now fails on exactly that. */
 #deckRail, #detailPane{ display:none; }
 
+/* Above 1024px each role gets its own layout beside the chat column, and the
+   twelve columns are spent differently by each.
+
+     Farmer  deck rail 3 + detail pane 4 + chat 5
+     Buyer   its pane 7 + chat 5
+     Driver  its pane 7 + chat 5
+     Ops     the console 7 + chat 5
+
+   Only Farmer has a deck. Showing the rail to a buyer would hand them a
+   grower's irrigation calls, which is the opposite of what the roles are for. */
 @media (min-width:1024px){
-  body:not([data-role="OPS"]) #deckRail{ display:block; grid-column:span 3 / span 3; }
-  body:not([data-role="OPS"]) #detailPane{ display:block; grid-column:span 4 / span 4; }
+  body[data-role="FARMER"] #deckRail{ display:block; grid-column:span 3 / span 3; }
+  body[data-role="FARMER"] #detailPane{ display:block; grid-column:span 4 / span 4; }
+
+  body[data-role="BUYER"]  .rolepane[data-pane="BUYER"],
+  body[data-role="DRIVER"] .rolepane[data-pane="DRIVER"]{
+    display:block; grid-column:span 7 / span 7;
+  }
+
   body:not([data-role="OPS"]) #opsColumn{ display:none; }
-  /* Ops keeps the full-width console it already had. */
-  body[data-role="OPS"] #deckRail,
-  body[data-role="OPS"] #detailPane{ display:none; }
 }
 @media (min-width:1280px){
-  body:not([data-role="OPS"]) #detailPane{ grid-column:span 5 / span 5; }
+  body[data-role="FARMER"] #detailPane{ grid-column:span 5 / span 5; }
+  body[data-role="BUYER"]  .rolepane[data-pane="BUYER"],
+  body[data-role="DRIVER"] .rolepane[data-pane="DRIVER"]{ grid-column:span 8 / span 8; }
 }
 
 /* ==========================================================================
@@ -1124,7 +1161,26 @@ body{
       </div>
     </div>
 
-    <div id="posturePill" class="chip good flex-none"><span class="chip-icon">✓</span><span>All Systems Nominal</span></div>
+    <!-- Role, on a wide screen. The bottom tab bar is the phone's switcher and is
+         hidden above 1024px, where the app used to have no roles at all -- Ops
+         showed everything. It has roles now, so without this a desktop reader
+         opens on Farmer and can never reach Buyer, Driver or Ops. The buttons
+         carry the same data-role as the tab bar, and the click handler was made
+         delegated so one listener serves both copies -- the way the two copies of
+         the simulation triggers already work. -->
+    <nav id="roleSwitch" class="roleswitch flex-none" role="tablist" aria-label="Role" data-i18n-attr="aria-label">
+      <button class="rolechip" role="tab" data-role="FARMER" aria-selected="true">
+        <span aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
+        <span class="rb-badge hidden" data-badge="FARMER"></span></button>
+      <button class="rolechip" role="tab" data-role="BUYER" aria-selected="false">
+        <span aria-hidden="true">📦</span><span data-i18n>Buyer</span>
+        <span class="rb-badge hidden" data-badge="BUYER"></span></button>
+      <button class="rolechip" role="tab" data-role="DRIVER" aria-selected="false">
+        <span aria-hidden="true">🚚</span><span data-i18n>Driver</span>
+        <span class="rb-badge hidden" data-badge="DRIVER"></span></button>
+      <button class="rolechip" role="tab" data-role="OPS" aria-selected="false">
+        <span aria-hidden="true">🛰</span><span data-i18n>Ops</span></button>
+    </nav>
 
     <!-- Worldwide place search. A combobox rather than a select: the list is
          every populated place on Earth, so it cannot be enumerated up front. -->
@@ -1204,6 +1260,7 @@ body{
     <div class="panel">
       <div class="panel-head">
         <span class="panel-title" data-i18n>Downlink</span>
+        <div id="posturePill" class="chip good"><span class="chip-icon">✓</span><span>All Systems Nominal</span></div>
         <div class="flex-1"></div>
         <span class="text-[9px] tracking-[.12em] uppercase" style="color:var(--text-muted)" data-i18n>Mission Clock</span>
         <span id="missionClock" class="mono tnum text-[13px] font-semibold">--:--:--</span>
@@ -4699,10 +4756,13 @@ const Views = (() => {
   function placeMap(){
     const panel = el('mapPanel');
     if(!panel) return;
-    const mobile = window.matchMedia('(max-width:1023px)').matches;
+    /* The driver's pane used to exist only below 1024px, so the map came home to
+       the Ops column on a wide screen. The driver has a pane at every width now,
+       and the Ops column is hidden in their role -- leaving the map there gave a
+       desktop driver a route with no map of it. */
     const host = el('driverMapHost');
     const home = el('mapHome');
-    if(mobile && State.data.role === 'DRIVER' && host){
+    if(State.data.role === 'DRIVER' && host){
       if(panel.parentNode !== host){ host.appendChild(panel); startDriver(); }
     } else if(home && panel.parentNode !== home){
       home.appendChild(panel);
@@ -7256,8 +7316,14 @@ const Search = (() => {
   });
 
   /* --- role tab bar --- */
-  document.querySelectorAll('.rolebtn').forEach(btn => {
-    btn.addEventListener('click', () => { Views.setRole(btn.dataset.role); State.save(); });
+  /* Delegated, so both switchers work from one listener: the fixed tab bar below
+     1024px and the header chips above it. Binding to '.rolebtn' left the header
+     copies as dead controls -- they looked like tabs and did nothing. */
+  document.addEventListener('click', e => {
+    const btn = e.target.closest && e.target.closest('[data-role]');
+    if(!btn || !btn.dataset.role) return;
+    Views.setRole(btn.dataset.role);
+    State.save();
   });
 
   el('newPill').addEventListener('click', Views.scrollToBottom);

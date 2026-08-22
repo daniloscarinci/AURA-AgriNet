@@ -616,11 +616,26 @@ module.exports = ({ suite, test, assert }) => {
         'a new visitor still lands on the console');
     });
 
-    test('the tab bar agrees with the role the app starts in', () => {
+    test('every role switcher agrees with the role the app starts in', () => {
+      /* There are two switchers -- the bottom tab bar below 1024px and the
+         header chips above it -- so this checks they agree with each other and
+         with the boot role, not that only one control exists. */
       const { markup } = readSource();
       const selected = [...markup.matchAll(/data-role="([A-Z]+)" aria-selected="true"/g)].map(m => m[1]);
-      assert.deepEqual(selected, ['FARMER'],
-        'the tab bar highlights a role the app did not start in');
+      assert.greater(selected.length, 0, 'no role is highlighted anywhere');
+      assert.deepEqual([...new Set(selected)], ['FARMER'],
+        'a role switcher highlights a role the app did not start in');
+    });
+
+    test('a wide screen can reach every role', () => {
+      /* Desktop had no roles at all before -- Ops showed everything -- and the
+         tab bar is display:none above 1024px. Without a second switcher a
+         desktop reader opens on Farmer and can never leave it. */
+      const { markup } = readSource();
+      const head = markup.slice(markup.indexOf('<header'), markup.indexOf('</header>'));
+      ['FARMER', 'BUYER', 'DRIVER', 'OPS'].forEach(r =>
+        assert.includes(head, `data-role="${r}"`,
+          `${r} is unreachable on a screen where the tab bar is hidden`));
     });
 
     test('a cascade headline reaches the person it concerns', () => {
