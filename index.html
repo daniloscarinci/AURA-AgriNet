@@ -762,6 +762,114 @@ body{
 .strip i.mild{ background:var(--good); opacity:.45; }
 .strip-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:3px; }
 
+/* ==========================================================================
+   THE DECK
+
+   One column of calls, grouped by whether they need you. A collapsed row states
+   its verdict and nothing else; the one card that needs you keeps its chart.
+   The same markup is a phone column and a desktop rail -- only the width
+   changes, which is why nothing here mentions a breakpoint.
+   ========================================================================== */
+.deck{ display:flex; flex-direction:column; gap:8px; }
+
+.deck-group{
+  display:flex; align-items:center; gap:6px;
+  padding:10px 2px 4px; font-size:9px; font-weight:750;
+  letter-spacing:.14em; text-transform:uppercase;
+}
+.deck-group .rule{ flex:1; height:1px; background:var(--hairline); }
+.deck-group .count{ font-size:9px; font-weight:600; color:var(--text-muted); }
+.deck-group.act  { color:var(--warning-ink); }
+.deck-group.warn { color:var(--serious-ink); }
+.deck-group.ok   { color:var(--good-ink); }
+
+.deck-row{
+  display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+  background:var(--surface-1); border:1px solid var(--hairline);
+  border-radius:12px; padding:10px 12px; cursor:pointer;
+  font-family:inherit; color:var(--text-primary); min-height:44px;
+}
+.deck-row:hover{ border-color:var(--hairline-2); }
+.deck-row .dot{ flex:none; width:7px; height:7px; border-radius:50%; }
+.deck-row .txt{ flex:1; min-width:0; }
+.deck-row .name{ display:block; font-size:12px; font-weight:650; }
+.deck-row .sub{
+  display:block; font-size:10px; color:var(--text-muted); margin-top:1px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.deck-row .verdict{ font-size:11.5px; font-weight:700; white-space:nowrap; }
+.deck-row .chev{ font-size:12px; color:var(--axis); flex:none; }
+
+.deck-card{
+  display:block; width:100%; text-align:left; cursor:pointer;
+  font-family:inherit; color:var(--text-primary);
+  background:var(--surface-1); border:1px solid var(--hairline);
+  border-left-width:3px; border-radius:14px; padding:12px 13px;
+}
+.deck-card.act { border-left-color:var(--warning); }
+.deck-card.warn{ border-left-color:var(--serious); }
+.deck-card.ok  { border-left-color:var(--good); }
+.deck-card .head{ display:flex; align-items:center; gap:6px; }
+.deck-card .name{
+  flex:1; font-size:9px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--text-muted); font-weight:650;
+}
+.deck-call{
+  display:block; font-size:21px; font-weight:700; letter-spacing:-.025em;
+  line-height:1.08; margin:6px 0 3px;
+}
+.deck-call.act { color:var(--warning-ink); }
+.deck-call.warn{ color:var(--serious-ink); }
+.deck-call.ok  { color:var(--good-ink); }
+.deck-why{ display:block; font-size:11px; line-height:1.45; color:var(--text-secondary); }
+
+.deck-empty{
+  background:var(--surface-1); border:1px solid var(--hairline);
+  border-radius:14px; padding:18px 14px; text-align:center;
+  font-size:12px; color:var(--text-secondary); line-height:1.55;
+}
+
+/* ==========================================================================
+   DETAIL
+
+   The body of one call: verdict, the evidence for it, the inputs, and where
+   every number came from. Used by the phone sheet and by the desktop pane
+   without a second rule -- one renderer, one stylesheet, two hosts, so a fix
+   cannot land in one and miss the other.
+   ========================================================================== */
+.detail{ display:flex; flex-direction:column; gap:13px; }
+.detail-call{ font-size:27px; font-weight:700; letter-spacing:-.03em; line-height:1.05; }
+.detail-call.act { color:var(--warning-ink); }
+.detail-call.warn{ color:var(--serious-ink); }
+.detail-call.ok  { color:var(--good-ink); }
+.detail-why{ font-size:12.5px; line-height:1.5; color:var(--text-secondary); margin-top:5px; }
+.detail-sect{ display:flex; flex-direction:column; gap:5px; }
+.detail-sect > .label{
+  font-size:9px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--text-muted); font-weight:700;
+}
+
+/* Where this came from. The app's central claim -- that saying where a number
+   came from is part of the number -- given a fixed place on every detail
+   screen, rather than a grey line under a tile that a restructure could lose. */
+.prov-block{
+  background:var(--series1-wash); border:1px solid var(--info-line);
+  border-radius:12px; padding:10px 12px;
+}
+.prov-block .label{
+  font-size:9px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--info-ink); font-weight:750; margin-bottom:5px;
+}
+.prov-block p{ font-size:11px; line-height:1.55; color:var(--text-secondary); margin:0 0 5px; }
+.prov-block p:last-of-type{ margin-bottom:0; }
+.prov-tags{ display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+.prov-tag{
+  font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:700;
+  padding:3px 7px; border-radius:99px;
+  background:var(--surface-1); border:1px solid var(--info-line); color:var(--info-ink);
+}
+.prov-tag.warn{ border-color:var(--serious-line); color:var(--serious-ink); }
+
 /* Provenance line under a live value. */
 .prov-live{ color:var(--good-ink); }
 .prov-cached{ color:var(--warning-ink); }
@@ -1049,7 +1157,9 @@ body{
 <main class="max-w-[1800px] mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
 
   <!-- ─────────── MOBILE ROLE PANES (hidden ≥1024px) ─────────── -->
-  <section class="rolepane lg:col-span-12" data-pane="FARMER" id="paneFarmer"></section>
+  <section class="rolepane lg:col-span-12" data-pane="FARMER" id="paneFarmer">
+    <div id="farmerDeck" class="deck"></div>
+  </section>
   <section class="rolepane lg:col-span-12" data-pane="BUYER"  id="paneBuyer"></section>
   <section class="rolepane lg:col-span-12" data-pane="DRIVER" id="paneDriver"></section>
 
@@ -4015,6 +4125,216 @@ const Views = (() => {
     ].filter(Boolean).join('') || agroUnavailable('No agronomy series available for this location.');
   }
 
+  /* ---------- THE DECK ----------
+
+     Views owns the models, Triage owns the ranking. Keeping them apart is what
+     lets the ordering be tested without a DOM, and the ordering is the deck's
+     whole claim.
+
+     Only the first call in "Needs you" stays open. That is the point of the
+     grouping rather than a side effect of it: a quiet day should look quiet
+     from the doorway, without reading five cards to find out nothing is wrong. */
+
+  const DECK_NAME = {
+    water:   'Water balance',
+    spray:   'Spray & fieldwork',
+    thermal: 'Next 72 hours',
+    traffic: 'Trafficability',
+    gdd:     'Heat units'
+  };
+
+  /* 'All clear' rather than 'Clear': the catalogues already translate 'Clear'
+     in its weather sense -- Despejado, Dégagé, Livre -- which as a group heading
+     would say 'cloudless' where it means 'nothing wrong here'. */
+  const GROUP_LABEL = { act:'Needs you', warn:'Watching', ok:'All clear' };
+  const GROUP_CHIP  = { act:'warning',   warn:'serious',  ok:'good' };
+  const TONE_DOT    = { act:'var(--warning)', warn:'var(--serious)', ok:'var(--good)' };
+  const TONE_INK    = { act:'var(--warning-ink)', warn:'var(--serious-ink)', ok:'var(--good-ink)' };
+
+  /** Every model the deck ranks, gathered once per paint. */
+  function deckModels(){
+    if(!Live.ready()) return null;
+    const now  = State.data.clock;
+    const crop = Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
+    return {
+      water:   Agronomy.water(now),
+      spray:   Agronomy.spray(now),
+      thermal: Agronomy.thermal(now),
+      traffic: Dispatch.trafficModel(),
+      gdd:     Agronomy.heatUnits(crop)
+    };
+  }
+
+  /** The verdict a row states. Same wording the cards used, so a reader who knew
+      the console is not learning new vocabulary as well as a new layout. */
+  function deckVerdict(id, m){
+    if(!m) return '—';
+    switch(id){
+      case 'water':   return m.call === 'irrigate' ? t('Irrigate · {mm} mm', { mm: fmt(m.applyMm, 0) })
+                           : m.call === 'monitor'  ? t('Monitor') : t('Hold');
+      case 'spray':   return !m.nextWindow ? t('No window in 48 h')
+                           : m.nextWindow.start === 0 ? t('Spray now · {len} h', { len: m.nextWindow.len })
+                           : t('Wait {start} h · {len} h window', { start: m.nextWindow.start, len: m.nextWindow.len });
+      case 'thermal': return m.verdict === 'frost' ? t('Frost in {h} h', { h: m.firstFrostIn })
+                           : m.verdict === 'heat'  ? t('Heat in {h} h', { h: m.firstHeatIn })
+                           : m.verdict === 'marginal' ? t('Marginal night') : t('Clear 72 h');
+      case 'traffic': return m.call === 'blocked' ? t('{n} blocked', { n: m.blocked })
+                           : m.call === 'degrading' ? t('Degrading') : t('Passable');
+      case 'gdd':     return t('{n} GDD/day', { n: fmt(m.rate, 1) });
+      default:        return '—';
+    }
+  }
+
+  /** The number under a row: the one reading the verdict rests on. */
+  function deckSub(id, m){
+    if(!m) return '';
+    switch(id){
+      case 'water':   return t('{pct}% depleted', { pct: fmt(m.taw > 0 ? m.depletion / m.taw * 100 : 0, 0) });
+      case 'spray':   return m.blocks.length ? t('wind {wind} km/h', { wind: fmt(m.blocks[0].wind, 0) }) : '';
+      case 'thermal': return m.minC === null ? '' : t('low {temp} °C', { temp: fmt(m.minC, 1) });
+      case 'traffic': return t('{pct}% mean', { pct: fmt(m.traff, 0) });
+      case 'gdd':     return m.daysAtRate ? t('~{n} days to maturity', { n: m.daysAtRate }) : t(m.crop);
+      default:        return '';
+    }
+  }
+
+  /** Why, in one sentence, for the card that stays open. */
+  function deckWhy(id, m){
+    if(!m) return '';
+    switch(id){
+      case 'water':   return m.why;
+      case 'spray':   return t('Wind, gusts, humidity and rain probability over the next 48 hours.');
+      case 'thermal': return t('{total} hours at or below freezing in the next 72.', { total: m.frostHours });
+      case 'traffic': return t('Derived from soil water, recent rain and river discharge.');
+      case 'gdd':     return t('{total} growing-degree days accumulated over the last {days} days above a {base}°C base.',
+                          { total: fmt(m.total, 0), days: m.windowDays, base: m.baseTempC });
+      default:        return '';
+    }
+  }
+
+  /* The evidence for the open card, inline. One shape per call, so a reader
+     learns each chart once and afterwards recognises it. */
+  function deckChart(id, m){
+    if(!m) return '';
+    if(id === 'water'){
+      const pct  = m.taw > 0 ? Math.min(100, m.depletion / m.taw * 100) : 0;
+      const mark = m.taw > 0 ? Math.min(100, m.trigger   / m.taw * 100) : 0;
+      const tone = m.call === 'irrigate' ? 'act' : m.call === 'monitor' ? 'warn' : 'ok';
+      return `<span class="wbar ${tone}" style="display:block;margin-top:10px" role="img"
+                aria-label="${esc(t('Soil water depletion {pct} percent of available water; refill point at {mark} percent',
+                  { pct: fmt(Math.round(pct)), mark: fmt(Math.round(mark)) }))}"
+              ><i style="width:${pct.toFixed(1)}%"></i><span class="wbar-mark" style="left:${mark.toFixed(1)}%"></span></span>`;
+    }
+    if(id === 'spray'){
+      const cells = m.blocks.map(b => `<i class="${b.rating}"></i>`).join('');
+      return `<span class="strip" style="margin-top:10px" role="img"
+                aria-label="${esc(t('Spray suitability for the next 48 hours, hour by hour.'))}">${cells}</span>
+        <span class="strip-axis"><span>${esc(t('now'))}</span><span>+24 h</span><span>+48 h</span></span>`;
+    }
+    if(id === 'thermal'){
+      const cells = m.hours.map(p => {
+        const cls = p.t <= CFG.THRESH.frostArm ? 'frost'
+                  : p.t >= CFG.THRESH.heatArm  ? 'heat'
+                  : p.t <= CFG.THRESH.frostClear ? 'marginal' : 'mild';
+        return `<i class="${cls}"></i>`;
+      }).join('');
+      return `<span class="strip" style="margin-top:10px" role="img"
+                aria-label="${esc(t('Hourly air temperature for 72 hours. Minimum {min} degrees, maximum {max} degrees, {frost} hours at or below freezing.',
+                  { min: fmt(m.minC,1), max: fmt(m.maxC,1), frost: fmt(m.frostHours) }))}">${cells}</span>
+        <span class="strip-axis"><span>${esc(t('now'))}</span><span>+36 h</span><span>+72 h</span></span>`;
+    }
+    return '';
+  }
+
+  /** Advisories no card claims, so nothing the engine armed is ever off screen. */
+  function orphanAlerts(){
+    const claimed = new Set();
+    Object.keys(Triage.CLAIMS).forEach(k => Triage.CLAIMS[k].forEach(r => claimed.add(r)));
+    return [...State.data.alerts.values()].filter(a => !claimed.has(a.id));
+  }
+
+  function deckItems(){
+    const models = deckModels();
+    if(!models) return null;
+    const alerts = State.data.alerts;
+
+    const items = Object.keys(DECK_NAME)
+      .filter(id => models[id])
+      .map(id => ({
+        id,
+        model:    models[id],
+        tone:     Triage.toneOf(id, models[id], alerts),
+        deadline: Triage.deadlineOf(id, models[id])
+      }));
+
+    orphanAlerts().forEach(a => items.push({
+      id: 'alert:' + a.id, alert: a, model: a,
+      tone: a.severity === 'warning' ? 'warn' : 'act', deadline: 0
+    }));
+
+    return Triage.order(items);
+  }
+
+  function deckName(item){ return item.alert ? t(item.alert.label) : t(DECK_NAME[item.id]); }
+  function deckHead(item){
+    return item.alert ? t(SEV[item.alert.severity].word) : deckVerdict(item.id, item.model);
+  }
+
+  function deckRow(item){
+    const tone = Triage.groupOf(item.tone);
+    const name = deckName(item), verdict = deckHead(item);
+    const sub  = item.alert ? clockStr(item.alert.since) + ' UTC' : deckSub(item.id, item.model);
+    return `<button type="button" class="deck-row" data-call="${esc(item.id)}"
+              aria-label="${esc(name + ' — ' + verdict)}">
+      <span class="dot" style="background:${TONE_DOT[tone]}"></span>
+      <span class="txt"><span class="name">${esc(name)}</span><span class="sub">${esc(sub)}</span></span>
+      <span class="verdict" style="color:${TONE_INK[tone]}">${esc(verdict)}</span>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>`;
+  }
+
+  function deckCard(item){
+    const tone = Triage.groupOf(item.tone);
+    const name = deckName(item), verdict = deckHead(item);
+    const why  = item.alert ? t(item.alert.detailKey, item.alert.vars) : deckWhy(item.id, item.model);
+    return `<button type="button" class="deck-card ${tone}" data-call="${esc(item.id)}"
+              aria-label="${esc(name + ' — ' + verdict)}">
+      <span class="head"><span class="name">${esc(name)}</span>${chipHtml(GROUP_CHIP[tone], t(GROUP_LABEL[tone]))}</span>
+      <span class="deck-call ${tone}">${esc(verdict)}</span>
+      <span class="deck-why">${esc(why)}</span>
+      ${item.alert ? '' : deckChart(item.id, item.model)}
+    </button>`;
+  }
+
+  function renderDeck(){
+    const hosts = [el('farmerDeck')].filter(Boolean);
+    if(!hosts.length) return;
+
+    const items = deckItems();
+    if(!items || !items.length){
+      const empty = `<div class="deck-empty">${esc(t(
+        'These calls need a real location. Search for one above — they are computed from live forecast data and are not simulated.'))}</div>`;
+      hosts.forEach(h => { h.innerHTML = empty; });
+      return;
+    }
+
+    const counts = Triage.counts(items);
+    let html = '', opened = null, group = null;
+
+    items.forEach(item => {
+      const g = Triage.groupOf(item.tone);
+      if(g !== group){
+        group = g;
+        html += `<div class="deck-group ${g}"><b>${esc(t(GROUP_LABEL[g]))}</b>` +
+                `<span class="count">${fmt(counts[g])}</span><span class="rule"></span></div>`;
+      }
+      if(g === 'act' && opened === null){ opened = item.id; html += deckCard(item); }
+      else html += deckRow(item);
+    });
+
+    hosts.forEach(h => { h.innerHTML = html; });
+  }
+
   /* Everything on screen is generated, so a language change is a full repaint
      rather than a walk over DOM text nodes. */
   /* Static markup carries data-i18n and its English text. Translating in place
@@ -4278,9 +4598,15 @@ const Views = (() => {
 
   function renderRolePanes(){
     const r = State.data.role;
+    renderDeck();
     if(ROLE_RENDER[r]) ROLE_RENDER[r]();
     renderRoleBadges();
   }
+
+  /* Filled in by the detail renderer below. Declared here so the deck can be
+     read and committed before the sheet it opens exists. */
+  function detailFor(){ return ''; }
+  function openDetail(){}
 
   function renderRoleBadges(){
     document.querySelectorAll('[data-badge]').forEach(b => {
@@ -4321,7 +4647,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderSatBar, renderLangMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,

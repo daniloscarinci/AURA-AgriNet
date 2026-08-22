@@ -569,4 +569,43 @@ module.exports = ({ suite, test, assert }) => {
         assert.includes(c[1], 'chip-icon', `a status chip relies on colour alone: ${c[0].slice(0, 70)}`));
     });
   });
+  /* ======================================================== the deck ======= */
+  suite('controls · deck reachability', () => {
+    const { app, document } = boot();
+    const { Views, Triage } = app;
+
+    const deckHtml = () => { Views.renderDeck(); return document.getElementById('farmerDeck').innerHTML; };
+
+    test('the deck renders into its host', () =>
+      assert.greater(deckHtml().length, 0, 'the deck host is empty after a render'));
+
+    test('the deck renders either calls or a stated empty state, never blank', () => {
+      const html = deckHtml();
+      assert.ok(html.includes('deck-empty') || html.includes('data-call'),
+        'the deck rendered neither a call nor a reason there are none');
+    });
+
+    test('every deck row names a call the detail renderer answers for', () => {
+      const html = deckHtml();
+      [...html.matchAll(/data-call="([^"]+)"/g)].map(m => m[1]).forEach(id =>
+        assert.equal(typeof Views.detailFor(id), 'string',
+          `the deck offers ${id} but no detail renderer answers for it`));
+    });
+
+    test('every deck row is a button, so a keyboard reaches it', () => {
+      const html = deckHtml();
+      const rows = [...html.matchAll(/data-call="/g)].length;
+      const buttons = [...html.matchAll(/<button[^>]*data-call="/g)].length;
+      assert.equal(buttons, rows, 'a deck row that is not a button cannot be tabbed to');
+    });
+
+    test('every group the renderer can emit is a group Triage can produce', () => {
+      const html = deckHtml();
+      [...html.matchAll(/class="deck-group ([a-z]+)"/g)].map(m => m[1]).forEach(g =>
+        assert.includes(Triage.GROUPS, g, `the deck drew a "${g}" heading Triage never assigns`));
+    });
+
+    test('the group vocabulary has not drifted', () =>
+      assert.deepEqual(Triage.GROUPS, ['act', 'warn', 'ok']));
+  });
 };

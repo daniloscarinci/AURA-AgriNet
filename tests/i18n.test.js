@@ -63,6 +63,12 @@ module.exports = ({ suite, test, assert }) => {
     for (const m of block('function statusWord(key, sev){', 'if(words[key]')
       .matchAll(/(?:good|warning|serious|critical):'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const QUICK = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    /* The deck names its calls and its groups from lookup tables, so every key
+       reaches t() as t(DECK_NAME[id]) rather than as a literal. Read from their
+       own bodies for the same reason QUICK is: a bare pattern over the script
+       would swallow the code around them. */
+    for (const m of block('const DECK_NAME = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    for (const m of block('const GROUP_LABEL = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
     /* The opening exchange stores English source too, and its lines carry no
        prose key to find them by. Only the sentences are wanted: the rest of the
        literals in that function are participant ids and the separators between

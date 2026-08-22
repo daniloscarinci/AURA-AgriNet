@@ -775,4 +775,63 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(r.prov.kind, 'modelled', 'wrong provenance kind');
     });
   });
+  /* ================================================== the deck, on real data = */
+  suite('live · the deck over a loaded location', () => {
+
+    /* The reachability suite proves the deck renders. It cannot prove the deck
+       renders anything worth reading: with no location loaded, the empty state
+       satisfies every structural check while telling the grower nothing. These
+       drive a real payload through it. */
+    const loaded = async () => {
+      const h = live();
+      await h.app.Live.ensure(6.095, 0.042, 'Somanya');
+      h.app.State.data.clock = NOW;
+      h.app.Views.renderDeck();
+      return { h, html: h.document.getElementById('farmerDeck').innerHTML };
+    };
+
+    test('a loaded location produces calls rather than the empty state', async () => {
+      const { html } = await loaded();
+      assert.notIncludes(html, 'deck-empty', 'a live location still rendered the empty state');
+      assert.greater([...html.matchAll(/data-call="/g)].length, 3,
+        'fewer calls than the five the deck is built from');
+    });
+
+    test('every call the deck knows about appears exactly once', async () => {
+      const { html } = await loaded();
+      ['water', 'spray', 'thermal', 'gdd'].forEach(id =>
+        assert.equal([...html.matchAll(new RegExp(`data-call="${id}"`, 'g'))].length, 1,
+          `${id} should appear once and appears otherwise`));
+    });
+
+    test('the deck groups what it renders', async () => {
+      const { html } = await loaded();
+      assert.greater([...html.matchAll(/class="deck-group /g)].length, 0,
+        'no group heading — the triage is invisible');
+    });
+
+    test('at most one card is left open', async () => {
+      const { html } = await loaded();
+      assert.less([...html.matchAll(/class="deck-card /g)].length, 2,
+        'more than one open card defeats the point of collapsing the rest');
+    });
+
+    test('an armed advisory reaches the deck', async () => {
+      const { h } = await loaded();
+      h.app.State.data.alerts.set('FROST_EVENT',
+        { id:'FROST_EVENT', label:'Frost event', severity:'critical',
+          since: NOW, detailKey:'Frost event', vars:{} });
+      h.app.Views.renderDeck();
+      const html = h.document.getElementById('farmerDeck').innerHTML;
+      assert.includes(html, 'deck-group act',
+        'a critical advisory did not produce a Needs you group');
+    });
+
+    test('the deck states a verdict, not a bare number', async () => {
+      const { html } = await loaded();
+      assert.greater([...html.matchAll(/class="verdict"/g)].length
+                   + [...html.matchAll(/class="deck-call /g)].length, 3,
+        'rows rendered without verdicts');
+    });
+  });
 };
