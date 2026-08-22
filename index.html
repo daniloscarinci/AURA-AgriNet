@@ -2175,6 +2175,26 @@ const Dispatch = (() => {
     return EDGES.filter(e => State.data.edgeState[e.id] && !State.data.edgeState[e.id].passable);
   }
 
+  /** Trafficability as a call rather than a percentage, so the deck can rank it
+      beside the agronomy. This is the reading that decides whether the crop can
+      leave the farm at all, and it spent this whole app buried in a tile.
+
+      "Blocked" means at least one segment sits under the passability floor --
+      not that the route is impossible, which the router decides after trying
+      the detours. "Degrading" means the mean has fallen past the arming
+      threshold, or some segment already has. */
+  function trafficModel(){
+    const v = State.data.latest.traff;
+    if(v === null || v === undefined) return null;
+    const edges = State.data.edgeState || {};
+    const list = Object.keys(edges).map(k => edges[k]);
+    const blocked  = list.filter(e => !e.passable).length;
+    const degraded = list.filter(e => e.degraded).length;
+    const call = blocked ? 'blocked'
+               : (v <= CFG.THRESH.traffArm || degraded) ? 'degrading' : 'clear';
+    return { traff: v, blocked, degraded, call };
+  }
+
   /** Dijkstra over passable edges, minimising drive time in minutes. */
   function shortestPath(from, to, ignoreBlocked){
     const adj = adjacency();
@@ -2261,7 +2281,7 @@ const Dispatch = (() => {
     return { ids: ret.path, km: ret.km, min: ret.min };
   }
 
-  return { refreshEdges, recomputeRoute, buildRoute, blockedEdges, shortestPath,
+  return { refreshEdges, recomputeRoute, buildRoute, blockedEdges, trafficModel, shortestPath,
            setHarvestWindow, setColdChain, getHarvestWindow, getColdChain, backhaul, edgeSpeed };
 })();
 

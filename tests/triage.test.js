@@ -183,4 +183,39 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(c.ok, 0);
     });
   });
+
+  suite('triage · trafficability as a call', () => {
+    const { app } = boot();
+    const { Dispatch, State, Triage } = app;
+
+    const at = pct => { State.data.latest.traff = pct; Dispatch.refreshEdges(); return Dispatch.trafficModel(); };
+
+    test('a healthy network reads clear', () => {
+      const m = at(92);
+      assert.equal(m.call, 'clear');
+      assert.equal(m.blocked, 0);
+    });
+
+    test('a degrading network says so before anything is impassable', () => {
+      const m = at(57);
+      assert.includes(['degrading', 'blocked'], m.call);
+      assert.greater(m.degraded, 0);
+    });
+
+    test('a soaked network reports a blocked segment', () => {
+      const m = at(20);
+      assert.equal(m.call, 'blocked');
+      assert.greater(m.blocked, 0);
+    });
+
+    test('no reading yields no model rather than a wrong one', () => {
+      State.data.latest.traff = null;
+      assert.equal(Dispatch.trafficModel(), null);
+    });
+
+    test('the call feeds triage the tone the deck will draw', () => {
+      assert.equal(Triage.toneOf('traffic', at(20)), 'act');
+      assert.equal(Triage.toneOf('traffic', at(92)), 'ok');
+    });
+  });
 };
