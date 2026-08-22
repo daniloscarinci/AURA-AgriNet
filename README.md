@@ -357,6 +357,36 @@ cd android
 ./gradlew assembleDebug        # writes android/AURA-AgriNet-1.0-debug.apk
 ```
 
+**Gradle has to be told where JDK 17 is, and `java` is not necessarily on your `PATH`.**
+Two machine-specific paths matter, and only one of them is the Android plugin's business:
+
+| Path | Lives in | Read by |
+|---|---|---|
+| Android SDK | `android/local.properties`, as `sdk.dir` | the Android Gradle plugin |
+| JDK 17 | `JAVA_HOME`, or `org.gradle.java.home` | Gradle itself |
+
+Neither belongs in a committed file. `local.properties` is gitignored for exactly that
+reason; `android/gradle.properties` is not, so the JDK path does not go there. Export it
+for the shell you build in:
+
+```bash
+export JAVA_HOME="C:/Users/danil/AppData/Local/Programs/Java/jdk-17.0.20+8"
+./gradlew assembleDebug
+```
+
+Forward slashes, as in `local.properties`, and for the same reason: a `.properties` file
+treats a backslash as an escape, and the habit is worth keeping in the shell too.
+
+That path is where the JDK sits on the machine this was built on, and it will not be yours.
+The usual homes are `C:/Program Files/Java`, `C:/Users/<you>/AppData/Local/Programs/Java`,
+and the JBR that Android Studio bundles at `<studio>/jbr`. To make the choice stick without
+committing it, set `org.gradle.java.home` in your **user-level** `~/.gradle/gradle.properties`
+rather than the one in this repository — at the cost that it then applies to every Gradle
+build on the machine, not only this one.
+
+Both paths fail loudly when they are wrong, so a bad answer here costs you an error message
+rather than a package that looks fine and is not.
+
 Gradle's own output lands five directories down at
 `android/app/build/outputs/apk/debug/app-debug.apk`, under a name that says neither which
 app nor which version, so every assemble copies it up beside the build file as
