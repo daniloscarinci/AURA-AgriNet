@@ -3909,11 +3909,13 @@ const Views = (() => {
     const ch = State.data.channel;
     if(ch === 'ALL') return true;
     if(m.from === 'SYSTEM') return false;
-    /* A BOT line carrying no channel is a broadcast, and every channel sees it.
-       Without this the headline of a cascade -- "FROST EVENT ..." -- is visible
-       only on All, so the farmer reads the instruction to start cutting without
-       the sentence saying why. The follow-ups are addressed and stay addressed. */
-    if(m.from === 'BOT' && !m.channel) return true;
+    /* A broadcast reaches every channel. It arrives in two shapes -- channel
+       'ALL' from post's default, and no channel at all from a cascade step that
+       names none -- and neither used to be visible anywhere but the All tab.
+       So the headline "FROST EVENT ..." was hidden from the farmer, who read
+       the instruction to start cutting without the sentence saying why.
+       Addressed lines stay addressed: a buyer's revision is still the buyer's. */
+    if(!m.channel || m.channel === 'ALL') return true;
     return m.channel === ch || m.from === ch;
   }
 

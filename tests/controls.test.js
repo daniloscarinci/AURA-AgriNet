@@ -626,16 +626,19 @@ module.exports = ({ suite, test, assert }) => {
     test('a cascade headline reaches the person it concerns', () => {
       /* The alert line of a cascade carries no channel, so before the broadcast
          rule a farmer read "begin cutting Plot F-2" without the sentence saying
-         why. Defaulting to Farmer made that the first thing anyone saw. */
+         why. Defaulting to Farmer made that the first thing anyone saw.
+
+         Posted through Console.post rather than pushed by hand, so the message
+         shape is the one the app actually stores. */
       const h = boot();
       h.app.Telemetry.stop();
       h.app.State.data.channel = 'FARMER';
-      h.app.State.data.chat.push(
-        { id:'x1', from:'BOT', text:'FROST EVENT — surface temperature at the frost floor.',
-          channel:undefined, ts:0, vars:null, pkey:null },
-        { id:'x2', from:'BOT', text:'Amara — begin cutting.', channel:'FARMER', ts:0, vars:null, pkey:null },
-        { id:'x3', from:'BOT', text:'Kwesi — your order is revised.', channel:'BUYER', ts:0, vars:null, pkey:null });
+      h.app.State.data.chat.length = 0;
+      h.app.Console.post('BOT', 'FROST EVENT — surface temperature at the frost floor.', {});
+      h.app.Console.post('BOT', 'Amara — begin cutting.', { channel: 'FARMER' });
+      h.app.Console.post('BOT', 'Kwesi — your order is revised.', { channel: 'BUYER' });
       h.app.Views.renderChat();
+
       const html = h.document.getElementById('chatStream').innerHTML;
       assert.includes(html, 'FROST EVENT', 'the broadcast headline is hidden from the farmer');
       assert.includes(html, 'begin cutting', 'the farmer lost their own line');
