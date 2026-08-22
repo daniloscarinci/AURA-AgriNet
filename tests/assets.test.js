@@ -436,6 +436,34 @@ module.exports = ({ suite, test, assert }) => {
     test('the build excludes the test suite', () =>
       assert.ok(excluded.some(p => matches(p, 'tests/run.js')),
         'tests/ would ship inside the APK for no reason'));
+
+    /* The copy is defined by exclusion, which is the right direction -- a web file
+       added later ships by default, and the failure mode is a larger APK rather
+       than a 404 in a field. The cost is that anything else added at the root
+       ships too, and the only thing that caught the last one was aapt discarding
+       dot-prefixed names, which is a tool default this project never asked for and
+       does not control. A scratch directory without a leading dot would ship
+       silently. Git already knows which root directories are not part of the app:
+       they are the ones it refuses to track. */
+    const ignoredRoots = read('.gitignore')
+      .split(/[\r\n]+/)
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#'))
+      .filter(l => l.endsWith('/') && !l.startsWith('!') && !l.includes('*'))
+      .map(l => l.replace(/\/$/, ''))
+      .filter(dir => !dir.includes('/'));          // nested ones sit under an excluded root
+
+    test('the gitignore names at least one root directory to check', () =>
+      assert.greater(ignoredRoots.length, 0,
+        'no root-level ignored directory found — this guard is checking nothing'));
+
+    ignoredRoots.forEach(dir => {
+      test(`the APK excludes the untracked ${dir}/`, () =>
+        assert.ok(excluded.some(p => matches(p, `${dir}/anything/at/all.html`)),
+          `git refuses to track ${dir}/ but the Android build copies it into the ` +
+          'package. It is kept out today only by aapt discarding dot-prefixed ' +
+          `names; rename it without the dot and it ships. Add "${dir}/**" to exclude(...)`));
+    });
   });
 
   /* ------------------------------------------------------------------------ */

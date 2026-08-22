@@ -57,6 +57,12 @@ val syncWebAssets = tasks.register<Sync>("syncWebAssets") {
         exclude(
             ".git/**", ".github/**", ".gitignore", ".claude/**",
             "android/**", "docs/**", "tests/**",
+            // Brainstorming mockups and their server state: gitignored,
+            // machine-local, nothing to do with the app. The copy is defined by
+            // exclusion, so without this line the only thing keeping them out of
+            // the package is aapt discarding dot-prefixed names -- a tool default
+            // this project never asked for. Rename it without the dot and it ships.
+            ".superpowers/**",
             "serve.cmd", "README.md", "LICENSE",
             // Generates the icons at author time; the app never loads it.
             "icons/build-icons.js"
