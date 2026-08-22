@@ -4311,6 +4311,112 @@ const Views = (() => {
 })();
 
 
+/* ===================== MODULE 7c: TRIAGE =====================
+
+   What the deck ranks by. Each agronomy card already resolves itself to a tone
+   of act / warn / ok for its headline colour; this reads that same field rather
+   than inventing a second severity vocabulary that could disagree with the one
+   on screen.
+
+   Two rules sit on top of the tone:
+
+     - AN ARMED ADVISORY OUTRANKS ITS CARD. The rule engine and the deck must
+       never contradict each other, so a critical rule pins its card to "Needs
+       you" whatever the tone says. An alert only ever promotes: a rule firing
+       cannot make a call look calmer than the arithmetic already found it.
+
+     - TIES BREAK BY DEADLINE. Within a group, the call that bites soonest sorts
+       first, measured in hours from now.
+
+   Nothing here reads the DOM, which is what makes the ranking testable on its
+   own -- and the ranking is the deck's whole claim. "Clear" is a promise. */
+
+const Triage = (() => {
+
+  /* Which armed advisory belongs to which call. An alert no card claims is not
+     dropped: Views turns it into a card of its own, so a rule the engine fired
+     can never be missing from the screen that claims to list what needs you. */
+  const CLAIMS = {
+    water:   ['SOIL_STRESS'],
+    thermal: ['FROST_EVENT', 'HEATWAVE'],
+    traffic: ['FLOOD_SATURATION'],
+    spray:   [],
+    gdd:     []
+  };
+
+  const GROUPS = ['act', 'warn', 'ok'];
+  const RANK   = { act: 0, warn: 1, ok: 2 };
+
+  /* Severity is the rule engine's vocabulary; tone is the deck's. Only these
+     three promote -- a 'good' entry is a release notice, not an alarm. */
+  const SEV_TONE = { critical: 'act', serious: 'act', warning: 'warn' };
+
+  /** An unrecognised tone reads as Clear rather than disappearing from a group
+      the renderer knows how to draw. */
+  function groupOf(tone){ return RANK[tone] === undefined ? 'ok' : tone; }
+
+  /** The stronger of two tones, act being strongest. */
+  function strongest(a, b){
+    return RANK[groupOf(a)] <= RANK[groupOf(b)] ? groupOf(a) : groupOf(b);
+  }
+
+  /** Tone from the card's own model, before advisories are considered. */
+  function baseTone(id, m){
+    if(!m) return 'ok';
+    switch(id){
+      case 'water':   return m.call === 'irrigate' ? 'act' : m.call === 'monitor' ? 'warn' : 'ok';
+      case 'thermal': return m.verdict === 'frost' ? 'act'
+                           : (m.verdict === 'heat' || m.verdict === 'marginal') ? 'warn' : 'ok';
+      case 'spray':   return !m.nextWindow ? 'act' : m.nextWindow.start === 0 ? 'ok' : 'warn';
+      case 'traffic': return m.call === 'blocked' ? 'act' : m.call === 'degrading' ? 'warn' : 'ok';
+      case 'gdd':     return 'ok';
+      default:        return 'ok';
+    }
+  }
+
+  /** Tone with any armed advisory this card claims folded in. */
+  function toneOf(id, model, alerts){
+    let tone = baseTone(id, model);
+    if(!alerts || !alerts.size) return tone;
+    (CLAIMS[id] || []).forEach(ruleId => {
+      const a = alerts.get(ruleId);
+      if(a && SEV_TONE[a.severity]) tone = strongest(tone, SEV_TONE[a.severity]);
+    });
+    return tone;
+  }
+
+  /** Hours from now until the call bites, for tie-breaking inside a group. */
+  function deadlineOf(id, m){
+    if(!m) return 999;
+    switch(id){
+      case 'water':   return m.call === 'irrigate' ? 0 : m.call === 'monitor' ? 24 : 72;
+      case 'thermal': return m.firstFrostIn !== null && m.firstFrostIn !== undefined ? m.firstFrostIn
+                           : m.firstHeatIn !== null && m.firstHeatIn !== undefined ? m.firstHeatIn : 72;
+      case 'spray':   return m.nextWindow ? m.nextWindow.start : 0;
+      case 'traffic': return m.call === 'blocked' ? 0 : m.call === 'degrading' ? 24 : 72;
+      case 'gdd':     return m.daysAtRate ? m.daysAtRate * 24 : 999;
+      default:        return 999;
+    }
+  }
+
+  /* Group first, then soonest deadline. Sort is stable in every engine this
+     runs on, so cards that tie keep the order they were gathered in -- which is
+     what stops a deck reshuffling itself on a downlink that changed nothing. */
+  function order(items){
+    return items.slice().sort((a, b) =>
+      (RANK[groupOf(a.tone)] - RANK[groupOf(b.tone)]) || (a.deadline - b.deadline));
+  }
+
+  function counts(items){
+    const c = { act: 0, warn: 0, ok: 0 };
+    items.forEach(i => { c[groupOf(i.tone)]++; });
+    return c;
+  }
+
+  return { CLAIMS, GROUPS, groupOf, baseTone, toneOf, deadlineOf, order, counts };
+})();
+
+
 /* ===================== MODULE 7b: MANUAL =====================
 
    A manual that restates the code is wrong the first time someone edits the

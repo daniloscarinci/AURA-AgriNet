@@ -87,7 +87,7 @@ const C = process.stdout.isTTY
   : { dim: s => s, red: s => s, green: s => s, bold: s => s, yellow: s => s };
 
 async function main() {
-  const files = ['logic.test.js', 'live.test.js', 'i18n.test.js', 'controls.test.js', 'assets.test.js']
+  const files = ['logic.test.js', 'triage.test.js', 'live.test.js', 'i18n.test.js', 'controls.test.js', 'assets.test.js']
     .filter(f => !FILTER.length || FILTER.some(x => f.includes(x)));
 
   if (!files.length) {
