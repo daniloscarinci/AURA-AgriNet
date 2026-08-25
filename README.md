@@ -138,9 +138,40 @@ boot path is exactly what broke — it rebuilt the catchment and forgot thirteen
 A second hand-maintained copy of that list would have drifted again the first time one was
 added.
 
+## The controls are drawn, not typed
+
+Every control used to be labelled with an emoji — 🌱 for the farmer, 📦 for the buyer, 🌐 for
+the language. Three things wrong with that, none of them taste. An emoji is painted by the
+platform's own font, so the same button is a different picture on every device and there is
+no version of it this project can test. It ignores the theme: a colour glyph stays colour on
+a dark ground beside text that has gone pale, so the loudest thing in the tab bar was the
+decoration rather than the label. And at 15px it is mush.
+
+They are line drawings now, on a 24-unit grid at one stroke weight, drawn in `currentColor`
+so each one inherits the text colour of whatever it sits in and follows both themes for
+free. Defined once and painted into every `[data-icon]` in the markup, so the tab bar and
+the header cannot drift apart.
+
+Drawing them found two things the emoji had been hiding. The first sprout had a leaf either
+side of a stem, which at 15px closed into a tuning fork — two thin arcs with no white left
+between them; it is one leaf and one stem now. And both dropdowns anchored to the end edge
+of their wrapper, which is correct only while that wrapper is on the right of the header: it
+wraps on a phone and on any desktop narrow enough, and then a 210px menu hung off the left
+of the screen with the icons and the first letters of *Light* and *Match system* simply
+gone. The menu is measured against the window when it opens rather than tied to a
+breakpoint, because the wrap point moves with the language — the same three controls are
+wider in Portuguese.
+
 ## Themes
 
 Light, dark, or whatever the machine says, from the ◐ button in the header.
+
+The light palette started as an oat page under near-white cards, which is warm and also
+dim: it spent most of its warmth on the one surface that fills the screen, so the app read
+as underlit in daylight, which is where a grower uses it. The page is nearly white now and
+the cards are white; the tint lives in the wells, the hairlines and the washes, where it
+still says agrarian and stays out of the way of the numbers. A hairline had to darken with
+it — `rgba(43,38,34,0.10)` over #fffdf9 and over pure white are not the same line.
 
 Both palettes have been in the stylesheet since the first build: light on bare `:root`, dark
 on a `prefers-color-scheme` block **and** on `[data-theme]`. Nothing had ever set that
@@ -363,7 +394,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 768 checks, no dependencies, no network
+node tests/run.js              # 775 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -379,7 +410,7 @@ keywords per language, a suite that switches language *after* a transcript and i
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**198 control-reachability** (every referenced element exists, every trigger names a real
+**202 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
 the theme survives a restart, the manual's numbers match the engine), and **157 PWA asset

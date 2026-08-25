@@ -714,10 +714,17 @@ module.exports = ({ suite, test, assert }) => {
        red belonging to neither palette. */
     test('no raw colour survives in the script outside the palettes', () => {
       const script = html.slice(html.indexOf('MODULE 1: CONFIG'));
+      const plane = [...html.matchAll(/PLANE = \{[^}]*\}/g)]
+        .flatMap(m => [...m[0].matchAll(/#[0-9a-fA-F]{3,8}/g)].map(c => c[0].toLowerCase()));
       const raw = [
         ...script.matchAll(/#[0-9a-fA-F]{3,8}\b(?![^<]*<\/style>)/g),
         ...script.matchAll(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+/g),
-      ].map(m => m[0]).filter(v => !/^#(f4efe6|15120e)$/i.test(v));   // Theme.PLANE, checked above
+      /* Theme.PLANE is the one place a colour is legitimately spelled out in the
+         script -- the metas it writes are not CSS and cannot read a token. Read
+         the exception out of the source rather than repeating it here, or this
+         allowlist goes stale the first time a palette is retuned. Which is
+         exactly what it did. */
+      ].map(m => m[0]).filter(v => !plane.includes(v.toLowerCase()));
       assert.deepEqual([...new Set(raw)], [],
         'a colour bypasses the design tokens and will be wrong in one of the two themes');
     });

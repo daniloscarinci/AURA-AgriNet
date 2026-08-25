@@ -674,6 +674,48 @@ module.exports = ({ suite, test, assert }) => {
   });
 
   /* ------------------------------------------------------------------------ */
+  /* The controls are drawn rather than typed. An emoji is painted by the
+     platform's own font, so it is a different picture on every device, none of
+     them testable; it ignores the theme, staying full colour on a dark ground
+     beside text that has gone pale; and at 15px it is mush. */
+  suite('controls · icons', () => {
+
+    test('every placeholder in the shell names an icon that exists', () => {
+      const h = boot();
+      const slots = h.document.querySelectorAll('[data-icon]');
+      assert.greater(slots.length, 8, 'the shell stopped asking for icons');
+      slots.forEach(n =>
+        assert.ok(h.app.ICONS[n.dataset.icon],
+          `data-icon="${n.dataset.icon}" has no drawing, so that control renders blank`));
+    });
+
+    test('every icon is drawn in the text colour, so it follows both themes', () => {
+      const h = boot();
+      Object.keys(h.app.ICONS).forEach(name => {
+        const svg = h.app.icon(name);
+        assert.includes(svg, 'stroke="currentColor"', `${name} pins its own colour`);
+        assert.includes(svg, 'aria-hidden="true"',
+          `${name} would be announced beside the label it decorates`);
+      });
+    });
+
+    test('the controls carry no emoji left to render differently per device', () => {
+      const { markup } = readSource();
+      const head = markup.slice(markup.indexOf('<header'), markup.indexOf('</nav>', markup.indexOf('tabbar')));
+      const emoji = [...head.matchAll(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu)].map(m => m[0]);
+      assert.deepEqual([...new Set(emoji)], [],
+        'an emoji survives in the header or the tab bar');
+    });
+
+    /* Whether the drawings are actually ON the controls is a browser question:
+       the stub's querySelectorAll fabricates fresh nodes from the markup rather
+       than returning the live ones, so paintIcons writes into throwaways here.
+       What this suite can hold is that every slot names a real icon and every
+       icon is drawn correctly; that they arrive on screen is checked by driving
+       the app, which is where the emoji problem was visible in the first place. */
+  });
+
+  /* ------------------------------------------------------------------------ */
   /* setRole writes data-role onto <body>. Anything that then asks closest() for
      a bare [data-role] finds the body from anywhere in the document, so every
      click in the app re-ran setRole for the role already active and ended on
@@ -930,11 +972,24 @@ module.exports = ({ suite, test, assert }) => {
       const h = boot();
       h.app.Theme.set('system');
       h.app.Views.renderThemeMenu();
-      assert.equal(h.document.getElementById('themeGlyph').textContent, '◐',
+      assert.equal(h.document.getElementById('themeGlyph').dataset.icon, 'auto',
         'on "match system" the button must not claim a theme the reader did not pick');
       h.app.Theme.set('dark');
       h.app.Views.renderThemeMenu();
-      assert.equal(h.document.getElementById('themeGlyph').textContent, '🌙');
+      assert.equal(h.document.getElementById('themeGlyph').dataset.icon, 'moon');
+    });
+
+    test('every mode draws an icon rather than a platform emoji', () => {
+      const h = boot();
+      h.app.Views.renderThemeMenu();
+      const html = h.document.getElementById('themeMenu').innerHTML;
+      h.app.Theme.MODES.forEach(m => {
+        assert.ok(h.app.ICONS[m.icon], `${m.id} names an icon that does not exist`);
+        assert.includes(html, h.app.ICONS[m.icon].slice(0, 30),
+          `${m.id} did not draw its icon`);
+      });
+      assert.notIncludes(html, '☀', 'an emoji survived in the theme menu');
+      assert.notIncludes(html, '🌙', 'an emoji survived in the theme menu');
     });
   });
 };

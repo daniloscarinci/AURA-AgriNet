@@ -16,7 +16,7 @@
      matches `name` then `content` then an optional `media`, and an attribute
      wedged between the first two would stop that regex matching a tag that is
      still perfectly correct. -->
-<meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)" id="tcLight">
+<meta name="theme-color" content="#fbf9f5" media="(prefers-color-scheme: light)" id="tcLight">
 <meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)" id="tcDark">
 <meta name="color-scheme" content="light dark">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
@@ -58,23 +58,32 @@
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 
-  /* ground: oat → linen */
-  --plane:        #f4efe6;
-  --surface-1:    #fffdf9;
-  --surface-2:    #f6f1e8;
-  --surface-3:    #ebe3d6;
+  /* ground: paper → linen.
+
+     Brightened from the oat this started as (#f4efe6 page, #fffdf9 card). Warm
+     and dim are not the same thing, and the original spent most of its warmth on
+     the one surface that fills the screen -- so the app read as underlit in
+     daylight, which is where a grower uses it. The tint now lives in the wells,
+     the hairlines and the washes, where it still says agrarian, while the page
+     and the cards get out of the way of the numbers. */
+  --plane:        #fbf9f5;
+  --surface-1:    #ffffff;
+  --surface-2:    #f7f4ee;
+  --surface-3:    #f2eee7;
 
   /* ink: bark */
   --text-primary:   #2b2622;
-  --text-secondary: #5d554c;
-  --text-muted:     #8a8074;
+  --text-secondary: #574f47;
+  --text-muted:     #7d7368;
 
-  --grid:      #e7dfd2;
-  --axis:      #cfc4b3;
-  --hairline:  rgba(43,38,34,0.10);
-  --hairline-2:rgba(43,38,34,0.20);
+  --grid:      #ece7dc;
+  --axis:      #c9bdab;
+  /* A hairline has to survive a brighter ground: 0.10 over #fffdf9 and 0.10
+     over pure white are not the same line. */
+  --hairline:  rgba(43,38,34,0.13);
+  --hairline-2:rgba(43,38,34,0.24);
 
-  --header-bg: rgba(255,253,249,0.90);
+  --header-bg: rgba(255,255,255,0.92);
   --scrim:     rgba(43,38,34,0.42);
   --mine-bubble: #e8f0dd;
   --mine-line:   rgba(79,122,42,0.34);
@@ -691,6 +700,19 @@ body{
 }
 .res-empty{ padding:12px 10px; font-size:12px; color:var(--text-muted); }
 
+/* ---------- icons ----------
+   Sized in em so an icon is always in proportion to the label beside it, and
+   drawn in currentColor so it follows the text through both themes and through
+   a control's own hover and selected states. */
+.ic{ display:block; width:1em; height:1em; }
+.ic-slot{ display:inline-flex; align-items:center; font-size:15px; line-height:0; }
+.rb-glyph .ic{ width:1em; height:1em; }
+/* The tab bar's icons carry the weight of the control, so they run a touch
+   heavier than the header's and lighten with the label when inactive. */
+.rolebtn .ic{ stroke-width:1.6; }
+.rolebtn[aria-selected="true"] .ic{ stroke-width:1.9; }
+.langopt .ic{ width:15px; height:15px; }
+
 /* ---------- language picker ---------- */
 .langwrap{ position:relative; }
 .langmenu{
@@ -711,6 +733,15 @@ body{
 .langopt:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 .langopt .endo{ font-size:13px; font-weight:650; }
 .langopt .exo{ font-size:11px; color:var(--text-muted); flex:1; text-align:end; }
+
+/* The theme rows are a drawing and a label, not the language picker's pair of
+   texts. Reusing .endo/.exo for them put the icon where a bold endonym goes and
+   the label where a muted exonym goes -- so the label sat hard right against the
+   far edge, and the icon collapsed to nothing, because align-items:baseline is
+   correct for two words and meaningless for an SVG, which has no baseline. */
+.langopt.themeopt{ align-items:center; }
+.langopt.themeopt .ic{ width:17px; height:17px; flex:none; }
+.langopt.themeopt .lbl{ font-size:13px; font-weight:600; }
 
 .tr-badge{
   display:inline-flex; align-items:center; gap:5px; margin-inline-start:6px;
@@ -1248,16 +1279,16 @@ body[data-firstrun] .persona-row{ display:none; }
          the simulation triggers already work. -->
     <nav id="roleSwitch" class="roleswitch flex-none" role="tablist" aria-label="Role" data-i18n-attr="aria-label">
       <button class="rolechip" role="tab" data-role="FARMER" aria-selected="true">
-        <span aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
+        <span class="ic-slot" data-icon="farmer"></span><span data-i18n>Farmer</span>
         <span class="rb-badge hidden" data-badge="FARMER"></span></button>
       <button class="rolechip" role="tab" data-role="BUYER" aria-selected="false">
-        <span aria-hidden="true">📦</span><span data-i18n>Buyer</span>
+        <span class="ic-slot" data-icon="buyer"></span><span data-i18n>Buyer</span>
         <span class="rb-badge hidden" data-badge="BUYER"></span></button>
       <button class="rolechip" role="tab" data-role="DRIVER" aria-selected="false">
-        <span aria-hidden="true">🚚</span><span data-i18n>Driver</span>
+        <span class="ic-slot" data-icon="driver"></span><span data-i18n>Driver</span>
         <span class="rb-badge hidden" data-badge="DRIVER"></span></button>
       <button class="rolechip" role="tab" data-role="OPS" aria-selected="false">
-        <span aria-hidden="true">🛰</span><span data-i18n>Ops</span></button>
+        <span class="ic-slot" data-icon="ops"></span><span data-i18n>Ops</span></button>
     </nav>
 
     <!-- Worldwide place search. A combobox rather than a select: the list is
@@ -1283,7 +1314,7 @@ body[data-firstrun] .persona-row{ display:none; }
     <div class="langwrap flex-none">
       <button id="btnLang" class="toggle" aria-haspopup="listbox" aria-expanded="false"
               aria-controls="langMenu" title="Language" aria-label="Choose language" data-i18n-attr="title,aria-label">
-        <span aria-hidden="true">🌐</span><span id="langLabel" class="wide-only">&nbsp;English</span>
+        <span class="ic-slot" data-icon="globe"></span><span id="langLabel" class="wide-only">&nbsp;English</span>
       </button>
       <div id="langMenu" class="langmenu" role="listbox" aria-label="Language" hidden data-i18n-attr="aria-label"></div>
     </div>
@@ -1297,14 +1328,14 @@ body[data-firstrun] .persona-row{ display:none; }
     <div class="langwrap flex-none">
       <button id="btnTheme" class="toggle" aria-haspopup="listbox" aria-expanded="false"
               aria-controls="themeMenu" title="Theme" aria-label="Choose theme" data-i18n-attr="title,aria-label">
-        <span id="themeGlyph" aria-hidden="true">◐</span>
+        <span id="themeGlyph" class="ic-slot" data-icon="auto"></span>
       </button>
       <div id="themeMenu" class="langmenu" role="listbox" aria-label="Theme" hidden data-i18n-attr="aria-label"></div>
     </div>
 
     <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
             title="Manual (?)" aria-label="Open the manual" data-i18n-attr="title,aria-label">
-      <span aria-hidden="true">📖</span><span class="wide-only">&nbsp;Manual</span>
+      <span class="ic-slot" data-icon="book"></span><span class="wide-only">&nbsp;Manual</span>
     </button>
 
   </div>
@@ -1688,19 +1719,19 @@ body[data-firstrun] .persona-row{ display:none; }
 <!-- ══════════════════════ MOBILE TAB BAR ══════════════════════ -->
 <nav class="tabbar" role="tablist" aria-label="Role" data-i18n-attr="aria-label">
   <button class="rolebtn" role="tab" data-role="FARMER" aria-selected="true">
-    <span class="rb-glyph" aria-hidden="true">🌱</span><span data-i18n>Farmer</span>
+    <span class="rb-glyph" data-icon="farmer"></span><span data-i18n>Farmer</span>
     <span class="rb-badge hidden" data-badge="FARMER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="BUYER" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">📦</span><span data-i18n>Buyer</span>
+    <span class="rb-glyph" data-icon="buyer"></span><span data-i18n>Buyer</span>
     <span class="rb-badge hidden" data-badge="BUYER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="DRIVER" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">🚚</span><span data-i18n>Driver</span>
+    <span class="rb-glyph" data-icon="driver"></span><span data-i18n>Driver</span>
     <span class="rb-badge hidden" data-badge="DRIVER"></span>
   </button>
   <button class="rolebtn" role="tab" data-role="OPS" aria-selected="false">
-    <span class="rb-glyph" aria-hidden="true">🛰</span><span data-i18n>Ops</span>
+    <span class="rb-glyph" data-icon="ops"></span><span data-i18n>Ops</span>
   </button>
 </nav>
 
@@ -4399,6 +4430,28 @@ const Views = (() => {
 
   /* Layer switcher plus the sentence that makes the imagery worth showing:
      how many metres one pixel covers against how wide the catchment is. */
+  /* Keep an open dropdown inside the window.
+
+     Both menus anchor to the end edge of their wrapper, which is right whenever
+     that wrapper is over on the right of the header. It is not: the header wraps
+     on a phone and on any desktop narrow enough, and then the language and theme
+     controls sit at x≈0 with a 210px menu hanging off the left of the screen --
+     the icons and the first letters of "Light" and "Match system" simply gone.
+
+     Measured rather than tied to a breakpoint, because the wrap point moves with
+     the language: the same three controls are wider in Portuguese than English.
+     The stub DOM has no layout engine, so this is a browser-only concern and the
+     rect it returns there is a constant that changes nothing. */
+  function placeMenu(menu){
+    if(!menu || menu.hidden || !menu.getBoundingClientRect) return;
+    menu.style.insetInlineStart = '';
+    menu.style.insetInlineEnd = '';
+    const r = menu.getBoundingClientRect();
+    const w = window.innerWidth || 0;
+    if(r.left < 8){ menu.style.insetInlineEnd = 'auto'; menu.style.insetInlineStart = '0'; }
+    else if(w && r.right > w - 8){ menu.style.insetInlineStart = 'auto'; menu.style.insetInlineEnd = '0'; }
+  }
+
   function renderLangMenu(){
     const menu = el('langMenu');
     if(!menu) return;
@@ -4413,6 +4466,7 @@ const Views = (() => {
     if(label) label.innerHTML = '&nbsp;' + esc(I18n.current().endonym);
     const btn = el('btnLang');
     if(btn) btn.setAttribute('aria-expanded', String(!menu.hidden));
+    placeMenu(menu);
   }
 
   /* The theme picker, built from the same parts as the language one.
@@ -4427,15 +4481,18 @@ const Views = (() => {
     if(!menu) return;
     const cur = Theme.mode();
     menu.innerHTML = Theme.MODES.map(m => `
-      <button class="langopt" role="option" data-theme-mode="${esc(m.id)}"
+      <button class="langopt themeopt" role="option" data-theme-mode="${esc(m.id)}"
               aria-selected="${m.id === cur}">
-        <span class="endo" aria-hidden="true">${m.glyph}</span>
-        <span class="exo">${esc(t(m.label))}</span>
+        ${icon(m.icon)}<span class="lbl">${esc(t(m.label))}</span>
       </button>`).join('');
     const glyph = el('themeGlyph');
-    if(glyph) glyph.textContent = Theme.current().glyph;
+    if(glyph){
+      glyph.dataset.icon = Theme.current().icon;
+      glyph.innerHTML = icon(Theme.current().icon);
+    }
     const btn = el('btnTheme');
     if(btn) btn.setAttribute('aria-expanded', String(!menu.hidden));
+    placeMenu(menu);
   }
 
   /* A visible statement of how complete the active translation is. An app that
@@ -6860,6 +6917,73 @@ const I18n = (() => {
            STORE_KEY, langFor };
 })();
 
+/* ===================== MODULE 8a: ICONS =====================
+
+   The controls used to be labelled with emoji -- 🌱 for the farmer, 📦 for the
+   buyer, 🌐 for the language. Three things wrong with that, and none of them is
+   taste. Emoji are painted by the platform's own font, so the same button is a
+   different picture on every device and there is no version of it this project
+   can test. They ignore the theme: a colour glyph stays colour on a dark ground
+   next to text that has gone pale, so the loudest thing in the tab bar is the
+   decoration rather than the label. And at 15px they are mush.
+
+   These are line drawings on a 24-unit grid, one stroke weight, drawn in
+   currentColor -- so they inherit the text colour of whatever they sit in and
+   follow both themes for free. Defined once here and painted into every
+   [data-icon] in the markup, so the tab bar and the header cannot drift. */
+const ICONS = {
+  /* A leaf with its stem, not a sprout. The first attempt drew a stem with a
+     symmetrical leaf either side, which at 15px with a 1.6 stroke closed up into
+     a tuning fork -- two thin arcs that near touch have no white left between
+     them to read as leaves. One big shape with one line through it survives the
+     size. */
+  farmer: '<path d="M11 20.5A7.5 7.5 0 0 1 9.7 6.4C15.4 5.3 17 4.7 19 2.2c1 2 1.9 4.2 1.9 7.9 0'
+        + ' 5.7-4.5 10.4-9.9 10.4Z"/><path d="M2.5 21.5c0-3.1 1.9-5.5 5.2-6.2 2.4-.5 4.9-2 5.9-3.2"/>',
+  /* A crate, drawn open so it reads as produce rather than a parcel. */
+  buyer:  '<path d="M3 7.6 12 3l9 4.6v8.8L12 21l-9-4.6Z"/><path d="m3 7.6 9 4.6 9-4.6"/>'
+        + '<path d="M12 12.2V21"/>',
+  /* A truck: body, cab, two wheels. */
+  driver: '<path d="M3 6h11v9H3z"/><path d="M14 9.5h3.6L21 13v2h-7z"/>'
+        + '<circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+  /* An uplink rather than a satellite: at this size a dish is a smudge, and
+     three arcs over a point read as "signal" instantly. */
+  ops:    '<circle cx="12" cy="17.5" r="2"/><path d="M8.6 14.1a4.8 4.8 0 0 1 6.8 0"/>'
+        + '<path d="M5.6 11.1a9 9 0 0 1 12.8 0"/>',
+  globe:  '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>'
+        + '<path d="M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18Z"/>',
+  /* Open, not closed. A closed book at this size is a rounded rectangle with a
+     line down one edge, which is also a bookmark, a card and a speech bubble.
+     The spine down the middle with two leaves falling away from it is the part
+     that only ever means "book". */
+  book:   '<path d="M12 6.6V21"/><path d="M12 6.6C10.4 5.1 8.4 4.5 5.8 4.5H3v13h2.8c2.6 0 4.6.6 6.2 2'
+        + 'c1.6-1.4 3.6-2 6.2-2H21v-13h-2.8c-2.6 0-4.6.6-6.2 2.1Z"/>',
+  sun:    '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.9 4.9l1.4 1.4'
+        + 'M17.7 17.7l1.4 1.4M2.5 12h2M19.5 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon:   '<path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5 8.6 8.6 0 1 0 20.5 14.8Z"/>',
+  /* Half filled: the setting is "whichever the machine says", and a half-lit
+     disc is the one shape that claims neither. */
+  auto:   '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/>'
+};
+
+/** One icon, as markup. Decorative by default: every one of these sits beside a
+    text label, and a screen reader that announces both reads the label twice. */
+function icon(name){
+  const d = ICONS[name];
+  if(!d) return '';
+  return `<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true" focusable="false">${d}</svg>`;
+}
+
+/** Fill every placeholder in the shipped markup. Called once, before first paint. */
+function paintIcons(root){
+  (root || document).querySelectorAll('[data-icon]').forEach(n => {
+    const name = n.dataset.icon;
+    if(ICONS[name]) n.innerHTML = icon(name);
+  });
+}
+
+
 /* ===================== MODULE 8b: THEME =====================
 
    Light, dark, or whatever the machine says. Shaped like I18n on purpose --
@@ -6875,13 +6999,13 @@ const I18n = (() => {
 const Theme = (() => {
   const STORE_KEY = 'aura-theme';
   const MODES = [
-    { id:'light',  glyph:'☀', label:'Light'        },
-    { id:'dark',   glyph:'🌙', label:'Dark'         },
-    { id:'system', glyph:'◐', label:'Match system' }
+    { id:'light',  icon:'sun',  label:'Light'        },
+    { id:'dark',   icon:'moon', label:'Dark'         },
+    { id:'system', icon:'auto', label:'Match system' }
   ];
   /* The ground colour of each palette, kept in step with --plane by a test
      rather than by memory. */
-  const PLANE = { light:'#f4efe6', dark:'#15120e' };
+  const PLANE = { light:'#fbf9f5', dark:'#15120e' };
 
   let mode = 'system';
 
@@ -7359,6 +7483,10 @@ const Search = (() => {
   /* --- first paint --- */
   /* Before the first paint, so no frame ever shows the deck and the panel at
      once, or the panel to someone who chose a farm months ago. */
+  /* Icons before anything else paints, so no frame shows an empty slot where a
+     control's picture goes. */
+  paintIcons();
+
   Views.setFirstRun(!State.data.chosen);
   Views.renderExamples();
 
