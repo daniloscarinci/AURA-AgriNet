@@ -745,6 +745,45 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(h.app.State.data.chosen, 'a deliberately picked catchment was forgotten');
     });
 
+    /* The composer's cast list names a plot of the catchment nobody picked. */
+    test('the persona row is gated with the rest of it', () => {
+      const { html } = readSource();
+      assert.includes(html, 'body[data-firstrun] .persona-row',
+        'the "Send as: Amara — Farmer, Plot F-2" row survives on the first screen');
+      assert.includes(html, 'body[data-firstrun] header .search',
+        'two search boxes on a screen built to ask one question');
+    });
+
+    test('no quick reply invites a question about a farm nobody has', () => {
+      const h = fresh();
+      h.app.Views.renderQuickReplies();
+      assert.equal(h.document.getElementById('quickReplies').innerHTML, '',
+        'the app offered "Soil moisture?" with no soil to report on');
+    });
+
+    /* The sharpest form of it: a number with a source attached is the most
+       believable thing this app can put on a screen. */
+    test('the agent declines rather than answering for somebody else\'s plot', async () => {
+      const h = fresh();
+      h.app.Telemetry.stop();
+      h.app.Console.handleUserMessage('Soil moisture?');
+      await h.advance(20000);
+      const last = h.app.State.data.chat[h.app.State.data.chat.length - 1];
+      const said = h.app.Views.msgText(last);
+      assert.includes(said, 'no farm to answer for',
+        'the agent answered a question about a catchment nobody chose');
+      assert.notIncludes(said, 'F-2', 'a plot of the unchosen catchment was named');
+      assert.notIncludes(said, '%', 'a reading for the unchosen catchment reached the transcript');
+    });
+
+    test('your own words are still yours, and still posted', async () => {
+      const h = fresh();
+      h.app.Telemetry.stop();
+      h.app.Console.handleUserMessage('Soil moisture?');
+      assert.ok(h.app.State.data.chat.some(m => m.mine && m.text === 'Soil moisture?'),
+        'the question the reader typed was swallowed');
+    });
+
     test('the answer is written down, so it survives the next launch', () => {
       const h = fresh();
       h.app.State.data.chosen = true;

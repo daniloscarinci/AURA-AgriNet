@@ -76,6 +76,11 @@ module.exports = ({ suite, test, assert }) => {
        proper nouns and are left alone in every language, exactly as city names
        are. */
     for (const m of block('const MODES = [', '];').matchAll(/label:'([^']+)'/g)) set.add(m[1]);
+    /* The agent's refusal when no farm has been chosen is stored as English
+       source too, for the same reason the greeting is: a line in the transcript
+       is translated when it is painted, not when it is written. */
+    for (const m of block('function handleUserMessage(text){', 'function greet(){')
+      .matchAll(/post\('BOT',\s*'((?:[^'\\]|\\.)*)'/g)) set.add(m[1].replace(/\\'/g, "'"));
     /* The opening exchange stores English source too, and its lines carry no
        prose key to find them by. Only the sentences are wanted: the rest of the
        literals in that function are participant ids and the separators between
@@ -619,6 +624,10 @@ module.exports = ({ suite, test, assert }) => {
     async function asked(question) {
       const h = boot({ fetch: served() });
       h.app.Telemetry.stop();
+      /* The agent declines to answer for a farm nobody has chosen, and a refusal
+         is the same sentence in every language it is asked in. These checks are
+         about an ANSWER being reread, so they give it a farm to answer for. */
+      h.app.State.data.chosen = true;
       await h.advance(20000);
       const from = h.app.State.data.chat.length;
       h.app.Console.handleUserMessage(question);

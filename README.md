@@ -79,10 +79,25 @@ naming what arrives once the question is answered.
 It replaces a screen that gave two answers to *where am I?* at once. The deck said *these
 calls need a real location*; the search box beside it already read *Somanya · Eastern
 Region*, because the seeded region's name was written into it on boot; and below both,
-moisture, NDVI and surface temperature for that Ghanaian demo farm. The panel takes all
-three off the screen — including the header's own search box, so there is exactly one place
-to answer one question — and the chat's opening line stops reading out an unchosen farm's
-telemetry.
+moisture, NDVI and surface temperature for that Ghanaian demo farm.
+
+Everything that named the unchosen catchment is gated with it, because the leak had five
+doors and the deck was only the widest:
+
+| Surface | Before | Now |
+|---|---|---|
+| Deck | *these calls need a real location* | the panel, which asks instead |
+| Harvest window · My plots | the demo farm's readings | absent until there is a farm |
+| Header search box | pre-filled *Somanya · Eastern Region* | hidden; the panel owns the question |
+| Chat opening | moisture 31.3% · NDVI 0.643, and a farmer asking after Plot F-2 | one line saying what it needs |
+| *Send as* | *Amara — Farmer, Plot F-2* | hidden |
+| Quick replies | *Soil moisture?* · *Frost risk today?* | none; each is a question about a farm |
+| An answer | *Plot F-2 root-zone moisture is 31.9% (SMAP)* | the agent declines and says why |
+
+The last one mattered most. A number with a source attached is the most believable thing
+this app can put on a screen, and it was putting one there for a catchment the reader had
+never picked. Your own words are still posted — those are yours — but the agent answers for
+a farm only once it has one.
 
 The example chips go through the same `goToLocation` a search result does, so one tap gives
 a full live deck without ever putting an unasked-for farm on screen as if it were yours.
@@ -348,7 +363,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 764 checks, no dependencies, no network
+node tests/run.js              # 768 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -364,7 +379,7 @@ keywords per language, a suite that switches language *after* a transcript and i
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**194 control-reachability** (every referenced element exists, every trigger names a real
+**198 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
 the theme survives a restart, the manual's numbers match the engine), and **157 PWA asset

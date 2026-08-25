@@ -911,6 +911,12 @@ body[data-firstrun] .rolepane[data-pane="FARMER"]{ display:none; }
    also narrow enough to truncate its own placeholder. It comes back the moment
    there is a farm to name. */
 body[data-firstrun] header .search{ display:none; }
+/* Send as: Amara — Farmer, Plot F-2. The composer's cast list names a plot of
+   the catchment the reader has not picked, which is the same thing the deck and
+   the opening line stopped doing. You are still talking to the agent while the
+   panel is up -- it can say what it is and what it needs -- but you are not
+   speaking as somebody else's farmer yet. */
+body[data-firstrun] .persona-row{ display:none; }
 @media (min-width:1024px){
   /* The panel stands where the deck rail and the detail pane would be, so the
      chat column keeps its own five and the layout does not lurch when the
@@ -3242,6 +3248,28 @@ const Console = (() => {
   function handleUserMessage(text){
     const persona = State.data.persona;
     post(persona, text, { mine:true });
+    /* Asked for soil moisture before naming a farm, the agent used to answer
+       "Plot F-2 root-zone moisture is 31.9% (SMAP)" -- a real-looking reading,
+       with a provenance badge under it, for a catchment the reader had never
+       picked. It is the sharpest form of the thing the front page was rebuilt
+       to stop doing, because a number with a source attached is the most
+       believable thing this app can put on a screen.
+
+       Your own words are still yours and still posted above. What changes is
+       that the agent declines instead of answering for somebody else's plot. */
+    if(!State.data.chosen){
+      const reduced0 = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      State.emit('typing', 'BOT');
+      setTimeout(() => {
+        State.emit('typing', null);
+        /* English source, not t(...): a stored line keeps its source and is
+           translated when it is painted, so switching language rereads the whole
+           transcript instead of stranding this one sentence. */
+        post('BOT', 'I have no farm to answer for yet. Tell me where yours is and I will answer that question about it.',
+          { channel: PEOPLE[persona].channel });
+      }, reduced0 ? 60 : 620 + Math.random() * 520);
+      return;
+    }
     const res = reply(match(text), persona);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     State.emit('typing', 'BOT');
@@ -4213,6 +4241,11 @@ const Views = (() => {
   };
   // intent:   moisture/order/route   frost/ndvi/route   ndvi/route/backhaul   status
   function renderQuickReplies(){
+    /* Every one of them -- soil moisture, frost risk, crop health, full status --
+       is a question about a farm. Offering them before there is one invites the
+       reader to ask something the app cannot honestly answer, which is how the
+       Plot F-2 reading got on screen in the first place. */
+    if(firstRun()){ el('quickReplies').innerHTML = ''; return; }
     const list = QUICK[State.data.persona] || QUICK.FARMER;
     el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(t(q))}</button>`).join('');
   }
