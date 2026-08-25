@@ -173,6 +173,39 @@ the cards are white; the tint lives in the wells, the hairlines and the washes, 
 still says agrarian and stays out of the way of the numbers. A hairline had to darken with
 it — `rgba(43,38,34,0.10)` over #fffdf9 and over pure white are not the same line.
 
+Brightening the surfaces did not finish it, because the app was **dark-first** and a dozen
+colours had never gone through a token at all. They were invisible while the ground was
+oat and obvious once it was white: 55%-black shadows under every card, which on white is
+not a shadow but a smudge; a slate scrollbar thumb; `rgba(255,255,255,.04)` fills that mean
+"a lift" on dark and nothing at all on light; a blue focus ring; and avatar initials set in
+near-black on a mid-blue circle. Shadows are now four tokens per theme rather than a colour,
+and a test reads the **stylesheet** as well as the script, which is how these were found —
+the original check watched only the script and all of them were in CSS.
+
+## The graphics
+
+Each call now gets the shape its question has, instead of two of them sharing a row of
+coloured bars:
+
+| Call | Was | Is |
+|---|---|---|
+| Spray & fieldwork | 48 detached bars | a **ribbon** — adjacent hours of one rating merge into a block, and the run the headline names is bracketed |
+| Next 72 hours | 72 detached bars | a **curve**, with the frost floor drawn across it and a dot at the minimum |
+| Trafficability | *nothing* | an **arc**, one number against the passability floor, with the floor ticked on the dial |
+| Heat units | *nothing* | the **running total** climbing across the window |
+| Harvest window | one word in 40px type | a **medallion**: a ring that closes when the schedule is intact and breaks open when the frost protocol runs |
+
+Two of these had no graphic at all, and the two that did had the *same* graphic — which made
+two different questions look like one question answered twice.
+
+The temperature chart is scaled to the temperatures actually forecast rather than anchored
+at freezing. Anchoring it was honest and useless: on a Ghanaian night running 23 to 31 °C it
+pressed the whole day into the top fifth of the box. The frost line is drawn only when
+freezing is near enough to be in frame, which is exactly when it is worth drawing.
+
+Nothing here invents a quantity to length-encode. The harvest window is a binary call, so it
+gets a state and not a bar.
+
 Both palettes have been in the stylesheet since the first build: light on bare `:root`, dark
 on a `prefers-color-scheme` block **and** on `[data-theme]`. Nothing had ever set that
 attribute, so half of that CSS had never once applied and the app could only follow the
@@ -394,7 +427,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 775 checks, no dependencies, no network
+node tests/run.js              # 776 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -413,7 +446,7 @@ before the prose it needs has arrived),
 **202 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
-the theme survives a restart, the manual's numbers match the engine), and **157 PWA asset
+the theme survives a restart, the manual's numbers match the engine), and **158 PWA asset
 integrity** (precache completeness, icon dimensions, cache strategy, safe-area insets, the
 two dark palettes token by token, no raw colour in the script, no embedded credential).
 

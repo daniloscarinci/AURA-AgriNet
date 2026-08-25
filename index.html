@@ -68,8 +68,13 @@
      and the cards get out of the way of the numbers. */
   --plane:        #fbf9f5;
   --surface-1:    #ffffff;
-  --surface-2:    #f7f4ee;
-  --surface-3:    #f2eee7;
+  /* The wells. These are what a reader actually calls "the beige bits": the
+     search field, every chat bubble, every plot card. At #f7f4ee they were the
+     dimmest thing on a screen that had otherwise gone white, so they are what
+     "light mode is dark" was pointing at. Each one carries a border, so the
+     tint can go almost to white without the shape dissolving. */
+  --surface-2:    #faf8f4;
+  --surface-3:    #f4f1ea;
 
   /* ink: bark */
   --text-primary:   #2b2622;
@@ -120,6 +125,16 @@
   --serious-wash:  rgba(192,86,42,0.11);
   --critical-wash: rgba(168,50,42,0.10);
   --series1-wash:  rgba(43,95,143,0.10);
+
+  /* Shadows, as whole box-shadow values rather than a colour. These were tuned
+     black when the app was dark-only, and 55% black under a card on a white page
+     is not a shadow, it is a smudge -- a large part of what still read as "dim"
+     after the surfaces had gone white. Warm and shallow in light, deep in dark. */
+  --shadow-xs: 0 1px 2px rgba(43,38,34,.10);
+  --shadow-sm: 0 6px 20px rgba(43,38,34,.10);
+  --shadow-md: 0 8px 24px rgba(43,38,34,.13);
+  --shadow-lg: 0 18px 44px rgba(43,38,34,.15);
+  --shadow-xl: 0 26px 74px rgba(43,38,34,.22);
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
@@ -182,6 +197,11 @@
     --serious-wash:  rgba(224,138,85,0.14);
     --critical-wash: rgba(226,86,75,0.16);
     --series1-wash:  rgba(106,169,221,0.14);
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.45);
+    --shadow-sm: 0 6px 20px rgba(0,0,0,.50);
+    --shadow-md: 0 8px 24px rgba(0,0,0,.55);
+    --shadow-lg: 0 18px 44px rgba(0,0,0,.50);
+    --shadow-xl: 0 26px 74px rgba(0,0,0,.62);
   }
 }
 
@@ -235,6 +255,11 @@
   --serious-wash:  rgba(224,138,85,0.14);
   --critical-wash: rgba(226,86,75,0.16);
   --series1-wash:  rgba(106,169,221,0.14);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.45);
+  --shadow-sm: 0 6px 20px rgba(0,0,0,.50);
+  --shadow-md: 0 8px 24px rgba(0,0,0,.55);
+  --shadow-lg: 0 18px 44px rgba(0,0,0,.50);
+  --shadow-xl: 0 26px 74px rgba(0,0,0,.62);
 }
 
 *{ box-sizing:border-box; }
@@ -290,7 +315,7 @@ body{
 .chip.warning { color:var(--warning-ink);  background:var(--warning-wash);  border-color:var(--warning-line); }
 .chip.serious { color:var(--serious-ink);  background:var(--serious-wash);  border-color:var(--serious-line); }
 .chip.critical{ color:var(--critical-ink); background:var(--critical-wash); border-color:var(--critical-line); }
-.chip.idle    { color:var(--text-muted); background:rgba(255,255,255,.04); border-color:var(--hairline); }
+.chip.idle    { color:var(--text-muted); background:var(--surface-2); border-color:var(--hairline); }
 
 /* ---------- link chips (header) ---------- */
 .link-chip{
@@ -305,7 +330,7 @@ body{
 .link-dot.degraded  { background:var(--warning); }
 .link-dot.reacquire { background:var(--critical); animation:pulse 1.1s ease-in-out infinite; }
 @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
-.link-chip.rx{ border-color:rgba(57,135,229,.5); }
+.link-chip.rx{ border-color:var(--info-line); }
 .link-lat{ color:var(--text-muted); font-family:var(--font-mono); letter-spacing:0; }
 
 /* ---------- hero ---------- */
@@ -324,8 +349,8 @@ body{
   padding:12px 13px 10px;
   transition:border-color .35s ease, background .35s ease;
 }
-.tile.is-alert{ border-color:rgba(208,59,59,.45); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 55%); }
-.tile.is-warn { border-color:rgba(250,178,25,.4);  background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 55%); }
+.tile.is-alert{ border-color:var(--critical-line); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 55%); }
+.tile.is-warn { border-color:var(--warning-line);  background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 55%); }
 .tile-label{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-muted); font-weight:600; min-width:0; }
 .tile-value{ font-size:27px; font-weight:600; letter-spacing:-.02em; line-height:1.1; }
 .tile-unit{ font-size:13px; color:var(--text-muted); font-weight:500; }
@@ -336,7 +361,7 @@ body{
 .stale{ opacity:.45; transition:opacity .25s ease; }
 
 /* ---------- meter ---------- */
-.meter-track{ height:5px; border-radius:3px; background:rgba(57,135,229,.16); overflow:hidden; }
+.meter-track{ height:5px; border-radius:3px; background:var(--series1-wash); overflow:hidden; }
 .meter-fill { height:100%; border-radius:3px; transition:width .5s cubic-bezier(.4,0,.2,1), background-color .35s ease; }
 
 /* ---------- buttons ---------- */
@@ -383,7 +408,7 @@ body{
   position:absolute; pointer-events:none; z-index:30;
   background:var(--surface-3); border:1px solid var(--hairline-2);
   border-radius:8px; padding:7px 10px;
-  font-size:11px; box-shadow:0 8px 24px rgba(0,0,0,.55);
+  font-size:11px; box-shadow:var(--shadow-md);
   opacity:0; transition:opacity .12s ease; white-space:nowrap;
 }
 .tooltip.on{ opacity:1; }
@@ -396,7 +421,7 @@ body{
   border-bottom:1px solid var(--hairline); position:sticky; top:0; background:var(--surface-1);
 }
 .dtable th:first-child, .dtable td:first-child{ text-align:left; }
-.dtable td{ padding:5px 9px; text-align:right; border-bottom:1px solid rgba(255,255,255,.04); color:var(--text-secondary); }
+.dtable td{ padding:5px 9px; text-align:right; border-bottom:1px solid var(--hairline); color:var(--text-secondary); }
 .dtable tr:hover td{ background:var(--surface-2); }
 
 /* ---------- map ---------- */
@@ -424,7 +449,7 @@ body{
 .chat-scroll::-webkit-scrollbar{ width:8px; }
 .chat-scroll::-webkit-scrollbar-track{ background:transparent; }
 .chat-scroll::-webkit-scrollbar-thumb{ background:var(--surface-3); border-radius:4px; }
-.chat-scroll::-webkit-scrollbar-thumb:hover{ background:#2b3441; }
+.chat-scroll::-webkit-scrollbar-thumb:hover{ background:var(--hairline-2); }
 
 .msg{ display:flex; gap:9px; margin-bottom:12px; animation:msgin .28s cubic-bezier(.2,.7,.3,1); }
 @keyframes msgin{ from{ opacity:0; transform:translateY(7px);} to{ opacity:1; transform:none; } }
@@ -432,7 +457,9 @@ body{
 .avatar{
   width:28px; height:28px; border-radius:50%; flex:none;
   display:grid; place-items:center;
-  font-size:10px; font-weight:700; color:#080b0f; letter-spacing:.02em;
+  /* --on-accent is the token for text on a saturated fill, and flips per theme.
+     #080b0f was near-black on a mid blue every time the app was in light mode. */
+  font-size:10px; font-weight:700; color:var(--on-accent); letter-spacing:.02em;
 }
 .bubble{
   max-width:78%; padding:8px 11px; border-radius:12px;
@@ -457,7 +484,7 @@ body{
   position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
   background:var(--series-1); color:var(--on-accent); border:none;
   padding:6px 13px; border-radius:999px; font-size:11px; font-weight:700;
-  cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.5); z-index:20;
+  cursor:pointer; box-shadow:var(--shadow-sm); z-index:20;
   animation:msgin .22s ease;
 }
 
@@ -471,12 +498,14 @@ body{
 .tab:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 
 .field{
-  background:var(--surface-2); border:1px solid var(--hairline);
+  /* hairline-2, not hairline: the fill is within a few percent of the surface
+     behind it now, so the border is the only thing left saying "type here". */
+  background:var(--surface-2); border:1px solid var(--hairline-2);
   border-radius:9px; color:var(--text-primary); font-size:12.5px;
   padding:9px 11px; font-family:var(--font-sans); width:100%;
 }
 .field::placeholder{ color:var(--text-muted); }
-.field:focus{ outline:none; border-color:rgba(57,135,229,.6); }
+.field:focus{ outline:none; border-color:var(--series-1); }
 
 /* ---------- event log ---------- */
 .logrow{
@@ -503,7 +532,7 @@ body{
    full Ops console stays.
    ========================================================================== */
 body{
-  -webkit-tap-highlight-color:rgba(57,135,229,.18);
+  -webkit-tap-highlight-color:var(--series1-wash);
   overscroll-behavior-y:none;               /* kill rubber-band under the tab bar */
   -webkit-text-size-adjust:100%;
 }
@@ -517,11 +546,22 @@ body{
 .tabbar{
   position:fixed; left:0; right:0; bottom:0; z-index:50;
   display:none; grid-template-columns:repeat(4,1fr);
-  background:var(--header-bg); backdrop-filter:blur(14px);
+  /* Opaque. --header-bg is 92% alpha and leans on backdrop-filter to hide what
+     is behind it; where that filter does not apply -- an Android WebView with
+     the effect unavailable -- the page simply shows through, and the harvest
+     card's 40px "Normal" reads straight across the tab labels. The frost is put
+     back below, only where the browser can genuinely blur. */
+  background:var(--surface-1);
   border-top:1px solid var(--hairline);
   /* clear the iPhone home indicator */
   padding-bottom:var(--safe-b);
 }
+/* The frosted look, only where it is real. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)){
+  .tabbar{ background:var(--header-bg); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  header.sticky{ background:var(--header-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+}
+
 .rolebtn{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:3px; padding:7px 4px 6px; border:none; background:transparent;
@@ -559,7 +599,7 @@ body{
 .rolechip:hover{ color:var(--text-secondary); }
 .rolechip[aria-selected="true"]{
   background:var(--surface-1); color:var(--text-primary);
-  box-shadow:0 1px 2px rgba(43,38,34,.10);
+  box-shadow:var(--shadow-xs);
 }
 .rolechip .rb-badge{ position:static; }
 
@@ -595,7 +635,7 @@ body{
 .mbig{ font-size:40px; font-weight:650; line-height:1; letter-spacing:-.02em; font-variant-numeric:proportional-nums; }
 .mrow{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05);
+  padding:11px 0; border-bottom:1px solid var(--hairline);
 }
 .mrow:last-child{ border-bottom:none; }
 .mlabel{ font-size:12px; color:var(--text-secondary); }
@@ -604,8 +644,8 @@ body{
   border:1px solid var(--hairline); border-radius:11px; padding:11px 12px;
   background:var(--surface-2); margin-bottom:9px;
 }
-.plotcard.alert{ border-color:rgba(208,59,59,.45); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 60%); }
-.plotcard.warn { border-color:rgba(250,178,25,.40); background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 60%); }
+.plotcard.alert{ border-color:var(--critical-line); background:linear-gradient(180deg,var(--critical-wash),var(--surface-2) 60%); }
+.plotcard.warn { border-color:var(--warning-line); background:linear-gradient(180deg,var(--warning-wash),var(--surface-2) 60%); }
 .prov{ font-size:9.5px; color:var(--text-muted); letter-spacing:.02em; }
 
 /* ---- Floating simulation control (mobile) ----
@@ -619,13 +659,13 @@ body{
   display:none; align-items:center; justify-content:center;
   background:var(--series-1); color:var(--on-accent); border:none;
   font-size:22px; cursor:pointer;
-  box-shadow:0 6px 22px rgba(0,0,0,.55);
+  box-shadow:var(--shadow-md);
 }
 .fab:active{ transform:scale(.94); }
 
 .sheet{
   position:fixed; inset:0; z-index:60;
-  background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+  background:var(--scrim); backdrop-filter:blur(3px);
   display:flex; align-items:flex-end;
 }
 .sheet[hidden]{ display:none; }
@@ -680,7 +720,7 @@ body{
   position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:80;
   max-height:min(58vh, 420px); overflow-y:auto;
   background:var(--surface-1); border:1px solid var(--hairline-2);
-  border-radius:var(--r-md); box-shadow:0 18px 44px rgba(0,0,0,.22);
+  border-radius:var(--r-md); box-shadow:var(--shadow-lg);
   padding:5px;
 }
 .search-results[hidden]{ display:none; }
@@ -719,7 +759,7 @@ body{
   position:absolute; top:calc(100% + 6px); inset-inline-end:0; z-index:85;
   min-width:210px; max-height:min(60vh,430px); overflow-y:auto;
   background:var(--surface-1); border:1px solid var(--hairline-2);
-  border-radius:var(--r-md); box-shadow:0 18px 44px rgba(0,0,0,.22); padding:5px;
+  border-radius:var(--r-md); box-shadow:var(--shadow-lg); padding:5px;
 }
 .langmenu[hidden]{ display:none; }
 .langopt{
@@ -819,6 +859,61 @@ body{
 .strip i.heat{ background:var(--serious); }
 .strip i.mild{ background:var(--good); opacity:.45; }
 .strip-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:3px; }
+
+/* ---------- deck charts ----------
+   One shape per question. A ribbon for a run of hours, a curve for something
+   that rises and falls, an arc for one number against one floor. They used to be
+   the same row of coloured bars twice, which made two different questions look
+   like the same question answered twice. Every colour is a token, so both themes
+   are covered by the palettes rather than by a second set of rules. */
+.chart{ display:block; width:100%; height:26px; margin-top:10px; overflow:visible; }
+.chart.tall{ height:50px; }
+
+/* ribbon */
+.rib{ fill:var(--surface-3); }
+.rib.good{ fill:var(--good); }
+.rib.marginal{ fill:var(--warning); }
+.rib.no{ fill:var(--critical); opacity:.42; }
+.rib-win{ fill:none; stroke:var(--good-ink); stroke-width:1.4; opacity:.9; }
+
+/* curve */
+.ln{ fill:none; stroke:var(--good); stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round;
+     vector-effect:non-scaling-stroke; }
+.ln-fill{ fill:var(--good-wash); }
+.ln-dot{ fill:var(--good); stroke:var(--surface-1); stroke-width:1.6; vector-effect:non-scaling-stroke; }
+.ln-floor{ stroke:var(--critical-line); stroke-width:1.2; stroke-dasharray:3 3; vector-effect:non-scaling-stroke; }
+.chart.act .ln{ stroke:var(--critical); }  .chart.act .ln-fill{ fill:var(--critical-wash); }
+.chart.act .ln-dot{ fill:var(--critical); }
+.chart.warn .ln{ stroke:var(--warning); }  .chart.warn .ln-fill{ fill:var(--warning-wash); }
+.chart.warn .ln-dot{ fill:var(--warning); }
+
+/* arc gauge */
+.gauge{ display:flex; align-items:center; gap:12px; margin-top:10px; }
+.gauge svg{ width:80px; height:48px; flex:none; overflow:visible; }
+.g-track{ fill:none; stroke:var(--surface-3); stroke-width:7; stroke-linecap:round; }
+.g-val{ fill:none; stroke:var(--good); stroke-width:7; stroke-linecap:round; transition:stroke-dasharray .5s ease; }
+.g-val.warn{ stroke:var(--warning); }
+.g-val.act { stroke:var(--critical); }
+.g-floor{ stroke:var(--text-muted); stroke-width:1.6; stroke-linecap:round; }
+.g-num{ font-size:23px; font-weight:700; letter-spacing:-.03em; color:var(--good-ink); }
+.g-num.warn{ color:var(--warning-ink); }
+.g-num.act { color:var(--critical-ink); }
+.g-num i{ font-style:normal; font-size:12px; font-weight:600; color:var(--text-muted); margin-inline-start:1px; }
+
+/* ---------- harvest window medallion ---------- */
+.hw-body{ display:flex; align-items:center; gap:15px; margin-top:4px; }
+.hw-medal{ flex:none; width:70px; height:70px; display:block; }
+.hw-medal svg{ width:100%; height:100%; overflow:visible; }
+.hw-ring-track{ fill:none; stroke:var(--surface-3); stroke-width:4; }
+.hw-ring{ fill:none; stroke:var(--good); stroke-width:4; stroke-linecap:round;
+          transition:stroke-dasharray .6s cubic-bezier(.4,0,.2,1); }
+.hw-medal g{ color:var(--good-ink); }
+.hw.act .hw-ring{ stroke:var(--critical); }
+.hw.act .hw-medal g{ color:var(--critical-ink); }
+.hw-txt{ min-width:0; }
+.hw-call{ font-size:26px; font-weight:750; letter-spacing:-.03em; line-height:1.05; color:var(--text-primary); }
+.hw.act .hw-call{ color:var(--critical-ink); }
+.hw.act{ border-color:var(--critical-line); background:linear-gradient(180deg,var(--critical-wash),var(--surface-1) 55%); }
 
 /* ==========================================================================
    THE DECK
@@ -1050,7 +1145,7 @@ body[data-firstrun] .persona-row{ display:none; }
 .manual[hidden]{ display:none; }
 .manual-scrim{
   position:absolute; inset:0; border:none; padding:0; cursor:default;
-  background:rgba(3,5,8,.72); backdrop-filter:blur(4px);
+  background:var(--scrim); backdrop-filter:blur(4px);
   animation:mscrim .15s ease;
 }
 .manual-panel{
@@ -1058,7 +1153,7 @@ body[data-firstrun] .persona-row{ display:none; }
   width:min(1080px,100%); height:min(86vh,860px);
   background:var(--surface-1); border:1px solid var(--hairline-2);
   border-radius:16px; overflow:hidden;
-  box-shadow:0 26px 74px rgba(0,0,0,.62);
+  box-shadow:var(--shadow-xl);
   animation:mpanel .18s cubic-bezier(.2,.7,.3,1);
 }
 @keyframes mscrim{ from{ opacity:0 } to{ opacity:1 } }
@@ -1174,7 +1269,7 @@ body[data-firstrun] .persona-row{ display:none; }
   font-size:11.5px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
   font-family:var(--font-sans); transition:background .15s ease;
 }
-.doc .scn-go:hover{ background:rgba(57,135,229,.2); }
+.doc .scn-go:hover{ background:var(--series1-wash); }
 .doc .scn-go:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
 
 @media (max-width:859px){
@@ -1247,7 +1342,7 @@ body[data-firstrun] .persona-row{ display:none; }
 <body>
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
-<header class="sticky top-0 z-40" style="background:var(--header-bg);backdrop-filter:blur(12px);border-bottom:1px solid var(--hairline);padding-top:var(--safe-t)">
+<header class="sticky top-0 z-40" style="background:var(--surface-1);border-bottom:1px solid var(--hairline);padding-top:var(--safe-t)">
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">
@@ -4657,22 +4752,106 @@ const Views = (() => {
               ><i style="width:${pct.toFixed(1)}%"></i><span class="wbar-mark" style="left:${mark.toFixed(1)}%"></span></span>`;
     }
     if(id === 'spray'){
-      const cells = m.blocks.map(b => `<i class="${b.rating}"></i>`).join('');
-      return `<span class="strip" style="margin-top:10px" role="img"
-                aria-label="${esc(t('Spray suitability for the next 48 hours, hour by hour.'))}">${cells}</span>
+      /* A ribbon, not 48 separate bars. Spraying is decided by RUNS of hours --
+         "wait six, then you have thirteen" -- and a row of detached bars makes
+         the reader count them to find the run. Adjacent hours of the same rating
+         merge into one block, and the run the verdict names is bracketed, so the
+         picture answers the same question the headline does. */
+      const n = m.blocks.length;
+      const runs = [];
+      m.blocks.forEach((b, i) => {
+        const last = runs[runs.length - 1];
+        if(last && last.rating === b.rating) last.len++;
+        else runs.push({ rating: b.rating, from: i, len: 1 });
+      });
+      const segs = runs.map(r =>
+        `<rect class="rib ${r.rating}" x="${(r.from / n * 300).toFixed(2)}" y="0"
+               width="${Math.max(0.6, r.len / n * 300).toFixed(2)}" height="20" rx="2"/>`).join('');
+      const w = m.nextWindow;
+      const bracket = w ? (() => {
+        const x = w.start / n * 300, wid = Math.max(3, w.len / n * 300);
+        return `<rect class="rib-win" x="${x.toFixed(2)}" y="-2.5" width="${wid.toFixed(2)}" height="25" rx="4"/>`;
+      })() : '';
+      return `<svg class="chart" viewBox="0 0 300 26" preserveAspectRatio="none" role="img"
+                aria-label="${esc(t('Spray suitability for the next 48 hours, hour by hour.'))}">
+          <g transform="translate(0,3)">${segs}${bracket}</g></svg>
         <span class="strip-axis"><span>${esc(t('now'))}</span><span>+24 h</span><span>+48 h</span></span>`;
     }
     if(id === 'thermal'){
-      const cells = m.hours.map(p => {
-        const cls = p.t <= CFG.THRESH.frostArm ? 'frost'
-                  : p.t >= CFG.THRESH.heatArm  ? 'heat'
-                  : p.t <= CFG.THRESH.frostClear ? 'marginal' : 'mild';
-        return `<i class="${cls}"></i>`;
-      }).join('');
-      return `<span class="strip" style="margin-top:10px" role="img"
+      /* Temperature is a curve. Drawn as one, with the frost floor as a line
+         across it, the reader sees how far from freezing the night gets and how
+         fast it is falling. As 72 coloured bars they saw a barcode, and it was
+         the same barcode the spray card had already shown them. */
+      const pts = m.hours.map(p => p.t);
+      /* Scaled to the temperatures actually forecast, with a little air above
+         and below. Anchoring the floor of the chart at freezing was honest and
+         useless: on a Ghanaian night that runs 23 to 31 it pressed the entire
+         day into the top fifth of the box and the shape of it disappeared. The
+         frost line is drawn only when freezing is near enough to be in frame --
+         which is exactly the situation where it is worth drawing. */
+      const dLo = Math.min(...pts), dHi = Math.max(...pts);
+      const pad = Math.max(1, (dHi - dLo) * 0.25);
+      const lo = Math.min(dLo - pad, CFG.THRESH.frostArm + pad > dLo ? CFG.THRESH.frostArm : dLo - pad);
+      const hi = dHi + pad;
+      const span = (hi - lo) || 1;
+      const X = i => (i / Math.max(1, pts.length - 1) * 300);
+      const Y = v => 44 - ((v - lo) / span) * 38;
+      const line = pts.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+      const floor = Y(CFG.THRESH.frostArm);
+      const tone = m.verdict === 'frost' ? 'act' : m.verdict === 'clear' ? 'ok' : 'warn';
+      const minI = pts.indexOf(Math.min(...pts));
+      return `<svg class="chart tall ${tone}" viewBox="0 0 300 50" preserveAspectRatio="none" role="img"
                 aria-label="${esc(t('Hourly air temperature for 72 hours. Minimum {min} degrees, maximum {max} degrees, {frost} hours at or below freezing.',
-                  { min: fmt(m.minC,1), max: fmt(m.maxC,1), frost: fmt(m.frostHours) }))}">${cells}</span>
+                  { min: fmt(m.minC,1), max: fmt(m.maxC,1), frost: fmt(m.frostHours) }))}">
+          <polygon class="ln-fill" points="0,48 ${line} 300,48"/>
+          ${floor > 0 && floor < 48 ? `<line class="ln-floor" x1="0" y1="${floor.toFixed(1)}" x2="300" y2="${floor.toFixed(1)}"/>` : ''}
+          <polyline class="ln" points="${line}"/>
+          <circle class="ln-dot" cx="${X(minI).toFixed(1)}" cy="${Y(pts[minI]).toFixed(1)}" r="2.6"/>
+        </svg>
         <span class="strip-axis"><span>${esc(t('now'))}</span><span>+36 h</span><span>+72 h</span></span>`;
+    }
+    if(id === 'traffic'){
+      /* An arc, because trafficability is one number against one floor and the
+         question is only ever "how far above it are we". The floor is drawn on
+         the dial, so the reading is placed rather than merely stated. */
+      const v = Math.max(0, Math.min(100, m.traff));
+      const tone = m.call === 'blocked' ? 'act' : m.call === 'degrading' ? 'warn' : 'ok';
+      const R = 34, CX = 40, CY = 40, L = Math.PI * R;
+      const floorPct = Math.max(0, Math.min(100, CFG.THRESH.traffArm));
+      const ang = pct => Math.PI * (1 - pct / 100);
+      const fx = CX + R * Math.cos(ang(floorPct)), fy = CY - R * Math.sin(ang(floorPct));
+      return `<span class="gauge" role="img"
+                aria-label="${esc(t('Trafficability {pct} percent against a {floor} percent floor.',
+                  { pct: fmt(Math.round(v)), floor: fmt(Math.round(floorPct)) }))}">
+          <svg viewBox="0 0 80 48">
+            <path class="g-track" d="M6 40a34 34 0 0 1 68 0"/>
+            <path class="g-val ${tone}" d="M6 40a34 34 0 0 1 68 0"
+                  stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}"/>
+            <line class="g-floor" x1="${fx.toFixed(1)}" y1="${fy.toFixed(1)}"
+                  x2="${(CX + (R - 7) * Math.cos(ang(floorPct))).toFixed(1)}"
+                  y2="${(CY - (R - 7) * Math.sin(ang(floorPct))).toFixed(1)}"/>
+          </svg>
+          <b class="g-num ${tone}">${fmt(Math.round(v))}<i>%</i></b>
+        </span>`;
+    }
+    if(id === 'gdd'){
+      /* Heat accumulates, so the honest picture is the running total climbing
+         across the window rather than a column per day. The dashed line is the
+         mean the headline quotes, drawn where it actually falls. */
+      const s = m.series || [];
+      if(s.length < 2) return '';
+      const top = s[s.length - 1].cumulative || 1;
+      const X = i => (i / (s.length - 1) * 300);
+      const Y = v => 42 - (v / top) * 34;
+      const line = s.map((d, i) => `${X(i).toFixed(1)},${Y(d.cumulative).toFixed(1)}`).join(' ');
+      return `<svg class="chart tall ok" viewBox="0 0 300 48" preserveAspectRatio="none" role="img"
+                aria-label="${esc(t('Growing-degree days accumulating over {n} days, {rate} per day.',
+                  { n: fmt(m.windowDays), rate: fmt(m.rate,1) }))}">
+          <polygon class="ln-fill" points="0,46 ${line} 300,46"/>
+          <polyline class="ln" points="${line}"/>
+          <circle class="ln-dot" cx="300" cy="${Y(top).toFixed(1)}" r="2.6"/>
+        </svg>
+        <span class="strip-axis"><span>−${fmt(m.windowDays)} d</span><span>${esc(t('today'))}</span></span>`;
     }
     return '';
   }
@@ -4929,13 +5108,38 @@ const Views = (() => {
     }).join('');
 
     pane.innerHTML = `
-      <div class="mcard">
+      <!-- The harvest window is one binary call, and it was a word in 40px type
+           with a paragraph under it. A medallion states it as a state: a ring
+           that closes when the schedule is intact and breaks open when the frost
+           protocol is running, with the crop or the frost drawn inside it. No
+           bars, because there is no quantity here to length-encode -- inventing
+           one would be the dishonest way to make this prettier. -->
+      <div class="mcard hw ${win ? 'act' : 'ok'}">
         <div class="mcard-head"><span class="mcard-title">${esc(t('Harvest window'))}</span><div class="flex-1"></div>
           ${chipHtml(win ? 'critical' : 'good', win ? t('Early harvest') : t('Normal'))}</div>
-        <div class="mbig" style="color:${win ? 'var(--critical-ink)' : 'var(--text-primary)'}">${esc(win ? t('CUT NOW') : t('Normal'))}</div>
-        <div class="mlabel mt-2">${esc(win
-          ? t('Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.')
-          : t('No change to your usual schedule. Harvest as planned.'))}</div>
+        <div class="hw-body">
+          <span class="hw-medal" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <circle class="hw-ring-track" cx="32" cy="32" r="26"/>
+              <circle class="hw-ring" cx="32" cy="32" r="26"
+                      stroke-dasharray="${win ? '92 71' : '163 0'}" transform="rotate(-90 32 32)"/>
+              <g transform="translate(20,20) scale(1)">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+                     stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  ${win
+                    ? '<path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/><path d="M12 7.4 9.6 5M12 7.4 14.4 5M12 16.6 9.6 19M12 16.6 14.4 19"/>'
+                    : ICONS.farmer}
+                </svg>
+              </g>
+            </svg>
+          </span>
+          <div class="hw-txt">
+            <div class="hw-call">${esc(win ? t('CUT NOW') : t('Normal'))}</div>
+            <div class="mlabel">${esc(win
+              ? t('Frost protocol active. Begin cutting within 4 hours — canopy damage is irreversible after roughly 6 hours below zero.')
+              : t('No change to your usual schedule. Harvest as planned.'))}</div>
+          </div>
+        </div>
       </div>
       ${/* Advisories are ranked by the deck above and detailed inside the call
            they concern, so a second copy of them here would be duplication. */''}
@@ -5170,6 +5374,7 @@ const Views = (() => {
       const tone = Triage.baseTone('traffic', m);
       return `<div class="detail-call ${tone}">${esc(deckVerdict('traffic', m))}</div>
         <div class="detail-why">${esc(deckWhy('traffic', m))}</div>
+        ${detailSect(t('Against the passability floor'), deckChart('traffic', m))}
         ${rowsBlock([
           [t('Mean'),               `${fmt(m.traff,0)} %`],
           [t('Blocked segments'),   fmt(m.blocked)],
@@ -5185,6 +5390,7 @@ const Views = (() => {
     gdd(m){
       return `<div class="detail-call ok">${esc(deckVerdict('gdd', m))}</div>
         <div class="detail-why">${esc(deckWhy('gdd', m))}</div>
+        ${detailSect(t('Accumulated over the window'), deckChart('gdd', m))}
         ${rowsBlock([
           [t('Crop'),         t(m.crop)],
           [t('Base'),         `${fmt(m.baseTempC,1)} °C`],

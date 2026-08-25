@@ -728,5 +728,28 @@ module.exports = ({ suite, test, assert }) => {
       assert.deepEqual([...new Set(raw)], [],
         'a colour bypasses the design tokens and will be wrong in one of the two themes');
     });
+
+    /* The same check over the stylesheet, which the one above never read. It was
+       watching the script only, and three colours had walked past it in CSS: a
+       blue focus ring, and the alert and warning borders on a plot card. A raw
+       colour in a rule is worse than one in the script, because it applies in
+       both themes without anyone having chosen it for either. */
+    test('no raw colour survives in the stylesheet outside the palettes', () => {
+      const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+      /* Everything from :root down to the end of the forced-dark block is the
+         palettes themselves, which is the one place colours are spelled out. */
+      const afterPalettes = css.slice(css.indexOf(':root[data-theme="dark"]'));
+      /* Comments stripped: a rule and a note about a rule are not the same
+         thing, and this stylesheet explains its colours in prose beside them --
+         including, now, a note naming the near-black it replaced. */
+      const body = afterPalettes.slice(afterPalettes.indexOf('\n}') + 2)
+        .replace(/\/\*[\s\S]*?\*\//g, ' ');
+      const raw = [
+        ...body.matchAll(/#[0-9a-fA-F]{3,8}\b/g),
+        ...body.matchAll(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+/g),
+      ].map(m => m[0]);
+      assert.deepEqual([...new Set(raw)], [],
+        'a rule names a colour instead of a token, so it ignores the theme');
+    });
   });
 };
