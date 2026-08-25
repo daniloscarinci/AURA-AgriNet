@@ -979,6 +979,55 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(h.document.getElementById('themeGlyph').dataset.icon, 'moon');
     });
 
+    /* A browser answers "what is the system set to" with a media query, and the
+       CSS reads it directly. A WebView told not to darken the page answers
+       "light" whatever the phone says, so the host has to hand the real value in
+       or "match system" silently becomes "always light". */
+    test('nobody having said, the media query is left to decide', () => {
+      const h = boot();
+      h.app.Theme.set('system');
+      assert.equal(h.app.Theme.systemDark(), null, 'a value was invented');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), null,
+        'an attribute here would override the media query in every browser');
+      assert.equal(h.app.Theme.resolved(), null);
+    });
+
+    test('a host that knows the system is dark gets a dark page', () => {
+      const h = boot();
+      h.app.Theme.set('system');
+      h.app.Theme.systemIsDark(true);
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'dark');
+      assert.equal(h.document.getElementById('tcDark').getAttribute('content'),
+        h.app.Theme.PLANE.dark, 'the browser chrome stayed on the other theme');
+    });
+
+    test('a host that knows the system is light gets a light page', () => {
+      const h = boot();
+      h.app.Theme.set('system');
+      h.app.Theme.systemIsDark(false);
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'light');
+    });
+
+    test('an explicit choice still beats what the host reports', () => {
+      const h = boot();
+      h.app.Theme.systemIsDark(true);
+      h.app.Theme.set('light');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'light',
+        'the reader asked for light on a dark phone and did not get it — the bug');
+      h.app.Theme.set('dark');
+      h.app.Theme.systemIsDark(false);
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'dark');
+    });
+
+    test('the host can take its answer back', () => {
+      const h = boot();
+      h.app.Theme.set('system');
+      h.app.Theme.systemIsDark(true);
+      h.app.Theme.systemIsDark(null);
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), null,
+        'a stale attribute would pin the page to whatever the phone was last set to');
+    });
+
     test('every mode draws an icon rather than a platform emoji', () => {
       const h = boot();
       h.app.Views.renderThemeMenu();

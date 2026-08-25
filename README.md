@@ -216,6 +216,21 @@ attribute at all for following along.
 The button shows the **setting**, not the resolved theme: on *match system* it reads ◐,
 because a button claiming *light* would be answering a question the reader did not ask.
 
+**The Android WebView will darken the page for you, and it should not.** The wrapper used to
+allow algorithmic darkening, on the reasoning that a page declaring `color-scheme: light
+dark` would be left to paint its own dark theme. On a phone in night mode it darkened
+whatever the page painted instead — including the light theme a reader had just chosen on
+purpose. Dark mode looked fine, because darkening something already dark changes little;
+light mode came out dark. That asymmetry is the signature of this bug, and no amount of
+work on the light palette can fix it, because the palette was never what was wrong.
+
+Darkening is now off. The cost is that `prefers-color-scheme` inside that WebView reports
+light whatever the phone is set to, so *match system* can no longer read it — the wrapper
+hands the real setting in through `Theme.systemIsDark()`, at first paint and again whenever
+the phone switches. A browser never calls it, and there the media query decides exactly as
+before. Both paths are tested, including running the wrapper's snippet against the shipped
+script, because it is a Java string that no compiler checks.
+
 The two `theme-color` metas are per-scheme, which is right until someone forces dark on a
 light machine and the browser's own chrome stays oat over a page gone to soil. An explicit
 choice points both at that theme's ground; *match system* hands the split back.
@@ -427,7 +442,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 776 checks, no dependencies, no network
+node tests/run.js              # 784 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -443,10 +458,10 @@ keywords per language, a suite that switches language *after* a transcript and i
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**202 control-reachability** (every referenced element exists, every trigger names a real
+**207 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
-the theme survives a restart, the manual's numbers match the engine), and **158 PWA asset
+the theme survives a restart, the manual's numbers match the engine), and **161 PWA asset
 integrity** (precache completeness, icon dimensions, cache strategy, safe-area insets, the
 two dark palettes token by token, no raw colour in the script, no embedded credential).
 

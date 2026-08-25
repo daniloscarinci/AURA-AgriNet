@@ -608,7 +608,12 @@ body{
 
 @media (max-width:1023px){
   .tabbar{ display:grid; }
-  main{ padding-bottom:150px !important; }   /* clear the fixed bar + FAB */
+  /* Room to breathe at both ends. The page used to start hard under the header
+     and end hard against the tab bar, so the first card and the last one both
+     looked wedged in. The bottom figure clears the fixed bar and the FAB and
+     then leaves a gap after them, rather than stopping exactly where the bar
+     begins. */
+  main{ padding-top:14px !important; padding-bottom:184px !important; }
   /* Ops is the desktop console; on mobile only the active role pane shows. */
   body[data-role="FARMER"] .rolepane[data-pane="FARMER"],
   body[data-role="BUYER"]  .rolepane[data-pane="BUYER"],
@@ -7215,6 +7220,20 @@ const Theme = (() => {
 
   let mode = 'system';
 
+  /* What the host says the system is set to, when the host is in a position to
+     know better than the media query. null means nobody has said, which is every
+     browser: there prefers-color-scheme is the answer and the CSS reads it
+     directly with no help from here.
+
+     The Android wrapper is the exception. Its WebView is told not to darken the
+     page algorithmically -- it was inverting a light theme the reader had chosen
+     on purpose, which is why light mode came out dark on a phone in night mode
+     while dark mode looked fine. With darkening off, prefers-color-scheme inside
+     that WebView reports light whatever the phone is set to, so "match system"
+     would have quietly become "always light". The wrapper hands the real setting
+     in instead, and updates it when the phone switches. */
+  let systemDark = null;
+
   const has = id => MODES.some(m => m.id === id);
 
   /** The choice to start in: an explicit past one, else follow the machine.
@@ -7235,15 +7254,35 @@ const Theme = (() => {
       moment a reader forces dark on a light machine: the page goes to soil and
       the browser's own chrome stays oat. An explicit choice therefore points
       both of them at the same ground colour, and 'system' hands the split back. */
+  /** The theme actually painted: the choice, or what the system is doing. */
+  function resolved(){
+    if(mode !== 'system') return mode;
+    if(systemDark !== null) return systemDark ? 'dark' : 'light';
+    return null;                    // let prefers-color-scheme decide, in CSS
+  }
+
   function apply(){
     const root = typeof document !== 'undefined' && document.documentElement;
     if(!root) return;
-    if(mode === 'system') root.removeAttribute('data-theme');
-    else root.setAttribute('data-theme', mode);
+    /* On "match system" the attribute normally comes off and the media query
+       does the work. When a host has told us what the system is, the attribute
+       goes on anyway -- carrying the same answer the media query would have
+       given, for a WebView whose media query cannot give it. */
+    const r = resolved();
+    if(r === null) root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', r);
 
+    const ground = r === null ? null : PLANE[r];
     const light = el('tcLight'), dark = el('tcDark');
-    if(light) light.setAttribute('content', mode === 'system' ? PLANE.light : PLANE[mode]);
-    if(dark)  dark.setAttribute('content',  mode === 'system' ? PLANE.dark  : PLANE[mode]);
+    if(light) light.setAttribute('content', ground || PLANE.light);
+    if(dark)  dark.setAttribute('content',  ground || PLANE.dark);
+  }
+
+  /** Called by a host that knows the system setting. Safe to call at any time. */
+  function systemIsDark(v){
+    systemDark = (v === null || v === undefined) ? null : !!v;
+    apply();
+    return systemDark;
   }
 
   function set(next){
@@ -7254,9 +7293,9 @@ const Theme = (() => {
     return mode;
   }
 
-  return { MODES, PLANE, initial, apply, set, has,
+  return { MODES, PLANE, initial, apply, set, has, systemIsDark, resolved,
            mode: () => mode, current: () => MODES.find(m => m.id === mode),
-           STORE_KEY };
+           systemDark: () => systemDark, STORE_KEY };
 })();
 
 /* Shorthand. `t` is used several hundred times; a five-character name keeps the

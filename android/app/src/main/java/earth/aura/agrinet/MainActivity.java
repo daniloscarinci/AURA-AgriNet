@@ -134,11 +134,20 @@ public class MainActivity extends ComponentActivity {
         settings.setSupportZoom(false);               // the page sets its own viewport
         settings.setBuiltInZoomControls(false);
 
-        /* Makes prefers-color-scheme report the system setting. The page declares
-           color-scheme: light dark and ships its own warm dark palette, so Android
-           honours that instead of force-inverting a stylesheet built by hand. */
+        /* Never let the WebView darken the page. Allowing it was meant to make
+           prefers-color-scheme report the system setting, on the assumption that
+           a page declaring color-scheme: light dark would be left to paint its
+           own dark theme. On a phone in night mode it instead darkened whatever
+           the page painted -- including the light theme a reader had just chosen
+           on purpose. Dark mode looked fine because darkening something already
+           dark changes little; light mode came out dark, which is exactly the
+           bug that was reported.
+
+           The cost is that prefers-color-scheme inside this WebView now reports
+           light whatever the phone is set to, so "match system" cannot read it.
+           pushSystemTheme() hands the real setting to the page instead. */
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
-            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true);
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false);
         }
 
         // No device was available to test this on, so leave the door open: with a
@@ -157,6 +166,7 @@ public class MainActivity extends ComponentActivity {
             @Override
             public void onPageCommitVisible(WebView view, String url) {
                 firstPaint = true;
+                pushSystemTheme();
             }
 
             @Override
@@ -261,6 +271,20 @@ public class MainActivity extends ComponentActivity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         applyBarAppearance();
+        pushSystemTheme();
+    }
+
+    /* Tell the page what the system is set to. Theme is a top-level binding in
+       the shipped script, which a global eval reaches -- the same route
+       SAVE_ON_PAUSE takes, and tests/assets.test.js runs this exact string
+       against the real script for the same reason: it is a Java string that no
+       compiler checks. Wrapped in try/catch because it also runs on a
+       configuration change that arrives before the page exists. */
+    private void pushSystemTheme() {
+        boolean night = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        webView.evaluateJavascript(
+                "try{Theme.systemIsDark(" + night + ")}catch(e){}", null);
     }
 
     /** Dark icons on the oat background, light icons on the bark one. */

@@ -540,6 +540,42 @@ module.exports = ({ suite, test, assert }) => {
         'from a global eval, so closing the app would lose the session');
     });
 
+    /* Allowing the WebView to darken algorithmically was meant to leave a page
+       that declares color-scheme to paint its own dark theme. On a phone in
+       night mode it darkened whatever the page painted instead, including a
+       light theme the reader had chosen on purpose -- dark mode looked fine
+       because darkening the already-dark changes little, and light mode came out
+       dark. */
+    test('the WebView is not allowed to darken the page itself', () => {
+      assert.includes(java, 'setAlgorithmicDarkeningAllowed(settings, false)',
+        'the WebView will invert the light theme on a phone in night mode');
+    });
+
+    test('the system setting is pushed to the page, on load and on change', () => {
+      assert.includes(java, 'pushSystemTheme()',
+        'with darkening off, prefers-color-scheme reports light whatever the phone says, '
+        + 'so "match system" needs the real value handing in');
+      const commit = java.slice(java.indexOf('onPageCommitVisible'));
+      assert.includes(commit.slice(0, 240), 'pushSystemTheme',
+        'the page is never told the system setting at startup');
+      const cfg = java.slice(java.indexOf('onConfigurationChanged'));
+      assert.includes(cfg.slice(0, 320), 'pushSystemTheme',
+        'switching the phone to dark would leave the page on light');
+    });
+
+    test('the snippet reaches Theme when run against the shipped script', () => {
+      const m = java.match(/"try\{Theme\.systemIsDark\(" \+ (\w+) \+ "\)\}catch\(e\)\{\}"/);
+      assert.ok(m, 'the push snippet is not the shape this test can drive');
+      const h = boot();
+      // Same footing Android gives it: a separate script evaluated in global scope.
+      vm.runInContext('try{Theme.systemIsDark(true)}catch(e){}', h.window);
+      assert.equal(h.app.Theme.systemDark(), true,
+        'Theme is out of reach from a global eval, so the wrapper could never '
+        + 'tell the page what the phone is set to');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'dark',
+        'the page was told the system is dark and stayed light');
+    });
+
     test('the Activity pauses and resumes the WebView', () => {
       assert.includes(java, 'webView.onPause()',
         'the page keeps its timers running behind a dark screen, draining the battery');
