@@ -69,6 +69,13 @@ module.exports = ({ suite, test, assert }) => {
        would swallow the code around them. */
     for (const m of block('const DECK_NAME = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const GROUP_LABEL = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    /* Theme options reach t() as t(m.label) for the same reason. Only the
+       labels are read, not every literal in the block: the ids beside them are
+       code values, and a blanket label: sweep over the whole script would drag
+       in the feed names -- NASA SMAP, ESA Sentinel-1 -- which are instrument
+       proper nouns and are left alone in every language, exactly as city names
+       are. */
+    for (const m of block('const MODES = [', '];').matchAll(/label:'([^']+)'/g)) set.add(m[1]);
     /* The opening exchange stores English source too, and its lines carry no
        prose key to find them by. Only the sentences are wanted: the rest of the
        literals in that function are participant ids and the separators between

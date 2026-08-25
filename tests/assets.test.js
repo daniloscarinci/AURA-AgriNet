@@ -630,4 +630,96 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(markup, 'black-translucent',
         'dropping this changes the inset contract'));
   });
+
+  /* ================================================= themes =============== */
+  /* The palettes are the one part of this app a logic test cannot see at all:
+     they are CSS custom properties, and the stub DOM has no cascade. What can
+     be checked is that the two halves agree, that nothing renders a colour
+     outside them, and that the control reaches both. */
+  suite('assets · themes', () => {
+    const { html, markup } = readSource();
+
+    /** Every `--token: value;` declared inside one block, as a map. */
+    const tokensOf = (start) => {
+      const a = html.indexOf(start);
+      if (a < 0) return null;
+      const b = html.indexOf('\n}', a);
+      const body = html.slice(a, b < 0 ? a + 4000 : b);
+      const out = {};
+      for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+      return out;
+    };
+
+    /* The dark palette is written twice -- once behind prefers-color-scheme for
+       readers who never touch the control, once behind [data-theme] for readers
+       who do. Plain CSS cannot share one body between a media block and a bare
+       selector, and collapsing them with light-dark() would put a Chrome 123 /
+       Safari 17.5 floor under an app that ships an APK onto whatever WebView a
+       device happens to carry. So they stay duplicated, and this is what stops
+       them drifting: tune a colour in one and forget the other, and the two
+       dark themes disagree in a way only a human eye would ever catch. */
+    const media = tokensOf(':root:not([data-theme="light"]){');
+    const forced = tokensOf(':root[data-theme="dark"]{');
+
+    test('both dark palettes exist', () => {
+      assert.ok(media, 'no dark palette behind prefers-color-scheme');
+      assert.ok(forced, 'no dark palette behind [data-theme="dark"]');
+    });
+
+    test('the two dark palettes declare the same tokens', () =>
+      assert.deepEqual(Object.keys(media).sort(), Object.keys(forced).sort(),
+        'one dark palette declares a token the other does not'));
+
+    test('the two dark palettes agree on every value', () => {
+      const differs = Object.keys(media).filter(k => media[k] !== forced[k]);
+      assert.deepEqual(differs, [],
+        'the same token has two different dark values, so the theme changes when you choose it');
+    });
+
+    /* A token defined only in dark renders as nothing in light -- an invisible
+       border, black text on black -- and no test that never paints would see it. */
+    test('every token the stylesheet reads is defined in the light palette', () => {
+      const light = tokensOf(':root{');
+      const used = new Set([...html.matchAll(/var\((--[a-z0-9-]+)/g)].map(m => m[1]));
+      const undefined_ = [...used].filter(k => !(k in light));
+      assert.deepEqual(undefined_, [],
+        'var() reads a token that bare :root never defines');
+    });
+
+    test('the theme control is in the shell and names all three modes', () => {
+      assert.includes(markup, 'id="btnTheme"', 'no theme button');
+      assert.includes(markup, 'id="themeMenu"', 'no theme menu');
+      ['light', 'dark', 'system'].forEach(m =>
+        assert.includes(html, `id:'${m}'`, `${m} is not a mode the module offers`));
+    });
+
+    /* Theme.apply() rewrites these by id. Without the ids it would need
+       querySelector('meta[name=...]'), which the stub DOM refuses. */
+    test('both theme-color metas carry an id for the module to reach', () => {
+      assert.includes(markup, 'id="tcLight"', 'the light theme-color meta has no id');
+      assert.includes(markup, 'id="tcDark"', 'the dark theme-color meta has no id');
+    });
+
+    test('the ground colours the module writes match the palettes', () => {
+      const light = tokensOf(':root{');
+      assert.includes(html, `light:'${light['--plane']}'`,
+        'Theme.PLANE.light disagrees with --plane, so the browser chrome would not match the page');
+      assert.includes(html, `dark:'${forced['--plane']}'`,
+        'Theme.PLANE.dark disagrees with the dark --plane');
+    });
+
+    /* app.css is prebuilt and the script writes inline styles, so a colour that
+       skips the tokens is invisible until someone opens the app in the other
+       theme. Three had: a near-black driver label on ochre, and two copies of a
+       red belonging to neither palette. */
+    test('no raw colour survives in the script outside the palettes', () => {
+      const script = html.slice(html.indexOf('MODULE 1: CONFIG'));
+      const raw = [
+        ...script.matchAll(/#[0-9a-fA-F]{3,8}\b(?![^<]*<\/style>)/g),
+        ...script.matchAll(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+/g),
+      ].map(m => m[0]).filter(v => !/^#(f4efe6|15120e)$/i.test(v));   // Theme.PLANE, checked above
+      assert.deepEqual([...new Set(raw)], [],
+        'a colour bypasses the design tokens and will be wrong in one of the two themes');
+    });
+  });
 };

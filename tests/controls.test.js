@@ -667,4 +667,93 @@ module.exports = ({ suite, test, assert }) => {
         'a saved role was neither honoured nor safely defaulted');
     });
   });
+
+  /* ------------------------------------------------------------------------ */
+  /* The theme control. The palettes themselves are checked in assets.test.js,
+     which can read the stylesheet; what matters here is that the choice is
+     reachable, lands on the document where the CSS is waiting for it, survives
+     a restart, and takes the browser's own chrome with it. */
+  suite('controls · theme', () => {
+
+    test('a fresh visitor follows the machine rather than a guess', () => {
+      const h = boot();
+      assert.equal(h.app.Theme.mode(), 'system',
+        'with no stored choice the app must not force a theme on anyone');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), null,
+        'system means no attribute at all — the media query does the work');
+    });
+
+    test('choosing dark puts the attribute the CSS reads on the document', () => {
+      const h = boot();
+      h.app.Theme.set('dark');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'dark');
+      assert.equal(h.storage.get('aura-theme'), 'dark', 'the choice was not stored');
+    });
+
+    test('choosing light survives a dark machine', () => {
+      const h = boot();
+      h.app.Theme.set('light');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'light',
+        'without the attribute the prefers-color-scheme block would win');
+    });
+
+    test('going back to system removes the attribute again', () => {
+      const h = boot();
+      h.app.Theme.set('dark');
+      h.app.Theme.set('system');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), null,
+        'a leftover attribute would pin the reader to one theme forever');
+      assert.equal(h.storage.get('aura-theme'), 'system');
+    });
+
+    test('a stored choice is honoured on the next launch', () => {
+      const h = boot({ storage: { 'aura-theme': 'dark' } });
+      assert.equal(h.app.Theme.mode(), 'dark', 'the stored theme was ignored');
+      assert.equal(h.document.documentElement.getAttribute('data-theme'), 'dark',
+        'boot must apply the theme before the first paint, not after');
+    });
+
+    test('a nonsense stored value falls back instead of breaking the palette', () => {
+      const h = boot({ storage: { 'aura-theme': 'sepia' } });
+      assert.equal(h.app.Theme.mode(), 'system', 'an unknown mode must not reach the document');
+    });
+
+    /* The metas are per-scheme, so on an explicit choice they have to stop
+       disagreeing with the page: force dark on a light machine and the browser
+       chrome stays oat while everything below it goes to soil. */
+    test('an explicit choice points both theme-colour metas at one ground', () => {
+      const h = boot();
+      h.app.Theme.set('dark');
+      const dark = h.app.Theme.PLANE.dark;
+      assert.equal(h.document.getElementById('tcLight').getAttribute('content'), dark);
+      assert.equal(h.document.getElementById('tcDark').getAttribute('content'), dark);
+    });
+
+    test('system hands the two metas back their own colours', () => {
+      const h = boot();
+      h.app.Theme.set('dark');
+      h.app.Theme.set('system');
+      assert.equal(h.document.getElementById('tcLight').getAttribute('content'), h.app.Theme.PLANE.light);
+      assert.equal(h.document.getElementById('tcDark').getAttribute('content'), h.app.Theme.PLANE.dark);
+    });
+
+    test('every mode the module offers is a row the menu draws', () => {
+      const h = boot();
+      h.app.Views.renderThemeMenu();
+      const html = h.document.getElementById('themeMenu').innerHTML;
+      h.app.Theme.MODES.forEach(m =>
+        assert.includes(html, `data-theme-mode="${m.id}"`, `${m.id} has no row in the menu`));
+    });
+
+    test('the button shows the setting, not the resolved theme', () => {
+      const h = boot();
+      h.app.Theme.set('system');
+      h.app.Views.renderThemeMenu();
+      assert.equal(h.document.getElementById('themeGlyph').textContent, '◐',
+        'on "match system" the button must not claim a theme the reader did not pick');
+      h.app.Theme.set('dark');
+      h.app.Views.renderThemeMenu();
+      assert.equal(h.document.getElementById('themeGlyph').textContent, '🌙');
+    });
+  });
 };

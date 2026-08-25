@@ -11,8 +11,13 @@
      actually offline-capable. -->
 <link rel="stylesheet" href="app.css">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)">
+<!-- Two theme colours, one per scheme, and an id on each so Theme.apply() can
+     reach them. The ids sit after `media` deliberately: tests/assets.test.js
+     matches `name` then `content` then an optional `media`, and an attribute
+     wedged between the first two would stop that regex matching a tag that is
+     still perfectly correct. -->
+<meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)" id="tcLight">
+<meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)" id="tcDark">
 <meta name="color-scheme" content="light dark">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1208,6 +1213,20 @@ body{
         <span aria-hidden="true">🌐</span><span id="langLabel" class="wide-only">&nbsp;English</span>
       </button>
       <div id="langMenu" class="langmenu" role="listbox" aria-label="Language" hidden data-i18n-attr="aria-label"></div>
+    </div>
+
+    <!-- Theme. The palettes have been in the stylesheet since the first build;
+         until this button there was no way to reach the half of them that sits
+         behind [data-theme], so the app could only ever follow the machine.
+         Three options rather than two, because the CSS was written for three:
+         :root:not([data-theme="light"]) inside the prefers-color-scheme block
+         is only meaningful if "match system" is a state a reader can return to. -->
+    <div class="langwrap flex-none">
+      <button id="btnTheme" class="toggle" aria-haspopup="listbox" aria-expanded="false"
+              aria-controls="themeMenu" title="Theme" aria-label="Choose theme" data-i18n-attr="title,aria-label">
+        <span id="themeGlyph" aria-hidden="true">◐</span>
+      </button>
+      <div id="themeMenu" class="langmenu" role="listbox" aria-label="Theme" hidden data-i18n-attr="aria-label"></div>
     </div>
 
     <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
@@ -3794,7 +3813,7 @@ const Views = (() => {
     // driver marker (positioned by the animation loop)
     out += `<g id="driverMarker" style="display:none">
       <circle r="9" fill="var(--series-4)" stroke="var(--surface-1)" stroke-width="2.5"/>
-      <text y="3.2" text-anchor="middle" style="fill:#080b0f;font-size:9px;font-weight:800">D3</text>
+      <text y="3.2" text-anchor="middle" style="fill:var(--on-accent);font-size:9px;font-weight:800">D3</text>
     </g>`;
 
     // legend — identity is never colour-alone
@@ -4197,6 +4216,29 @@ const Views = (() => {
     if(btn) btn.setAttribute('aria-expanded', String(!menu.hidden));
   }
 
+  /* The theme picker, built from the same parts as the language one.
+
+     The button shows the SETTING, not the resolved theme: on 'match system' it
+     reads ◐ rather than resolving to ☀ or 🌙. That is the honest glyph -- the
+     reader chose "follow the machine", and a button claiming "light" would be
+     answering a question they did not ask -- and it keeps the app from having
+     to query matchMedia for a colour the stylesheet is already handling. */
+  function renderThemeMenu(){
+    const menu = el('themeMenu');
+    if(!menu) return;
+    const cur = Theme.mode();
+    menu.innerHTML = Theme.MODES.map(m => `
+      <button class="langopt" role="option" data-theme-mode="${esc(m.id)}"
+              aria-selected="${m.id === cur}">
+        <span class="endo" aria-hidden="true">${m.glyph}</span>
+        <span class="exo">${esc(t(m.label))}</span>
+      </button>`).join('');
+    const glyph = el('themeGlyph');
+    if(glyph) glyph.textContent = Theme.current().glyph;
+    const btn = el('btnTheme');
+    if(btn) btn.setAttribute('aria-expanded', String(!menu.hidden));
+  }
+
   /* A visible statement of how complete the active translation is. An app that
      argues about confidence in its data does not get to be vague about
      confidence in its own words. */
@@ -4542,7 +4584,7 @@ const Views = (() => {
     // Rebuilding the region re-runs those labels in the new language, which is
     // cheaper and far less error-prone than translating at every display site.
     if(Region.current()) Region.load(Region.current().id);
-    renderLangMenu(); renderRegionPicker(); renderLiveChip(); renderLinks();
+    renderLangMenu(); renderThemeMenu(); renderRegionPicker(); renderLiveChip(); renderLinks();
     renderTiles(); renderThermal(); renderTable(); renderHero(); renderPosture();
     renderClock(); renderMap(true); renderSatBar(); renderAgronomy();
     renderTriggers(); renderQuickReplies(); renderLog(); renderChat();
@@ -4710,7 +4752,7 @@ const Views = (() => {
     const next = r ? nodeName(r.path[1] || r.path[r.path.length - 1]) : '—';
 
     pane.innerHTML = `
-      <div class="mcard" style="${r && r.fallback ? 'border-color:rgba(208,59,59,.5)' : ''}">
+      <div class="mcard" style="${r && r.fallback ? 'border-color:var(--critical-line)' : ''}">
         <div class="mcard-head"><span class="mcard-title">${esc(t('Next stop'))}</span><div class="flex-1"></div>
           ${chipHtml(r && r.fallback ? 'critical' : blocked.length ? 'warning' : 'good',
              r && r.fallback ? t('Do not depart') : blocked.length ? t('Rerouted') : t('Clear'))}</div>
@@ -4722,7 +4764,7 @@ const Views = (() => {
             ? `<div><div class="prov">${esc(t('vs clear'))}</div><div class="mval" style="color:var(--critical-ink)">+${fmt(r.km - base.km,1)} km</div></div>` : ''}
         </div>
       </div>
-      ${r && r.fallback ? `<div class="mcard" style="border-color:rgba(208,59,59,.5)">
+      ${r && r.fallback ? `<div class="mcard" style="border-color:var(--critical-line)">
         <div class="mcard-head">${chipHtml('critical', t('Hold position'))}</div>
         <div class="mlabel" style="color:var(--text-primary);font-size:13px">${t('Every route to the depot crosses an impassable segment. Wait for SAR to show a crossing reopening — the waypoints below are the least-bad option and are {verdict}.',
             { verdict: `<strong>${esc(t('not cleared for use'))}</strong>` })}</div>
@@ -5002,7 +5044,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
@@ -6606,6 +6648,75 @@ const I18n = (() => {
            STORE_KEY, langFor };
 })();
 
+/* ===================== MODULE 8b: THEME =====================
+
+   Light, dark, or whatever the machine says. Shaped like I18n on purpose --
+   initial() reads a stored choice, apply() puts it on the document, set()
+   records it -- because a second pattern for the same job is a second pattern
+   to keep in step.
+
+   The stylesheet has carried both palettes since the first build. Light lives
+   on bare :root, dark on BOTH a prefers-color-scheme block and [data-theme],
+   which is what makes three states resolvable: an explicit light that survives
+   a dark machine, an explicit dark that survives a light one, and no attribute
+   at all for following along. Nothing had ever set that attribute. */
+const Theme = (() => {
+  const STORE_KEY = 'aura-theme';
+  const MODES = [
+    { id:'light',  glyph:'☀', label:'Light'        },
+    { id:'dark',   glyph:'🌙', label:'Dark'         },
+    { id:'system', glyph:'◐', label:'Match system' }
+  ];
+  /* The ground colour of each palette, kept in step with --plane by a test
+     rather than by memory. */
+  const PLANE = { light:'#f4efe6', dark:'#15120e' };
+
+  let mode = 'system';
+
+  const has = id => MODES.some(m => m.id === id);
+
+  /** The choice to start in: an explicit past one, else follow the machine.
+      Never guessed from the hour of day -- a grower reading in bright sun at
+      six in the morning wants the light theme, and the clock disagrees. */
+  function initial(){
+    try{
+      const saved = localStorage.getItem(STORE_KEY);
+      if(saved && has(saved)) return saved;
+    }catch(e){}
+    return 'system';
+  }
+
+  /** Put the choice on the document, where the CSS is already waiting for it,
+      and on the two theme-colour metas, which the CSS cannot reach.
+
+      Those metas are per-scheme, so they are right for 'system' and wrong the
+      moment a reader forces dark on a light machine: the page goes to soil and
+      the browser's own chrome stays oat. An explicit choice therefore points
+      both of them at the same ground colour, and 'system' hands the split back. */
+  function apply(){
+    const root = typeof document !== 'undefined' && document.documentElement;
+    if(!root) return;
+    if(mode === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', mode);
+
+    const light = el('tcLight'), dark = el('tcDark');
+    if(light) light.setAttribute('content', mode === 'system' ? PLANE.light : PLANE[mode]);
+    if(dark)  dark.setAttribute('content',  mode === 'system' ? PLANE.dark  : PLANE[mode]);
+  }
+
+  function set(next){
+    if(!has(next)) return mode;
+    mode = next;
+    apply();
+    try{ localStorage.setItem(STORE_KEY, mode); }catch(e){}
+    return mode;
+  }
+
+  return { MODES, PLANE, initial, apply, set, has,
+           mode: () => mode, current: () => MODES.find(m => m.id === mode),
+           STORE_KEY };
+})();
+
 /* Shorthand. `t` is used several hundred times; a five-character name keeps the
    call sites readable, which is the entire point of English-as-key. */
 const t = (s, vars) => I18n.t(s, vars);
@@ -6977,6 +7088,13 @@ const Search = (() => {
     State.data.role = 'FARMER';
   }
 
+  /* --- theme, before anything paints ---
+     Synchronous and first: everything below this line renders into a document
+     whose palette is already settled, so a reader who chose dark never sees a
+     frame of oat. Nothing here waits on the network, so there is nothing to
+     repaint afterwards. */
+  Theme.set(Theme.initial());
+
   /* --- language, before anything paints ---
      Applied synchronously so direction and locale are correct on the very first
      frame; the catalogue arrives a moment later and triggers a repaint. */
@@ -6996,6 +7114,7 @@ const Search = (() => {
 
   /* --- first paint --- */
   Views.renderLangMenu();
+  Views.renderThemeMenu();
   Views.renderRegionPicker();
   Views.renderSatBar();
   Views.renderAgronomy();
@@ -7080,7 +7199,12 @@ const Search = (() => {
     e.stopPropagation();
     const menu = el('langMenu');
     menu.hidden = !menu.hidden;
+    /* The theme control is a second .langwrap, so the document handler below
+       treats a click on this button as "inside a wrapper" and closes nothing.
+       Each button therefore shuts the other menu itself. */
+    el('themeMenu').hidden = true;
     Views.renderLangMenu();
+    Views.renderThemeMenu();
   });
   el('langMenu').addEventListener('click', async e => {
     const b = e.target.closest('[data-lang]');
@@ -7094,10 +7218,33 @@ const Search = (() => {
     }
     Views.repaintAll();
   });
+  /* --- theme --- */
+  el('btnTheme').addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = el('themeMenu');
+    menu.hidden = !menu.hidden;
+    el('langMenu').hidden = true;          // see the note on btnLang above
+    Views.renderThemeMenu();
+    Views.renderLangMenu();
+  });
+  el('themeMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-theme-mode]');
+    if(!b) return;
+    el('themeMenu').hidden = true;
+    Theme.set(b.dataset.themeMode);
+    Views.renderThemeMenu();
+  });
+
+  /* One listener, both menus. `.langwrap` is the wrapper class the theme
+     control reuses, so a click outside either closes whichever is open --
+     which is also why closing has to consult both rather than assuming the
+     click that missed one was aimed at the other. */
   document.addEventListener('click', e => {
     if(!e.target.closest || !e.target.closest('.langwrap')){
       const m = el('langMenu');
       if(m && !m.hidden){ m.hidden = true; Views.renderLangMenu(); }
+      const th = el('themeMenu');
+      if(th && !th.hidden){ th.hidden = true; Views.renderThemeMenu(); }
     }
   });
   /* Two shapes of language event. The plain one is the picker changing, and the
