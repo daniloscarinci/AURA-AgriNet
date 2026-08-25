@@ -5227,7 +5227,11 @@ const Views = (() => {
     if(!ROLE_RENDER[role]) role = 'OPS';
     State.commit({ role });
     document.body.dataset.role = role;
-    document.querySelectorAll('[data-role]').forEach(b =>
+    /* button[data-role], not [data-role]. The line above puts data-role on
+       <body>, so the bare selector also matched the document body and stamped
+       aria-selected on it -- an ARIA state on an element that is not a widget,
+       and always "true", since body's role is by definition the active one. */
+    document.querySelectorAll('button[data-role]').forEach(b =>
       b.setAttribute('aria-selected', String(b.dataset.role === role)));
 
     if(role !== 'OPS'){
@@ -7772,8 +7776,17 @@ const Search = (() => {
   /* Delegated, so both switchers work from one listener: the fixed tab bar below
      1024px and the header chips above it. Binding to '.rolebtn' left the header
      copies as dead controls -- they looked like tabs and did nothing. */
+  /* button[data-role]. The bare attribute selector was a trap: setRole writes
+     data-role onto <body>, so closest() walked up from ANY click in the app and
+     found the body, re-ran setRole for the role already active, and ended on
+     window.scrollTo({top:0}).
+
+     Every tap in the app therefore threw the page back to the top -- most
+     visibly on the chat's channel tabs, which sit far enough down a phone screen
+     that you watch the whole page leave. It also meant a full role repaint on
+     every click: renderChat, renderQuickReplies, renderRolePanes, placeMap. */
   document.addEventListener('click', e => {
-    const btn = e.target.closest && e.target.closest('[data-role]');
+    const btn = e.target.closest && e.target.closest('button[data-role]');
     if(!btn || !btn.dataset.role) return;
     Views.setRole(btn.dataset.role);
     State.save();

@@ -674,6 +674,62 @@ module.exports = ({ suite, test, assert }) => {
   });
 
   /* ------------------------------------------------------------------------ */
+  /* setRole writes data-role onto <body>. Anything that then asks closest() for
+     a bare [data-role] finds the body from anywhere in the document, so every
+     click in the app re-ran setRole for the role already active and ended on
+     window.scrollTo({top:0}). Tapping a chat channel tab threw the whole page
+     back to the top. */
+  suite('controls · role delegation', () => {
+
+    test('the delegated handler asks for a button, not a bare attribute', () => {
+      const { html } = readSource();
+      assert.includes(html, "closest('button[data-role]')",
+        'a bare [data-role] selector also matches <body>, which carries the active role');
+      assert.notIncludes(html, "querySelectorAll('[data-role]')",
+        'this stamps aria-selected on <body>, which is not a widget');
+    });
+
+    test('a click on something that is not a role button leaves the page where it is', () => {
+      const h = boot();
+      h.app.Views.setRole('FARMER');
+
+      /* The real ancestor chain of a chat channel tab: the tab itself, then
+         <body>, which setRole has just stamped with data-role. */
+      const tab = {
+        tagName: 'BUTTON', dataset: { channel: 'BUYER' },
+        closest(sel) { return h.document._closest(this, sel); },
+      };
+      h.document._closest = (node, sel) =>
+        (node === tab && sel === '[data-role]') ? h.document.body : null;
+
+      let scrolled = 0;
+      h.window.scrollTo = () => { scrolled += 1; };
+      h.document.dispatch('click', { target: tab });
+
+      assert.equal(scrolled, 0,
+        'a click that was not a role button scrolled the page to the top');
+    });
+
+    test('a real role button still switches, and still goes to the top', () => {
+      const h = boot();
+      h.app.Views.setRole('FARMER');
+      const btn = {
+        tagName: 'BUTTON', dataset: { role: 'DRIVER' },
+        closest(sel) { return h.document._closest(this, sel); },
+      };
+      h.document._closest = (node, sel) =>
+        (node === btn && sel === 'button[data-role]') ? btn : null;
+
+      let scrolled = 0;
+      h.window.scrollTo = () => { scrolled += 1; };
+      h.document.dispatch('click', { target: btn });
+
+      assert.equal(h.app.State.data.role, 'DRIVER', 'the role tab stopped working');
+      assert.equal(scrolled, 1, 'a genuine role switch should start at the top of the new view');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
   /* The first screen. It used to give two answers to "where am I?" at once: a
      deck saying it had no location, a search box naming one, and a Ghanaian
      demo farm's moisture and NDVI in between. */

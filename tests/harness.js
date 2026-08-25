@@ -256,10 +256,16 @@ function makeDocument(markup) {
      silently returning [] and turning a real miss into a passing test. */
   doc.querySelectorAll = function (sel) {
     // Digits belong in an attribute name: the translator's own hook is data-i18n.
-    const attr = sel.match(/^\[data-([a-z0-9-]+)\]$/);
+    /* An optional tag in front: `button[data-role]` rather than `[data-role]`.
+       The app needs the distinction because setRole writes data-role onto
+       <body>, and a bare attribute selector therefore also selects the document
+       body -- which is how every click in the app came to re-run setRole. */
+    const attr = sel.match(/^([a-z]*)\[data-([a-z0-9-]+)\]$/);
     if (attr) {
-      const name = attr[1];
-      const re = new RegExp(`data-${name}="([^"]*)"`, 'g');
+      const [, tag, name] = attr;
+      const re = tag
+        ? new RegExp(`<${tag}\\b[^>]*\\bdata-${name}="([^"]*)"`, 'g')
+        : new RegExp(`data-${name}="([^"]*)"`, 'g');
       return [...markup.matchAll(re)].map(m => {
         const n = makeNode('button', '', doc);
         n.dataset[name.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = m[1];
