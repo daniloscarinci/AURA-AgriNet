@@ -574,6 +574,11 @@ module.exports = ({ suite, test, assert }) => {
     const { app, document } = boot();
     const { Views, Triage } = app;
 
+    /* A fresh boot has answered nobody's "where is your farm?", so the deck
+       stands down and the first-run panel takes the screen. These checks are
+       about the deck, so they say the question was answered. */
+    app.State.data.chosen = true;
+
     const deckHtml = () => { Views.renderDeck(); return document.getElementById('farmerDeck').innerHTML; };
 
     test('the deck renders into its host', () =>
@@ -665,6 +670,87 @@ module.exports = ({ suite, test, assert }) => {
       const stored = boot({ storage: { 'aura-state': JSON.stringify({ role: 'DRIVER' }) } });
       assert.includes(['DRIVER', 'FARMER'], stored.app.State.data.role,
         'a saved role was neither honoured nor safely defaulted');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /* The first screen. It used to give two answers to "where am I?" at once: a
+     deck saying it had no location, a search box naming one, and a Ghanaian
+     demo farm's moisture and NDVI in between. */
+  suite('controls · first run', () => {
+
+    const fresh = () => boot();
+    const chosen = () => boot({ storage: { 'aura-agrinet:v1': JSON.stringify({
+      v: 1, regionId: 'ghana-eastern', chosen: true, role: 'FARMER' }) } });
+
+    test('a visitor who has chosen nothing gets the panel', () => {
+      const h = fresh();
+      assert.equal(h.document.body.dataset.firstrun, '1',
+        'the app did not enter its first-run state');
+    });
+
+    test('the panel asks the question and offers a way to answer it', () => {
+      const { markup } = readSource();
+      assert.includes(markup, 'Where is your farm?', 'the panel does not ask anything');
+      assert.includes(markup, 'id="placeSearchF"', 'the panel has no search field');
+      assert.includes(markup, 'id="placeGeoF"', 'the panel has no "use my location" button');
+      assert.includes(markup, 'id="frExamples"', 'the panel offers no example catchment');
+    });
+
+    /* The whole point. A demo farm's readings under a notice saying there is no
+       location was the contradiction this replaces. */
+    test('no farm readings are on screen before a farm is chosen', () => {
+      const h = fresh();
+      h.app.Views.renderDeck();
+      h.app.Views.renderRolePanes();
+      const pane = h.document.getElementById('farmerDeck').innerHTML
+                 + h.document.getElementById('farmerExtra').innerHTML;
+      assert.equal(pane.trim(), '',
+        'the Farmer view drew a catchment nobody has picked');
+    });
+
+    test('the search box shows its placeholder rather than a region nobody picked', () => {
+      const h = fresh();
+      h.app.Views.renderRegionPicker();
+      assert.equal(h.document.getElementById('placeSearch').value, '',
+        'the box named a location while the app was asking for one');
+    });
+
+    test('the example chips are catchments the app actually ships', () => {
+      const h = fresh();
+      h.app.Views.renderExamples();
+      const html = h.document.getElementById('frExamples').innerHTML;
+      Object.keys(h.app.REGIONS).forEach(id =>
+        assert.includes(html, `data-builtin="${id}"`, `${id} is missing from the examples`));
+    });
+
+    test('a reader who chose a farm never sees the panel again', () => {
+      const h = chosen();
+      assert.notEqual(h.document.body.dataset.firstrun, '1',
+        'the app asked a question that had already been answered');
+    });
+
+    /* Snapshots written before `chosen` existed still describe someone who
+       answered, and must not be re-interrogated by the upgrade. */
+    test('an older snapshot with a searched farm counts as answered', () => {
+      const h = boot({ storage: { 'aura-agrinet:v1': JSON.stringify({
+        v: 1, regionId: 'ghana-eastern', role: 'FARMER',
+        place: { name: 'Kisumu', lat: -0.102, lon: 34.762 } }) } });
+      assert.ok(h.app.State.data.chosen, 'a stored farm was treated as no answer at all');
+    });
+
+    test('an older snapshot on a non-default region counts as answered', () => {
+      const h = boot({ storage: { 'aura-agrinet:v1': JSON.stringify({
+        v: 1, regionId: 'nigeria-oyo', role: 'FARMER' }) } });
+      assert.ok(h.app.State.data.chosen, 'a deliberately picked catchment was forgotten');
+    });
+
+    test('the answer is written down, so it survives the next launch', () => {
+      const h = fresh();
+      h.app.State.data.chosen = true;
+      h.app.State.save();
+      assert.ok(JSON.parse(h.storage.get('aura-agrinet:v1')).chosen,
+        'the snapshot does not record that the question was answered');
     });
   });
 

@@ -785,6 +785,11 @@ module.exports = ({ suite, test, assert }) => {
     const loaded = async () => {
       const h = live();
       await h.app.Live.ensure(6.095, 0.042, 'Somanya');
+      /* Loading a payload by hand skips goToLocation, which is what records the
+         answer to "where is your farm?". Without it the deck correctly declines
+         to rank a catchment nobody picked, and every check below would be
+         testing the first-run panel instead. */
+      h.app.State.data.chosen = true;
       h.app.State.data.clock = NOW;
       h.app.Views.renderDeck();
       return { h, html: h.document.getElementById('farmerDeck').innerHTML };
@@ -840,6 +845,7 @@ module.exports = ({ suite, test, assert }) => {
     const loaded = async () => {
       const h = live();
       await h.app.Live.ensure(6.095, 0.042, 'Somanya');
+      h.app.State.data.chosen = true;      // see the note in the suite above
       h.app.State.data.clock = NOW;
       return h;
     };
@@ -951,6 +957,141 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(h.document.getElementById('farmerDeck').innerHTML,
         'data-call="alert:NDVI_DECLINE"',
         'a rule the engine armed is invisible on the screen that lists what needs you');
+    });
+  });
+
+  /* ====================================================== reopening ======= */
+  /* Keeping the farm you searched for was fixed once. Keeping its numbers was
+     not: boot rebuilt the catchment from the stored coordinates and then never
+     asked Live anything, so Live.ready() was false on every reload. The deck
+     fell back to "search for a location" while the search box beside it named
+     the location, and the header chip said Simulated about a farm the app could
+     name. Everything below is that bug, pinned from several directions. */
+  suite('live · reopening the app', () => {
+
+    /* The app's clock is fixed by the harness, so an age has to be measured
+       against that instant and not against the wall clock this test runs on. */
+    const APP_NOW = Date.UTC(2026, 7, 8, 9, 0, 0);
+
+    /** The shape Live.persist() writes, aged by `ageMs`. */
+    const cachedPayload = (lat, lon, ageMs = 3600000) => {
+      const wx = forecast();
+      return JSON.stringify({
+        lat, lon, label: 'Somanya', fetchedAt: APP_NOW - ageMs,
+        elevation: wx.elevation, timezone: wx.timezone, utcOffset: wx.utc_offset_seconds,
+        units: wx.hourly_units, hourly: wx.hourly, daily: wx.daily,
+        current: wx.current, river: flood([10, 12, 11]).daily,
+      });
+    };
+
+    const snapshot = extra => JSON.stringify({
+      v: 1, savedAt: APP_NOW, regionId: 'ghana-eastern', chosen: true, role: 'FARMER', ...extra,
+    });
+
+    /* Let boot's post-paint refresh finish. setImmediate rather than a run of
+       awaited Promise.resolve(): the whole microtask queue drains between two
+       macrotasks, and fetch -> json -> parse -> repaint is far more awaits deep
+       than any hand-counted number of ticks. Counting them looked like it
+       worked and was really watching refreshHome's own overlap guard hold. */
+    const settle = async () => {
+      for (let i = 0; i < 3; i++) await new Promise(r => setImmediate(r));
+    };
+
+    test('a cached payload is on screen before anything is fetched', () => {
+      const h = live({ bootOpts: { storage: {
+        'aura-agrinet:v1': snapshot(),
+        'aura-live-6.095,0.042': cachedPayload(6.095, 0.042),
+      } } });
+      assert.ok(h.app.Live.ready(),
+        'the reopened app has no observations, so every call falls back to simulation');
+      assert.notEqual(h.app.Live.statusLine().mode, 'simulated',
+        'the header chip would say Simulated about a farm the app can name');
+    });
+
+    /* Offline, so the refresh boot starts cannot land and replace the restored
+       payload mid-assertion. This is also the case that matters most: the phone
+       in a field with no signal, reopened on yesterday's numbers. */
+    test('the restored reading states its age rather than passing as current', () => {
+      const h = live({ bootOpts: { online: false, storage: {
+        'aura-agrinet:v1': snapshot(),
+        'aura-live-6.095,0.042': cachedPayload(6.095, 0.042, 14 * 3600000),
+      } } });
+      const st = h.app.Live.statusLine();
+      assert.equal(st.mode, 'cached', 'an offline reopen must not present its cache as live');
+      assert.ok(/\d/.test(st.text), `the status line names no age: ${st.text}`);
+      assert.notEqual(st.mode, 'simulated',
+        'a real cached reading was thrown away in favour of synthetic telemetry');
+    });
+
+    test('the deck ranks real calls on the first frame after a reopen', () => {
+      const h = live({ bootOpts: { storage: {
+        'aura-agrinet:v1': snapshot(),
+        'aura-live-6.095,0.042': cachedPayload(6.095, 0.042),
+      } } });
+      h.app.State.data.clock = NOW;
+      h.app.Views.renderDeck();
+      const html = h.document.getElementById('farmerDeck').innerHTML;
+      assert.notIncludes(html, 'deck-empty',
+        'the reopened app told the reader to search for the location it had already restored');
+      assert.greater([...html.matchAll(/data-call="/g)].length, 3, 'the deck came back short');
+    });
+
+    test('a searched farm is restored from its own coordinates, not the default region', () => {
+      const place = { name: 'Kisumu', admin: '', country: 'Kenya', countryCode: 'KE',
+                      lat: -0.102, lon: 34.762, elevation: 1174, timezone: 'Africa/Nairobi' };
+      const h = live({ bootOpts: { storage: {
+        'aura-agrinet:v1': snapshot({ place }),
+        'aura-live--0.102,34.762': cachedPayload(-0.102, 34.762),
+      } } });
+      assert.ok(h.app.Live.ready(), 'the searched farm came back without its observations');
+      assert.equal(h.app.State.data.place.name, 'Kisumu', 'the searched place was lost');
+    });
+
+    test('with nothing cached the app still goes and asks', async () => {
+      const h = live({ bootOpts: { storage: { 'aura-agrinet:v1': snapshot() } } });
+      await settle();
+      const wx = h.window.fetch.calls.find(c => c.includes('api.open-meteo.com'));
+      assert.ok(wx, 'a reopened app with an empty cache never contacted the services');
+      assert.includes(wx, 'latitude=6.095', 'it asked about somewhere other than the stored farm');
+    });
+
+    test('a fresh visitor is asked nothing and fetches nothing', async () => {
+      const h = live();
+      await settle();
+      assert.equal(h.window.fetch.calls.filter(c => c.includes('api.open-meteo.com')).length, 0,
+        'the app fetched observations for a farm nobody has chosen');
+    });
+
+    /* Leave the app open overnight and this morning's irrigation call is
+       arithmetic over yesterday's forecast. */
+    test('a tab coming back to a stale payload refreshes it', async () => {
+      const h = live({ bootOpts: { storage: {
+        'aura-agrinet:v1': snapshot(),
+        'aura-live-6.095,0.042': cachedPayload(6.095, 0.042),
+      } } });
+      await settle();                                    // boot's own refresh lands first
+      /* Then the night passes. Ageing the payload in place is the only way to
+         reach this branch: boot has just refreshed, so anything the fixture was
+         born with has already been replaced by something current. */
+      h.app.Live.payload().fetchedAt = APP_NOW - 9 * 3600000;
+      const before = h.window.fetch.calls.length;
+      h.document.dispatch('visibilitychange');
+      await settle();
+      assert.greater(h.window.fetch.calls.length, before,
+        'a stale payload survived the tab coming back, so the calls stay yesterday\'s');
+    });
+
+    test('a fresh payload is left alone', async () => {
+      const h = live({ bootOpts: { storage: {
+        'aura-agrinet:v1': snapshot(),
+        'aura-live-6.095,0.042': cachedPayload(6.095, 0.042, 60000),
+      } } });
+      await settle();
+      const before = h.window.fetch.calls.length;
+      h.document.dispatch('visibilitychange');
+      await settle();
+      assert.equal(h.window.fetch.calls.length, before,
+        'a reading a minute old was re-fetched, which is rude to a free public service');
     });
   });
 };

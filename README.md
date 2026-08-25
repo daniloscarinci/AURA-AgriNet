@@ -69,6 +69,86 @@ resolved once on `:root`, rather than repeating an `env()` call that is easy to 
 The Android wrapper pads the WebView itself, so this fixed the browser and the installed
 PWA and left the APK exactly as it was.
 
+## The first screen
+
+Before anyone has said where their farm is, the Farmer view is one panel and nothing else:
+**Where is your farm?**, a sentence saying why the app needs an answer, a search field with
+the ◎ button, the three catchments this repository ships as one-tap examples, and four lines
+naming what arrives once the question is answered.
+
+It replaces a screen that gave two answers to *where am I?* at once. The deck said *these
+calls need a real location*; the search box beside it already read *Somanya · Eastern
+Region*, because the seeded region's name was written into it on boot; and below both,
+moisture, NDVI and surface temperature for that Ghanaian demo farm. The panel takes all
+three off the screen — including the header's own search box, so there is exactly one place
+to answer one question — and the chat's opening line stops reading out an unchosen farm's
+telemetry.
+
+The example chips go through the same `goToLocation` a search result does, so one tap gives
+a full live deck without ever putting an unasked-for farm on screen as if it were yours.
+
+A flag, `State.data.chosen`, decides this, and it is persisted. It is its own flag rather
+than *is there a searched place*, because picking a built-in catchment is a real answer and
+leaves `place` null. Snapshots written before it existed infer it from a stored place or a
+non-default region, so nobody who already chose a farm is asked again.
+
+The seeded region is still there underneath — Buyer, Driver, Ops, the map and Dijkstra all
+need a graph, and the footer has always declared that simulation. The gate is the Farmer
+front page alone.
+
+## Reopening the app
+
+Keeping the farm you searched for was fixed once. Keeping its numbers was not.
+
+Boot rebuilt the catchment from the stored coordinates and then never asked `Live`
+anything, so `Live.ready()` was false on every reload. Every fetch had been written to
+`localStorage` against its coordinates since the first build, and nothing had ever read
+that cache at startup. The result: reopen the app and the deck told you to search for a
+location while the search box beside it named one, and the header chip said *Simulated*
+about a farm the app could name.
+
+Now boot reads that cache **before the first paint**, so the first frame carries real
+numbers, and then re-fetches in the background. The age is stated rather than hidden — the
+chip already knew how to say *Stale — fetched 14 h ago* and *Offline — last good reading
+2 d ago*, and this simply reaches the vocabulary that was already there. Nothing cached and
+nothing answering leaves the app exactly where it was before: simulated and labelled, but
+now about a farm it can name.
+
+The same bug wore one more coat. Leave the app open overnight and this morning's irrigation
+call was arithmetic over yesterday's forecast; a tab returning to a payload older than three
+hours now refreshes it.
+
+One function does the repainting for both the location switch and the restore, because the
+boot path is exactly what broke — it rebuilt the catchment and forgot thirteen render calls.
+A second hand-maintained copy of that list would have drifted again the first time one was
+added.
+
+## Themes
+
+Light, dark, or whatever the machine says, from the ◐ button in the header.
+
+Both palettes have been in the stylesheet since the first build: light on bare `:root`, dark
+on a `prefers-color-scheme` block **and** on `[data-theme]`. Nothing had ever set that
+attribute, so half of that CSS had never once applied and the app could only follow the
+system. Three options rather than two, because the CSS was written for three — an explicit
+light that survives a dark machine, an explicit dark that survives a light one, and no
+attribute at all for following along.
+
+The button shows the **setting**, not the resolved theme: on *match system* it reads ◐,
+because a button claiming *light* would be answering a question the reader did not ask.
+
+The two `theme-color` metas are per-scheme, which is right until someone forces dark on a
+light machine and the browser's own chrome stays oat over a page gone to soil. An explicit
+choice points both at that theme's ground; *match system* hands the split back.
+
+The dark palette is written out twice — plain CSS cannot share one body between a media
+block and a bare selector, and collapsing them with `light-dark()` would put a Chrome 123 /
+Safari 17.5 floor under an app that ships an APK onto whatever WebView a device happens to
+carry. A test compares the two blocks token by token instead, and another fails on any raw
+colour left in the script. Three had escaped: a near-black driver-marker label that was poor
+contrast on light-theme ochre before dark mode was ever a question, and two copies of a red
+belonging to neither palette.
+
 ## Choosing a location
 
 The search box does two things at once, and says which is which.
@@ -268,26 +348,28 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 720 checks, no dependencies, no network
+node tests/run.js              # 764 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
 Six groups: **153 logic** (geography, Dijkstra, crop-aware orders, hysteresis, scoring,
 downscaling, intent matching), **45 triage** (which group each call lands in, how an armed
 advisory promotes a card and never demotes one, deadline ordering, and a check that every
-rule a card claims is a rule the engine can actually arm), **101 live** (fetch and cache,
+rule a card claims is a rule the engine can actually arm), **109 live** (fetch and cache,
 metric mapping, geocoding, catchment synthesis, agronomy, satellite tiling, and the deck
-and its detail screens driven over a real payload), **106 i18n** (engine, catalogue and
+and its detail screens driven over a real payload, and a reopened session restored from
+its own cache), **106 i18n** (engine, catalogue and
 prose integrity — placeholders and HTML tag structure must survive translation — intent
 keywords per language, a suite that switches language *after* a transcript and its advisories exist and
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**168 control-reachability** (every referenced element exists, every trigger names a real
+**194 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
-renderer answers for, the manual's numbers match the engine), and **147 PWA asset
-integrity** (precache completeness, icon dimensions, cache strategy, safe-area insets, no
-embedded credential).
+renderer answers for, the first-run panel replaces the deck and not a plot reading,
+the theme survives a restart, the manual's numbers match the engine), and **157 PWA asset
+integrity** (precache completeness, icon dimensions, cache strategy, safe-area insets, the
+two dark palettes token by token, no raw colour in the script, no embedded credential).
 
 The triage suite touches no DOM, which is what lets the ranking be tested on its own. That
 matters more here than elsewhere: *All clear* is a promise, and a frost filed under it is a
@@ -342,6 +424,20 @@ it, and the document scrolling sideways. It found headline chips leaving their c
 forcing the composer apart — and, not an overflow at all, that **the driver's map was
 destroyed by its own pane's next re-render**, seconds after a phone user opened it. All
 fixed. What remains is a 2px status dot deliberately overlapping the avatar it sits on.
+
+Rebuilding the front page made the point a third time. 764 passing checks agreed that no
+farm reading survives on a screen with no farm chosen, and they were right about every
+surface they were looking at. Opening the app showed two they were not:
+
+- the chat's **opening cascade read out the unchosen catchment** — moisture 31.3%, NDVI
+  0.643, surface 28.8°C — and had a farmer asking after Plot F-2, which is the exact
+  contradiction the panel had just been built to remove, arriving through a different door.
+  No test saw it because every test that renders the chat sets `chosen` first, in order to
+  have a chat worth reading;
+- and **two search boxes** on a screen whose whole job is to ask one question, the header
+  copy narrow enough on a phone to truncate its own placeholder.
+
+Neither is a bug in a function. Both are what the screen actually said.
 
 ## Android
 

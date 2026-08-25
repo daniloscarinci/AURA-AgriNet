@@ -725,6 +725,10 @@ module.exports = ({ suite, test, assert }) => {
     async function armFrost() {
       const h = boot({ fetch: served() });
       h.app.Telemetry.stop();
+      /* The Farmer view is the first-run panel until someone has said where
+         their farm is, and a panel asking a question carries no advisory to
+         read in any language. */
+      h.app.State.data.chosen = true;
       Object.assign(h.app.State.data.latest, { temp: 24, moisture: 32, ndvi: 0.63, traff: 90 });
       for (let i = 0; i < 4; i++) h.app.EventEngine.evaluate();
       Object.assign(h.app.State.data.latest, { temp: -5 });

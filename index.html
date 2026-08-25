@@ -890,6 +890,73 @@ body{
 }
 
 /* ==========================================================================
+   FIRST RUN
+
+   Before anyone has said where their farm is, the Farmer view is this panel and
+   nothing else. It replaces two things that used to sit on that screen at once:
+   a deck saying "these calls need a real location", and, directly under it, the
+   moisture and NDVI of a Ghanaian demo catchment nobody had asked for. The page
+   gave two answers to "where am I?" three centimetres apart.
+
+   The rules below sit AFTER the role layout deliberately. They carry the same
+   specificity as the ones they have to beat, so source order is what decides
+   it -- which is cheaper to read than a column of !important.
+   ========================================================================== */
+#firstRun{ display:none; }
+body[data-firstrun] #firstRun{ display:block; }
+body[data-firstrun] .rolepane[data-pane="FARMER"]{ display:none; }
+/* One place to answer one question. The header's own box is the same control
+   driven by the same module, and two of them on a screen whose entire job is to
+   ask once reads as two different questions -- on a phone the header copy is
+   also narrow enough to truncate its own placeholder. It comes back the moment
+   there is a farm to name. */
+body[data-firstrun] header .search{ display:none; }
+@media (min-width:1024px){
+  /* The panel stands where the deck rail and the detail pane would be, so the
+     chat column keeps its own five and the layout does not lurch when the
+     question is answered. */
+  body[data-firstrun] #deckRail,
+  body[data-firstrun] #detailPane{ display:none; }
+}
+
+.fr-panel{
+  background:var(--surface-1); border:1px solid var(--hairline);
+  border-radius:var(--r-lg); padding:22px 20px;
+}
+.fr-title{
+  font-size:24px; font-weight:750; letter-spacing:-.03em; line-height:1.1;
+  color:var(--text-primary); margin:0;
+}
+.fr-lede{
+  font-size:13px; line-height:1.55; color:var(--text-secondary);
+  margin:8px 0 0; max-width:52ch;
+}
+/* The search field, given the room the header cannot spare it. */
+.fr-search{ display:flex; gap:8px; margin-top:18px; max-width:520px; }
+.fr-search .search{ flex:1; min-width:0; }
+.fr-search .search .field{ height:44px; font-size:15px; }
+.fr-or{
+  font-family:var(--font-mono); font-size:10px; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--text-muted); margin:20px 0 8px;
+}
+.fr-egs{ display:flex; gap:8px; flex-wrap:wrap; }
+.fr-eg{
+  border:1px solid var(--hairline-2); border-radius:99px; padding:7px 14px;
+  background:var(--surface-2); color:var(--text-primary);
+  font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+}
+.fr-eg:hover{ background:var(--surface-3); }
+.fr-eg:focus-visible{ outline:2px solid var(--series-1); outline-offset:2px; }
+.fr-gets{ margin:22px 0 0; padding:0; list-style:none; border-top:1px solid var(--hairline); }
+.fr-gets li{
+  font-size:12.5px; line-height:1.5; color:var(--text-secondary);
+  padding:9px 0 0 20px; position:relative;
+}
+.fr-gets li::before{
+  content:"→"; position:absolute; left:0; top:9px; color:var(--text-muted);
+}
+
+/* ==========================================================================
    DETAIL
 
    The body of one call: verdict, the evidence for it, the inputs, and where
@@ -1239,6 +1306,52 @@ body{
 
 <!-- ══════════════════════ MAIN GRID ══════════════════════ -->
 <main class="max-w-[1800px] mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+  <!-- ─────────── FIRST RUN ───────────
+       Static markup toggled by body[data-firstrun], NOT innerHTML from a
+       renderer. The deck hosts are rewritten wholesale on every downlink, and a
+       search input living inside one would be destroyed between keystrokes --
+       the failure that has already cost this app its deck once and the driver's
+       map twice. Written once, it also means the translator and the DOM-walk
+       tests reach it with no new machinery. -->
+  <section id="firstRun" class="lg:col-span-7 xl:col-span-8">
+    <div class="fr-panel">
+      <h2 class="fr-title" data-i18n>Where is your farm?</h2>
+      <!-- One line, and it has to stay one line: translateStatic keys off raw
+           textContent with no trimming, so a wrapped sentence carries its own
+           newline and indentation into the lookup and matches nothing. -->
+      <p class="fr-lede" data-i18n>AURA reads live weather, soil and river data for one point on Earth and turns it into today's calls. It needs that point first.</p>
+
+      <div class="fr-search">
+        <div class="search" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsF">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="placeSearchF" class="field search-input" type="search" autocomplete="off"
+                 spellcheck="false" placeholder="Town, district or coordinates…"
+                 aria-label="Search for a location" aria-controls="placeResultsF"
+                 aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
+          <button id="placeGeoF" class="search-geo" type="button" title="Use my location"
+                  aria-label="Use my current location" data-i18n-attr="title,aria-label">◎</button>
+          <div id="placeResultsF" class="search-results" role="listbox" aria-label="Location results"
+               hidden data-i18n-attr="aria-label"></div>
+        </div>
+      </div>
+
+      <!-- The three catchments this app already ships. Each fires the same
+           goToLocation({builtin}) the search results do, so one tap gives a full
+           live deck without ever putting an unasked-for farm on screen as if it
+           were the reader's own. Labels are filled from REGIONS at boot and are
+           never translated: they are proper nouns, like the city list. -->
+      <div class="fr-or" data-i18n>Or try one</div>
+      <div class="fr-egs" id="frExamples"></div>
+
+      <ul class="fr-gets">
+        <li data-i18n>Irrigate or hold, in millimetres</li>
+        <li data-i18n>Frost in the next 72 hours</li>
+        <li data-i18n>When the spray window opens</li>
+        <li data-i18n>Whether the crop can leave the farm</li>
+      </ul>
+    </div>
+  </section>
 
   <!-- ─────────── MOBILE ROLE PANES (hidden ≥1024px) ─────────── -->
   <section class="rolepane lg:col-span-12" data-pane="FARMER" id="paneFarmer">
@@ -1922,6 +2035,14 @@ const State = (() => {
 
     regionId: DEFAULT_REGION,
 
+    /* Whether anyone has ever answered "where is your farm?". False means the
+       region above is a seed the app chose, not a place the reader picked, and
+       the Farmer front page says so instead of drawing its numbers.
+
+       Its own flag rather than `place !== null`, because picking a built-in
+       catchment is a real answer and leaves `place` null. */
+    chosen: false,
+
     // Field-level aggregate: ring buffers of {t, v}, newest last. These back the
     // KPI tiles and the thermal chart -- the whole-catchment view.
     series: { moisture:[], stress:[], ndvi:[], temp:[], traff:[] },
@@ -2014,6 +2135,7 @@ const State = (() => {
          synthesised region again -- these coordinates can, and catchmentFor is
          deterministic over them, so the same point rebuilds the same catchment. */
       place: data.place || null,
+      chosen: data.chosen,
       role: data.role,
       persona: data.persona,
       channel: data.channel,
@@ -2044,6 +2166,13 @@ const State = (() => {
       // Boot rebuilds the catchment from this before it seeds a region.
       if(s.place && typeof s.place.lat === 'number' && typeof s.place.lon === 'number')
         data.place = s.place;
+      /* Snapshots written before this field existed still describe a reader who
+         answered: they have a searched place, or a region that is not the one
+         the app seeds by itself. Inferring it here is what stops the upgrade
+         asking a question they already answered. */
+      data.chosen = typeof s.chosen === 'boolean'
+        ? s.chosen
+        : !!(data.place || (s.regionId && s.regionId !== DEFAULT_REGION));
       if(s.role)    data.role    = s.role;
       if(s.persona) data.persona = s.persona;
       if(s.channel) data.channel = s.channel;
@@ -3125,6 +3254,16 @@ const Console = (() => {
   function greet(){
     const s = State.data.latest;
     post('SYSTEM', 'Secure channel established · AURA-AgriNet 1.0 · 5 participants', { channel:'ALL' });
+    /* Before a farm is chosen there is nothing honest to say about plots. The
+       old opening read out the seeded catchment's moisture, NDVI and surface
+       temperature and had Amara asking after Plot F-2 -- the same demo farm the
+       front page had just stopped presenting as the reader's own, arriving by a
+       different door. One line, and the real briefing once there is a farm. */
+    if(!State.data.chosen){
+      play([{ from:'BOT', delay:600,
+        text:'Tell me where your farm is and I will start monitoring it. Until then I have nothing of yours to report.' }]);
+      return;
+    }
     play([
       { from:'BOT', delay:600, text:'Good morning. I am monitoring three plots, two junctions, one river crossing, the depot and the buyer hub.',
         kv:[seg('moisture'), ' ', amount(s.moisture,1), '%  ·  NDVI ', amount(s.ndvi,3), '\n',
@@ -3321,12 +3460,39 @@ const Views = (() => {
   /* The place picker is a search box now, so "rendering" it means seeding the
      inputs with whatever catchment is loaded rather than painting an option
      list. REGIONS survives as the offline-capable starting set. */
+  /* Put the app into or out of its first-run state. One attribute on <body>:
+     the stylesheet hides the deck, the rail, the detail pane and the plot cards
+     off it, and the renderers below decline to paint into hosts nobody can see. */
+  function setFirstRun(on){
+    document.body.dataset.firstrun = on ? '1' : '';
+    if(!on) delete document.body.dataset.firstrun;
+  }
+  const firstRun = () => !State.data.chosen;
+
+  /** The example catchments, named from REGIONS so the chips cannot claim a
+      region the app does not ship. */
+  function renderExamples(){
+    const host = el('frExamples');
+    if(!host) return;
+    host.innerHTML = Object.keys(REGIONS).map(id => {
+      const r = REGIONS[id];
+      const name = r.name.split('·')[0].trim();
+      return `<button type="button" class="fr-eg" data-builtin="${esc(id)}">
+        ${esc(name)}${r.country ? ' · ' + esc(r.country) : ''}</button>`;
+    }).join('');
+  }
+
   function renderRegionPicker(){
     const r = Region.current();
     if(!r) return;
-    ['placeSearch', 'placeSearchM'].forEach(id => {
+    /* Before a farm is chosen, the boxes show their placeholder. Writing the
+       seeded region's name into them was the other half of the contradiction:
+       the app named a location in the search field and denied having one in the
+       deck three centimetres below. */
+    const name = firstRun() ? '' : r.name;
+    ['placeSearch', 'placeSearchM', 'placeSearchF'].forEach(id => {
       const n = el(id);
-      if(n && document.activeElement !== n) n.value = r.name;
+      if(n && document.activeElement !== n) n.value = name;
     });
   }
 
@@ -4510,6 +4676,12 @@ const Views = (() => {
     const hosts = [el('farmerDeck'), el('railDeck')].filter(Boolean);
     if(!hosts.length) return;
 
+    /* The first-run panel is the empty state now, and it is a better one: it
+       asks the question instead of complaining that it has not been answered.
+       Emptying the hosts rather than leaving yesterday's rows behind them, since
+       a location change can turn this on again. */
+    if(firstRun()){ hosts.forEach(h => { h.innerHTML = ''; }); return; }
+
     const { items, live } = deckItems();
     const notice = live ? '' : `<div class="deck-empty">${esc(t(
       'These calls need a real location. Search for one above — they are computed from live forecast data and are not simulated.'))}</div>`;
@@ -4634,6 +4806,9 @@ const Views = (() => {
   function renderFarmer(){
     const pane = el('farmerExtra');
     if(!pane) return;
+    /* Harvest window and My plots are the seeded catchment's numbers. Until
+       someone has said this is their farm, they are somebody else's. */
+    if(firstRun()){ pane.innerHTML = ''; return; }
     const d = State.data;
     const win = Dispatch.getHarvestWindow() === 'EARLY';
 
@@ -5044,7 +5219,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
@@ -6904,9 +7079,14 @@ const Sat = (() => {
 
 const Search = (() => {
   const DEBOUNCE = 280;
+  /* Three copies of one box: the header, the simulation sheet, and the first-run
+     panel. One module drives all three, so the panel gets the city list, the
+     accent folding, the geocoder and the offline behaviour without a second
+     implementation that could answer differently. */
   const boxes = [
     { input:'placeSearch',  results:'placeResults',  geo:'placeGeo'  },
-    { input:'placeSearchM', results:'placeResultsM', geo:'placeGeoM' }
+    { input:'placeSearchM', results:'placeResultsM', geo:'placeGeoM' },
+    { input:'placeSearchF', results:'placeResultsF', geo:'placeGeoF' }
   ];
   let timer = null, generation = 0, results = [], active = -1, onPick = () => {};
 
@@ -7088,6 +7268,33 @@ const Search = (() => {
     State.data.role = 'FARMER';
   }
 
+  /* --- the observations for that catchment, before the first paint ---
+
+     Restoring the farm was only half of it. Every fetch is already written to
+     localStorage against its coordinates, and until now nothing ever read that
+     cache at boot: Live.ready() was false on every reload, so the deck fell
+     back to "search for a location" while naming the location in the box beside
+     it, and the chip said Simulated about a farm the app could name.
+
+     Synchronous, so the first frame carries real numbers rather than climate
+     defaults that are replaced a moment later. Their age is not hidden -- the
+     header chip reads "Stale, fetched 14 h ago" or "Offline, last good reading
+     2 d ago" through the same statusLine it has always used. */
+  const centre = () => {
+    if(State.data.place) return { lat: State.data.place.lat, lon: State.data.place.lon };
+    const r = REGIONS[State.data.regionId];
+    return r && r.centre ? r.centre : null;
+  };
+  const home = State.data.chosen ? centre() : null;
+  const restoredLive = home ? Live.restore(home.lat, home.lon) : null;
+  if(restoredLive){
+    Telemetry.seedHistory();
+    Dispatch.refreshEdges();
+    const route = Dispatch.buildRoute();
+    State.commit({ route, baselineRoute: route, prevRoutePoints: null });
+    Scoring.recompute();
+  }
+
   /* --- theme, before anything paints ---
      Synchronous and first: everything below this line renders into a document
      whose palette is already settled, so a reader who chose dark never sees a
@@ -7113,6 +7320,11 @@ const Search = (() => {
   Cities.load();
 
   /* --- first paint --- */
+  /* Before the first paint, so no frame ever shows the deck and the panel at
+     once, or the panel to someone who chose a farm months ago. */
+  Views.setFirstRun(!State.data.chosen);
+  Views.renderExamples();
+
   Views.renderLangMenu();
   Views.renderThemeMenu();
   Views.renderRegionPicker();
@@ -7129,9 +7341,19 @@ const Search = (() => {
   Views.renderPosture();
   Views.renderClock();
   Views.setRole(State.data.role);
-  Log.add('info', restored ? 'Session restored' : 'AURA-AgriNet online',
-    'Monitoring {place}. Decision matrix armed with {n} rules.',
-    { place: region.name + (region.country ? ', ' + region.country : ''), n: EventEngine.RULES.length });
+  /* A restored session says where its numbers came from and how old they are.
+     "Monitoring Kaduna" was true of a reload that had no observations at all,
+     which is precisely the reading this line needed to make impossible. */
+  if(restoredLive){
+    Log.add('info', 'Session restored',
+      'Monitoring {place} from cached observations, {age}. Decision matrix armed with {n} rules.',
+      { place: region.name + (region.country ? ', ' + region.country : ''),
+        age: Live.statusLine().text, n: EventEngine.RULES.length });
+  } else {
+    Log.add('info', restored ? 'Session restored' : 'AURA-AgriNet online',
+      'Monitoring {place}. Decision matrix armed with {n} rules.',
+      { place: region.name + (region.country ? ', ' + region.country : ''), n: EventEngine.RULES.length });
+  }
 
   /* --- state -> view bindings (views never mutate state) --- */
   State.on('telemetry',      () => { Views.renderTiles(); Views.renderThermal(); Views.renderTable(); Views.renderHero(); });
@@ -7327,6 +7549,53 @@ const Search = (() => {
      coordinates, and repaints. Telemetry is stopped across the swap so a packet
      in flight for the old catchment cannot land in the new one. */
 
+  /* Everything that has to happen once a payload is in hand, wherever it came
+     from. Two callers: the location switch below, and the restore at boot.
+
+     It is one function rather than two copies because the boot path is exactly
+     what broke -- it rebuilt the catchment and then forgot every repaint, so a
+     reopened app kept the farm and lost its numbers. A second hand-maintained
+     list of thirteen render calls would have drifted again the first time one
+     was added. */
+  function applyPayload(res){
+    if(res && res.payload){
+      // Re-seed so the paint uses real values rather than climate defaults.
+      Telemetry.seedHistory();
+      Dispatch.refreshEdges();
+      const route = Dispatch.buildRoute();
+      State.commit({ route, baselineRoute: route, prevRoutePoints: null });
+      Scoring.recompute();
+    }
+
+    Views.translateStatic();
+    Views.renderLinks(); Views.renderTiles(); Views.renderThermal();
+    Views.renderMap(); Views.renderHero(); Views.renderPosture(); Views.renderTable();
+    Views.renderAgronomy(); Views.renderRolePanes(); Views.syncControls();
+    Views.renderRegionPicker(); Views.renderLiveChip();
+    Sat.refresh();
+    State.emit('alerts');
+  }
+
+  /* Re-ask the services about the catchment already loaded, and repaint through
+     the same path a location switch uses. Two callers, both of them the same bug
+     wearing different clothes: a reload, which used to keep the farm and lose its
+     numbers, and a tab coming back after hours, which used to keep computing this
+     morning's calls from yesterday's forecast.
+
+     Guarded against overlap because visibilitychange can fire in bursts. */
+  let refreshing = false;
+  async function refreshHome(){
+    if(!State.data.chosen || refreshing) return null;
+    const r = Region.current();
+    if(!r || !r.centre) return null;
+    refreshing = true;
+    try{
+      const res = await Live.ensure(r.centre.lat, r.centre.lon, r.name);
+      applyPayload(res);
+      return res;
+    } finally { refreshing = false; }
+  }
+
   async function goToLocation(pick){
     Telemetry.stop();
     State.data.alerts.clear();
@@ -7347,6 +7616,13 @@ const Search = (() => {
       seedRegion(region.id);
     }
 
+    /* The question is answered, whichever way it was answered. Recorded before
+       the fetch rather than after it, because a grower who picked their farm and
+       then lost the connection has still picked their farm. */
+    State.data.chosen = true;
+    Views.setFirstRun(false);
+    State.save();
+
     Views.renderLiveChip();
     Log.add('info', 'Location changed',
       'Loading live observations for {place}…', { place: region.name });
@@ -7354,22 +7630,7 @@ const Search = (() => {
     const centre = region.centre;
     const res = await Live.ensure(centre.lat, centre.lon, region.name);
 
-    if(res.payload){
-      // Re-seed so the first paint uses real values rather than climate defaults.
-      Telemetry.seedHistory();
-      Dispatch.refreshEdges();
-      const route = Dispatch.buildRoute();
-      State.commit({ route, baselineRoute: route, prevRoutePoints: null });
-      Scoring.recompute();
-    }
-
-    Views.translateStatic();
-    Views.renderLinks(); Views.renderTiles(); Views.renderThermal();
-    Views.renderMap(); Views.renderHero(); Views.renderPosture(); Views.renderTable();
-    Views.renderAgronomy(); Views.renderRolePanes(); Views.syncControls();
-    Views.renderRegionPicker(); Views.renderLiveChip();
-    Sat.refresh();
-    State.emit('alerts');
+    applyPayload(res);
 
     const st = Live.statusLine();
     const w = res.payload ? Agronomy.water(State.data.clock) : null;
@@ -7405,6 +7666,18 @@ const Search = (() => {
   Search.setHandler(pick => { goToLocation(pick).catch(err => {
     Log.add('critical', 'Location failed', String(err && err.message || err));
   }); });
+
+  /* The first-run panel's example chips. Delegated from document, the way the
+     role tabs and the simulation triggers already are, and they go through the
+     same goToLocation a search result does -- one path in, whichever door was
+     used. */
+  document.addEventListener('click', e => {
+    const btn = e.target.closest && e.target.closest('[data-builtin]');
+    if(!btn) return;
+    goToLocation({ builtin: btn.dataset.builtin }).catch(err => {
+      Log.add('critical', 'Location failed', String(err && err.message || err));
+    });
+  });
 
   /* --- search wiring: both copies share one module --- */
   Search.boxes.forEach(b => {
@@ -7482,7 +7755,13 @@ const Search = (() => {
   /* --- lifecycle: never let timers run against a hidden tab --- */
   document.addEventListener('visibilitychange', () => {
     if(document.hidden){ Telemetry.stop(); Views.stopDriver(); State.save(); }
-    else { Telemetry.start(); Views.startDriver(); }
+    else {
+      Telemetry.start(); Views.startDriver();
+      /* Leave the app open overnight and this morning's irrigation call is
+         arithmetic over yesterday's forecast. The chip would say "stale" and be
+         telling the truth, which is not the same as being useful. */
+      if(!Live.isFresh()) refreshHome().catch(() => {});
+    }
   });
   // pagehide is the reliable save point on iOS -- beforeunload often never fires
   // when a PWA is swiped away or backgrounded.
@@ -7520,6 +7799,21 @@ const Search = (() => {
   Telemetry.start();
   Console.greet();
   Views.renderLog();
+
+  /* And then, after the screen is already useful, go and see whether the world
+     has moved. The cached frame above is what the reader looks at while this
+     runs; if it lands, the chip goes from an age to Live under them, and if it
+     never lands they keep a screen that states how old it is. */
+  if(State.data.chosen){
+    refreshHome().then(res => {
+      if(!res || !res.payload) return;
+      Log.add(res.source === 'cache' ? 'warning' : 'good',
+        res.source === 'cache' ? 'Serving cached observations' : 'Live observations loaded',
+        '{place} — {status}.',
+        { place: region.name + (region.country ? ', ' + region.country : ''),
+          status: Live.statusLine().text });
+    }).catch(() => { /* offline with nothing cached: the chip already says so */ });
+  }
 })();
 </script>
 </body>

@@ -6,7 +6,7 @@
 
    Bump CACHE_VERSION on every deploy. An installed copy keeps serving the old
    cache until a new version activates, so forgetting this ships nothing. */
-const CACHE_VERSION = 'aura-v14';
+const CACHE_VERSION = 'aura-v15';
 
 const PRECACHE = [
   './',
