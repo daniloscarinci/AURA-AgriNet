@@ -418,6 +418,24 @@ right-to-left language would need that layout work done again; keeping unused
 machinery alive against a language that may never come is how a codebase
 accumulates rules nobody can test.
 
+## Sources, on the page
+
+Every feed the app can draw on is listed in the footer, in every role and at both
+widths — **whether it is active or not**, because a source that is missing is exactly the
+one worth naming. *Open-Meteo LIVE · GloFAS LIVE · NASA GIBS OFF*, or the four simulated
+instruments with their lock state when no location is loaded.
+
+These chips existed from the first build but lived only in the Ops console, so from the day
+the roles were split a grower could not see where their numbers came from without going to
+find the instrumentation. Ops keeps its copy; one function builds both, and a test fails if
+the two ever disagree about which feeds are up.
+
+The screen also has room at its edges now. The header clears the status bar and then leaves
+a margin after it, and the tab bar does the same at the bottom. The clearance for the fixed
+bar belongs on the **footer**, not on `main`: they are siblings, so padding `main` pushed a
+large empty gap into the middle of the page and still left the last thing on it running
+underneath the tab bar.
+
 ## Roles
 
 A tab bar switches between Farmer, Buyer, Driver and Ops. Each shows only what that person
@@ -442,7 +460,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 784 checks, no dependencies, no network
+node tests/run.js              # 789 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -458,7 +476,7 @@ keywords per language, a suite that switches language *after* a transcript and i
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**207 control-reachability** (every referenced element exists, every trigger names a real
+**211 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
 the theme survives a restart, the manual's numbers match the engine), and **161 PWA asset

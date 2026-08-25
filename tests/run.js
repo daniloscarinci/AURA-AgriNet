@@ -49,6 +49,13 @@ const assert = {
     const has = typeof hay === 'string' ? hay.includes(needle) : Array.isArray(hay) && hay.includes(needle);
     if (has) fail(`${msg}: expected ${fmt(hay)} not to include ${fmt(needle)}`);
   },
+  /* For a claim about shape rather than an exact string -- "this padding reads
+     the safe-area inset", which is true whether or not the value sits inside a
+     calc(). The failure prints the pattern, never the haystack: these run over
+     a 380 KB file and the substring that matters is the one that is missing. */
+  match(hay, re, msg) {
+    if (typeof hay !== 'string' || !re.test(hay)) fail(`${msg}: nothing matched ${re}`);
+  },
   deepEqual(a, b, msg) {
     const A = JSON.stringify(a), B = JSON.stringify(b);
     if (A !== B) fail(`${msg}: expected ${B}, got ${A}`);

@@ -654,12 +654,16 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(html, '--safe-b: env(safe-area-inset-bottom, 0px)');
     });
 
+    /* The inset has to be consumed, not consumed bare: both bars now add a
+       margin after clearing the system furniture, so the value is inside a
+       calc(). What must not come back is the original bug -- an edge that never
+       reads the inset at all. */
     test('the header clears the status bar', () =>
-      assert.includes(html, 'padding-top:var(--safe-t)',
+      assert.match(html, /padding-top:\s*(calc\([^)]*)?var\(--safe-t\)/,
         'the header must not run under the status bar'));
 
     test('the tab bar clears the gesture bar', () =>
-      assert.includes(html, 'padding-bottom:var(--safe-b)',
+      assert.match(html, /padding-bottom:\s*(calc\([^)]*)?var\(--safe-b\)/,
         'the tab bar must not run under the gesture bar'));
 
     test('the shell still declares a translucent iOS status bar', () =>

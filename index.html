@@ -553,8 +553,10 @@ body{
      back below, only where the browser can genuinely blur. */
   background:var(--surface-1);
   border-top:1px solid var(--hairline);
-  /* clear the iPhone home indicator */
-  padding-bottom:var(--safe-b);
+  /* Clear the home indicator, and then leave a margin after it. Sitting exactly
+     on the inset put the labels hard against the bottom edge of the screen. */
+  padding-bottom:calc(var(--safe-b) + 10px);
+  padding-top:4px;
 }
 /* The frosted look, only where it is real. */
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)){
@@ -610,10 +612,14 @@ body{
   .tabbar{ display:grid; }
   /* Room to breathe at both ends. The page used to start hard under the header
      and end hard against the tab bar, so the first card and the last one both
-     looked wedged in. The bottom figure clears the fixed bar and the FAB and
-     then leaves a gap after them, rather than stopping exactly where the bar
-     begins. */
-  main{ padding-top:14px !important; padding-bottom:184px !important; }
+     looked wedged in.
+
+     The clearance belongs on the FOOTER, not on main: the footer is main's
+     sibling, so padding on main pushed a large empty gap into the middle of the
+     page and left the last thing on it -- the sources strip and the simulation
+     note -- running underneath the tab bar anyway. */
+  main{ padding-top:14px !important; padding-bottom:10px !important; }
+  footer{ padding-bottom:calc(var(--safe-b) + 168px) !important; }   /* fixed bar + FAB, then air */
   /* Ops is the desktop console; on mobile only the active role pane shows. */
   body[data-role="FARMER"] .rolepane[data-pane="FARMER"],
   body[data-role="BUYER"]  .rolepane[data-pane="BUYER"],
@@ -864,6 +870,18 @@ body{
 .strip i.heat{ background:var(--serious); }
 .strip i.mild{ background:var(--good); opacity:.45; }
 .strip-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:3px; }
+
+/* ---------- source strip ---------- */
+.srcstrip{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:10px 0 12px; margin-bottom:8px;
+  border-bottom:1px solid var(--hairline);
+}
+.srcstrip-label{
+  font-family:var(--font-mono); font-size:9px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--text-muted); flex:none;
+}
+.srcstrip-chips{ display:flex; gap:6px; flex-wrap:wrap; min-width:0; }
 
 /* ---------- deck charts ----------
    One shape per question. A ribbon for a run of hours, a curve for something
@@ -1347,7 +1365,7 @@ body[data-firstrun] .persona-row{ display:none; }
 <body>
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
-<header class="sticky top-0 z-40" style="background:var(--surface-1);border-bottom:1px solid var(--hairline);padding-top:var(--safe-t)">
+<header class="sticky top-0 z-40" style="background:var(--surface-1);border-bottom:1px solid var(--hairline);padding-top:calc(var(--safe-t) + 10px);padding-bottom:4px">
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">
@@ -1836,6 +1854,14 @@ body[data-firstrun] .persona-row{ display:none; }
 </nav>
 
 <footer class="max-w-[1800px] mx-auto px-4 pb-6 pt-1 text-[10px] leading-relaxed" style="color:var(--text-muted)">
+  <!-- Where the numbers come from, in every role and at every width. The Ops
+       console keeps its own copy; this is the one a grower sees without going to
+       look for the instrumentation. Painted by renderLinks into both hosts. -->
+  <div class="srcstrip">
+    <span class="srcstrip-label" data-i18n>Sources</span>
+    <div id="sourceStrip" class="srcstrip-chips" role="status" aria-live="polite"
+         aria-label="Data sources" data-i18n-attr="aria-label"></div>
+  </div>
   <p><strong style="color:var(--text-secondary)"><span data-i18n>Simulation.</span></strong> <span data-i18n>Telemetry is synthetic and generated in-browser where no live source exists. Routing, order adjustment and readiness scoring run real arithmetic over the observations shown.</span></p>
 </footer>
 
@@ -3685,12 +3711,14 @@ const Views = (() => {
     { id:'GIBS', short:'NASA GIBS',   label:'NASA Global Imagery Browse Services',                   metrics:'SMAP L4 · MODIS NDVI · MODIS true colour imagery' }
   ];
 
-  function renderLiveLinks(){
+  function renderLiveLinks(){ el('linkChips').innerHTML = liveChipsHtml(); }
+
+  function liveChipsHtml(){
     const p = Live.payload();
     const st = Live.statusLine();
     const cls = st.mode === 'live' ? 'nominal' : st.mode === 'stale' ? 'degraded' : 'reacquire';
     const word = st.mode === 'live' ? 'LIVE' : st.mode === 'stale' ? 'STALE' : 'CACHED';
-    el('linkChips').innerHTML = LIVE_FEEDS.map(f => {
+    return LIVE_FEEDS.map(f => {
       const off = f.id === 'FLOW' && p && !p.river;
       if(off){
         return `<div class="link-chip" style="opacity:.42" title="${esc(t('{feed} — no river reach covers this catchment', { feed: f.label }))}">
@@ -3707,10 +3735,23 @@ const Views = (() => {
     }).join('');
   }
 
+  /* Every source the app can draw on, in whatever state it is in.
+
+     These used to live only in the Ops console, which meant that from the day the
+     roles were split a grower could not see where their numbers came from without
+     going looking for the instrumentation. They are back on the page for every
+     role -- and they list each source whether it is active or not, because a feed
+     that is missing is exactly the one worth naming. */
   function renderLinks(){
+    const html = Live.ready() ? liveChipsHtml() : simChipsHtml();
+    [el('linkChips'), el('sourceStrip')].forEach(host => {
+      if(host) host.innerHTML = html;
+    });
+  }
+
+  function simChipsHtml(){
     // Live mode polls entirely different services, so it gets its own chips.
-    if(Live.ready()) return renderLiveLinks();
-    el('linkChips').innerHTML = Object.values(SOURCES).map(src => {
+    return Object.values(SOURCES).map(src => {
       const l = State.data.links[src.id] || { status:'reacquire', latency:null };
       // A source with no coverage over the active region is shown greyed and
       // labelled, never silently polled. CROP-CASMA is CONUS-only, so outside the

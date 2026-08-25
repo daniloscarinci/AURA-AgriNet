@@ -674,6 +674,50 @@ module.exports = ({ suite, test, assert }) => {
   });
 
   /* ------------------------------------------------------------------------ */
+  /* Where the numbers come from, on the page rather than in the console. When the
+     roles were split these chips went into Ops with the rest of the
+     instrumentation, so a grower could no longer see which feeds were up without
+     going to look for them. */
+  suite('controls · sources', () => {
+
+    test('the strip is in the shell, outside any one role', () => {
+      const { markup } = readSource();
+      assert.includes(markup, 'id="sourceStrip"', 'no source strip in the page');
+      const footer = markup.slice(markup.indexOf('<footer'));
+      assert.includes(footer, 'id="sourceStrip"',
+        'the strip sits inside a role pane, so three roles out of four cannot see it');
+    });
+
+    test('every simulated source is listed, up or not', () => {
+      const h = boot();
+      h.app.Views.renderLinks();
+      const html = h.document.getElementById('sourceStrip').innerHTML;
+      Object.values(h.app.SOURCES).forEach(src =>
+        assert.includes(html, src.short, `${src.id} is missing from the strip`));
+    });
+
+    test('a source with no coverage is shown and labelled, not dropped', () => {
+      const h = boot();
+      /* CROP-CASMA is CONUS-only. Outside the United States the chip has to say
+         so rather than quietly disappear -- an absent feed is exactly the one
+         worth naming. */
+      h.app.State.data.links.S2 = { status: 'unavailable', latency: null };
+      h.app.Views.renderLinks();
+      const html = h.document.getElementById('sourceStrip').innerHTML;
+      assert.includes(html, 'SENTINEL-2', 'an unavailable source vanished from the strip');
+      assert.includes(html, 'N/A', 'it is listed but its state is not stated');
+    });
+
+    test('both hosts get the same chips', () => {
+      const h = boot();
+      h.app.Views.renderLinks();
+      assert.equal(h.document.getElementById('sourceStrip').innerHTML,
+                   h.document.getElementById('linkChips').innerHTML,
+        'the footer strip and the Ops console disagree about which feeds are up');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
   /* The controls are drawn rather than typed. An emoji is painted by the
      platform's own font, so it is a different picture on every device, none of
      them testable; it ignores the theme, staying full colour on a dark ground
