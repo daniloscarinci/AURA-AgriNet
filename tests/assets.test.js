@@ -70,13 +70,28 @@ module.exports = ({ suite, test, assert }) => {
       assert.deepEqual(dupes, [], 'duplicate precache entries');
     });
 
+    /* One deliberate exception, and it is the only one: iOS startup images. A
+       device fetches exactly the one matching its own screen, once, while the
+       app is being added to the Home Screen -- which is by definition online --
+       and the same-origin handler caches it on that fetch. The running app never
+       requests them, so precaching all twelve would put a quarter of a megabyte
+       nobody asked for into an atomic cache.addAll. They still have to EXIST,
+       which the check below enforces separately. */
     test('every local asset the shell references is precached', () => {
       const { markup } = readSource();
       const refs = [...markup.matchAll(/(?:href|src)="(?!https?:|data:|#|mailto:|\?)([^"]+)"/g)].map(m => m[1]);
       const missing = [...new Set(refs.filter(r => r !== '.'))]
         .map(r => './' + r.replace(/^\.\//, ''))
-        .filter(r => !entries.includes(r));
+        .filter(r => !entries.includes(r))
+        .filter(r => !/^\.\/icons\/launch-/.test(r));
       assert.deepEqual(missing, [], 'referenced by index.html but absent from PRECACHE — these 404 offline');
+    });
+
+    test('the startup images the shell names are all on disk', () => {
+      const { markup } = readSource();
+      const refs = [...markup.matchAll(/rel="apple-touch-startup-image" href="([^"]+)"/g)].map(m => m[1]);
+      assert.greater(refs.length, 6, 'too few startup images to cover the current iPhones');
+      refs.forEach(r => assert.ok(exists(r), `${r} is referenced but not in the repo`));
     });
 
     test('cache version is bumped past the default', () => {
@@ -706,14 +721,64 @@ module.exports = ({ suite, test, assert }) => {
       assert.match(html, /padding-bottom:\s*(calc\([^)]*)?var\(--safe-b\)/,
         'the tab bar must not run under the gesture bar'));
 
-    test('the shell still declares a translucent iOS status bar', () =>
-      assert.includes(markup, 'black-translucent',
-        'dropping this changes the inset contract'));
+    /* black-translucent is the one value that cannot work here: it runs the page
+       under the status bar AND forces the bar's text white, which against this
+       app's white header is white on white. `default` holds the page below the
+       bar and keeps the text dark; Theme.apply() swaps it to `black` for a dark
+       theme. Both reserve the bar, so both stay readable. */
+    test('the iOS status bar does not fight the light theme', () => {
+      assert.includes(markup, 'name="apple-mobile-web-app-status-bar-style" content="default"',
+        'the shipped status-bar style is not the readable one');
+      /* The tag, not the prose: the comment above it names the value it
+         replaced, which is the point of the comment. */
+      const metas = [...markup.matchAll(/<meta[^>]*apple-mobile-web-app-status-bar-style[^>]*>/g)].map(m => m[0]);
+      assert.equal(metas.length, 1, 'more than one status-bar style declared');
+      assert.notIncludes(metas[0], 'black-translucent',
+        'black-translucent forces white status text over a white header');
+      assert.includes(markup, 'id="iosBar"',
+        'the meta has no id, so Theme.apply() cannot reach it in the stub DOM');
+      assert.includes(html, "bar.setAttribute('content', r === 'dark' ? 'black' : 'default')",
+        'nothing moves the status bar when the theme changes');
+    });
 
     /* Both fixed bars have to be opaque. --header-bg is 92% alpha and leans on
        backdrop-filter; where that does not apply the page shows straight
        through, and even where it does, 8% of a card is legible across the tab
        labels -- a plot name and its status chip were. */
+    /* Safari's vh is the toolbar-retracted height, so a panel measured in vh is
+       taller than the space it has. dvh is the honest unit; the vh line stays
+       first so a browser without dvh keeps exactly what it had. */
+    test('every viewport-height rule has a dynamic counterpart', () => {
+      const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+      const props = new Set();
+      for (const m of css.matchAll(/([a-z-]+)\s*:\s*[^;]*\b\d+(?:\.\d+)?vh\b/g)) props.add(m[1]);
+      assert.greater(props.size, 0, 'no vh rules found at all — the scan is broken');
+      props.forEach(prop => {
+        const re = new RegExp(`${prop}\\s*:\\s*[^;]*\\d+(?:\\.\\d+)?dvh\\b`);
+        assert.ok(re.test(css),
+          `${prop} is measured in vh with no dvh beside it, so Safari gives it the wrong height`);
+      });
+    });
+
+    test('the full-height panel clears the home indicator', () => {
+      assert.includes(html, 'calc(100dvh - 88px - var(--safe-b))',
+        'the chat panel runs to 100dvh, so its bottom sits under the home indicator');
+    });
+
+    test('every startup image is exactly the size its media query claims', () => {
+      const { markup } = readSource();
+      const tags = [...markup.matchAll(
+        /rel="apple-touch-startup-image" href="([^"]+)"[^>]*media="\(device-width: (\d+)px\) and \(device-height: (\d+)px\) and \(-webkit-device-pixel-ratio: (\d+)\)/g)];
+      assert.greater(tags.length, 6, 'startup image tags are missing their media queries');
+      tags.forEach(([, href, cw, ch, ratio]) => {
+        const buf = fs.readFileSync(path.join(ROOT, href));
+        // IHDR width/height live at byte offsets 16 and 20, big-endian.
+        const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+        assert.equal(w, Number(cw) * Number(ratio), `${href} is the wrong width for its query`);
+        assert.equal(h, Number(ch) * Number(ratio), `${href} is the wrong height for its query`);
+      });
+    });
+
     test('neither fixed bar is translucent', () => {
       const bar = html.slice(html.indexOf('.tabbar{'), html.indexOf('}', html.indexOf('.tabbar{')));
       assert.includes(bar, 'background:var(--surface-1)',

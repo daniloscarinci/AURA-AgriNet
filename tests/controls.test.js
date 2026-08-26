@@ -703,6 +703,79 @@ module.exports = ({ suite, test, assert }) => {
   });
 
   /* ------------------------------------------------------------------------ */
+  /* Chrome fires beforeinstallprompt and offers to install itself. iOS fires
+     nothing, has no API for it, and buries the only route two taps inside the
+     Share sheet -- so an iPhone reader has no way to learn this is installable.
+     Which makes the hint the difference between shipping an iOS version and
+     merely being compatible with one, and makes showing it in the wrong place
+     the difference between a tip and a nuisance. */
+  suite('controls · the iPhone install hint', () => {
+
+    const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'
+                 + ' (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+    const IPAD   = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'
+                 + ' (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
+    const CHROME_IOS = IPHONE.replace('Safari/604.1', 'CriOS/126.0 Mobile/15E148 Safari/604.1');
+    const ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko)'
+                  + ' Chrome/126.0 Mobile Safari/537.36';
+
+    const nav = (ua, extra) => Object.assign({ userAgent: ua, maxTouchPoints: 0 }, extra || {});
+
+    test('it is offered on an iPhone in Safari', () => {
+      const h = boot();
+      assert.ok(h.app.IosHint.isIosSafari(nav(IPHONE)), 'an iPhone was not recognised');
+    });
+
+    /* iPadOS reports itself as a Mac, so the touch points are what separate a
+       tablet from a desktop Safari. */
+    test('an iPad is recognised through its Mac user agent', () => {
+      const h = boot();
+      assert.ok(h.app.IosHint.isIosSafari(nav(IPAD, { maxTouchPoints: 5 })), 'iPadOS was missed');
+      assert.notOk(h.app.IosHint.isIosSafari(nav(IPAD, { maxTouchPoints: 0 })),
+        'a desktop Mac was told to use a Share sheet it does not have');
+    });
+
+    test('it stays away from browsers the instruction would be wrong for', () => {
+      const h = boot();
+      assert.notOk(h.app.IosHint.isIosSafari(nav(CHROME_IOS)),
+        'Chrome on iOS has its own share sheet, so these two taps are wrong');
+      assert.notOk(h.app.IosHint.isIosSafari(nav(ANDROID)),
+        'Android was told to add to a Home Screen it reaches another way');
+    });
+
+    test('it never appears inside the installed app', () => {
+      const h = boot();
+      assert.ok(h.app.IosHint.standalone({ standalone: true }, null),
+        'a page already running as an app was not recognised as one');
+    });
+
+    test('dismissing it is remembered', () => {
+      const h = boot();
+      assert.notOk(h.app.IosHint.dismissed(), 'a fresh install reads as already dismissed');
+      h.app.IosHint.dismiss();
+      assert.ok(h.app.IosHint.dismissed(), 'the dismissal was not written down');
+      assert.equal(h.storage.get(h.app.IosHint.STORE_KEY), '1');
+      const again = boot({ storage: Object.fromEntries(h.storage) });
+      assert.ok(again.app.IosHint.dismissed(), 'it came back after a restart');
+    });
+
+    test('it is hidden on the platforms that do not need it', () => {
+      const h = boot();      // the harness user agent is not iOS Safari
+      assert.notOk(h.app.IosHint.shouldShow(),
+        'the hint would show on a machine that has no Share sheet');
+      assert.notEqual(h.document.body.dataset.iosHint, '1');
+    });
+
+    test('the shell carries the hint and its dismiss control', () => {
+      const { markup } = readSource();
+      assert.includes(markup, 'id="iosInstall"', 'no hint in the page');
+      assert.includes(markup, 'id="iosInstallClose"', 'no way to dismiss it');
+      assert.includes(markup, 'Add to Home Screen',
+        'the hint does not name the thing the reader has to tap');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
   /* Four things the app had been assuming and printing the assumption for. The
      point of making them answerable is not tidiness: each one is wired into a
      calculation, so answering one has to change what the deck says. A setting
