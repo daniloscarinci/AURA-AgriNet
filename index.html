@@ -6139,11 +6139,13 @@ const Views = (() => {
       b.setAttribute('aria-selected', String(b.dataset.role === role)));
 
     if(role !== 'OPS'){
+      /* Switching role has always moved both console controls together -- it is
+         the only place that ever did. Now that they are one selection, it says
+         so by calling the one function that owns them, rather than repeating its
+         body and waiting to drift from it. */
       State.data.persona = role;
       State.data.channel = role;
-      const sel = el('personaSel'); if(sel) sel.value = role;
-      document.querySelectorAll('[data-channel]').forEach(tab =>
-        tab.setAttribute('aria-selected', String(tab.dataset.channel === role)));
+      syncConsole();
       renderQuickReplies();
       renderChat();
     }
