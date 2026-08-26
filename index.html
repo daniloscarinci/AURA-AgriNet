@@ -871,6 +871,44 @@ body{
 .strip i.mild{ background:var(--good); opacity:.45; }
 .strip-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:3px; }
 
+/* ---------- your farm ----------
+   A form where every row carries the consequence of the field beside it. Three
+   columns on a wide sheet, stacked on a phone; the note always sits under the
+   control it explains rather than beside it, so it never has to compete for
+   width with a number. */
+.farm-lede{
+  font-size:12px; line-height:1.55; color:var(--text-secondary);
+  margin:0 0 4px; max-width:60ch;
+}
+.farm-sect{ margin-top:16px; }
+.farm-sect-head{
+  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--text-secondary); padding-bottom:7px; margin-bottom:4px;
+  border-bottom:1px solid var(--hairline);
+}
+.farm-sect-head i{
+  font-style:normal; font-weight:500; letter-spacing:0; text-transform:none;
+  font-size:10.5px; color:var(--text-muted);
+}
+.farm-row{
+  display:grid; grid-template-columns:1fr; gap:4px;
+  padding:10px 0; border-bottom:1px solid var(--hairline);
+}
+.farm-row:last-child{ border-bottom:none; }
+.farm-k{ font-size:12.5px; font-weight:650; color:var(--text-primary); }
+.farm-in{ display:flex; align-items:center; gap:7px; }
+.farm-in .field{ max-width:220px; }
+.farm-unit{
+  font-style:normal; font-size:11px; color:var(--text-muted);
+  font-family:var(--font-mono); flex:none;
+}
+.farm-note{ font-size:10.5px; line-height:1.5; color:var(--text-muted); }
+@media (min-width:620px){
+  .farm-row{ grid-template-columns:150px minmax(0,240px) 1fr; align-items:center; gap:12px; }
+  .farm-k{ align-self:center; }
+}
+
 /* ---------- source strip ---------- */
 .srcstrip{
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
@@ -1060,12 +1098,12 @@ body[data-firstrun] .rolepane[data-pane="FARMER"]{ display:none; }
    also narrow enough to truncate its own placeholder. It comes back the moment
    there is a farm to name. */
 body[data-firstrun] header .search{ display:none; }
-/* Send as: Amara — Farmer, Plot F-2. The composer's cast list names a plot of
-   the catchment the reader has not picked, which is the same thing the deck and
-   the opening line stopped doing. You are still talking to the agent while the
-   panel is up -- it can say what it is and what it needs -- but you are not
-   speaking as somebody else's farmer yet. */
-body[data-firstrun] .persona-row{ display:none; }
+/* "Send as: Amara — Farmer, Plot F-2" is simulation machinery. In real use the
+   reader is the farmer, and the role tab has already said so -- setRole sets the
+   persona and the channel from it. Choosing to speak as the buyer is a thing you
+   do while driving the simulation, so it lives where the simulation lives, and
+   the composer in every other role is just a composer. */
+body:not([data-role="OPS"]) .persona-row{ display:none; }
 @media (min-width:1024px){
   /* The panel stands where the deck rail and the detail pane would be, so the
      chat column keeps its own five and the layout does not lurch when the
@@ -1451,6 +1489,14 @@ body[data-firstrun] .persona-row{ display:none; }
       <div id="themeMenu" class="langmenu" role="listbox" aria-label="Theme" hidden data-i18n-attr="aria-label"></div>
     </div>
 
+    <!-- The four things the app would otherwise assume. In the header rather
+         than a role pane, because the answers change the agronomy for every role
+         and the Farmer pane does not exist above 1024px. -->
+    <button id="btnFarm" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
+            title="Your farm" aria-label="Your farm settings" data-i18n-attr="title,aria-label">
+      <span class="ic-slot" data-icon="farm"></span><span class="wide-only">&nbsp;Your farm</span>
+    </button>
+
     <button id="btnManual" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
             title="Manual (?)" aria-label="Open the manual" data-i18n-attr="title,aria-label">
       <span class="ic-slot" data-icon="book"></span><span class="wide-only">&nbsp;Manual</span>
@@ -1801,6 +1847,21 @@ body[data-firstrun] .persona-row{ display:none; }
      inputs, and where every number came from. The body is rendered by
      Views.detailFor, which also fills the desktop pane -- the same markup in
      both places, so a change cannot land in one and miss the other. -->
+<!-- ══════════════════════ YOUR FARM ══════════════════════ -->
+<div id="farmSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="farmSheetTitle" hidden>
+  <div class="sheet-panel">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div class="flex items-center gap-2 mb-3">
+      <span id="farmSheetTitle" class="panel-title" data-i18n>Your farm</span>
+      <div class="flex-1"></div>
+      <button id="farmReset" class="toggle" data-i18n>Use the defaults</button>
+      <button id="farmClose" class="toggle" aria-label="Close your farm settings" data-i18n-attr="aria-label" data-i18n>Close</button>
+    </div>
+    <p class="farm-lede" data-i18n>Until you answer these, the app assumes them and says so under every number they touch.</p>
+    <div id="farmBody"></div>
+  </div>
+</div>
+
 <div id="detailSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle" hidden>
   <div class="sheet-panel">
     <div class="sheet-grab" aria-hidden="true"></div>
@@ -2206,6 +2267,10 @@ const State = (() => {
        catchment is a real answer and leaves `place` null. */
     chosen: false,
 
+    /* What the grower has told us about their own farm, as opposed to what the
+       app assumed. null per field means unanswered -- see the Farm module. */
+    farm: { crop:null, soil:null, rootMm:null, windMax:null, gustMax:null, rhMin:null },
+
     // Field-level aggregate: ring buffers of {t, v}, newest last. These back the
     // KPI tiles and the thermal chart -- the whole-catchment view.
     series: { moisture:[], stress:[], ndvi:[], temp:[], traff:[] },
@@ -2299,6 +2364,7 @@ const State = (() => {
          deterministic over them, so the same point rebuilds the same catchment. */
       place: data.place || null,
       chosen: data.chosen,
+      farm: data.farm,
       role: data.role,
       persona: data.persona,
       channel: data.channel,
@@ -2336,6 +2402,13 @@ const State = (() => {
       data.chosen = typeof s.chosen === 'boolean'
         ? s.chosen
         : !!(data.place || (s.regionId && s.regionId !== DEFAULT_REGION));
+      /* Field by field, so a snapshot written before one of them existed does not
+         wipe the others, and an unknown key cannot ride in. */
+      if(s.farm && typeof s.farm === 'object'){
+        Object.keys(data.farm).forEach(k => {
+          if(s.farm[k] !== undefined) data.farm[k] = s.farm[k];
+        });
+      }
       if(s.role)    data.role    = s.role;
       if(s.persona) data.persona = s.persona;
       if(s.channel) data.channel = s.channel;
@@ -4412,13 +4485,40 @@ const Views = (() => {
     DRIVER: ['Route check',    'Any roads blocked?','Backhaul options', 'Full status']
   };
   // intent:   moisture/order/route   frost/ndvi/route   ndvi/route/backhaul   status
+  /* What the deck is currently saying, as questions. A fixed four -- soil
+     moisture, frost risk, crop health, full status -- asks the same thing on the
+     morning of a frost as on a quiet Tuesday, so on the day it matters the
+     buttons are furniture. These follow the calls that are actually open, and
+     every one of them still resolves to an intent the matcher answers: the
+     wording changes, the questions behind them do not. */
+  function contextualQuick(){
+    const models = deckModels();
+    if(!models) return [];
+    const out = [];
+    const alerts = [...State.data.alerts.values()];
+    if(alerts.length) out.push('Frost risk today?');
+    if(models.water && models.water.call === 'irrigate') out.push('How much water?');
+    if(models.spray){
+      const w = models.spray.nextWindow;
+      out.push(!w ? 'Why can I not spray?' : w.start === 0 ? 'Can I spray now?' : 'When can I spray?');
+    }
+    if(models.traffic && models.traffic.call !== 'clear') out.push('Any roads blocked?');
+    if(models.thermal && models.thermal.verdict === 'frost') out.push('Should I harvest early?');
+    return out;
+  }
+
   function renderQuickReplies(){
-    /* Every one of them -- soil moisture, frost risk, crop health, full status --
-       is a question about a farm. Offering them before there is one invites the
-       reader to ask something the app cannot honestly answer, which is how the
-       Plot F-2 reading got on screen in the first place. */
+    /* Every one of them is a question about a farm. Offering them before there
+       is one invites the reader to ask something the app cannot honestly answer,
+       which is how the Plot F-2 reading got on screen in the first place. */
     if(firstRun()){ el('quickReplies').innerHTML = ''; return; }
-    const list = QUICK[State.data.persona] || QUICK.FARMER;
+    const base = QUICK[State.data.persona] || QUICK.FARMER;
+    /* Contextual first, then enough of the standing set to fill the row, and
+       never the same question twice. The standing four stay reachable because a
+       quiet day should still let someone ask. */
+    const seen = new Set();
+    const list = [...(State.data.persona === 'FARMER' ? contextualQuick() : []), ...base]
+      .filter(q => !seen.has(q) && seen.add(q)).slice(0, 4);
     el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(t(q))}</button>`).join('');
   }
 
@@ -4498,7 +4598,9 @@ const Views = (() => {
         <div class="agro-row"><dt>${esc(t('Balance'))}</dt><dd>${w.balance7 === null ? '—' : (w.balance7 > 0 ? '+' : '') + fmt(w.balance7,1) + ' mm'}</dd></div>
         <div class="agro-row"><dt>${esc(t('Rain, next 48 h'))}</dt><dd>${w.rain48 === null ? '—' : fmt(w.rain48,1) + ' mm'}</dd></div>
       </dl>
-      <div class="prov">${esc(t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Agronomy.ROOT_DEPTH_MM }))}</div>
+      <div class="prov">${esc(Farm.touched()
+        ? t('Derived · FAO-56 over a {mm} mm root zone on {soil}, as you set them', { mm: Farm.rootMm(), soil: t(Farm.soil().label) })
+        : t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Farm.rootMm() }))}</div>
     </div>`;
   }
 
@@ -4548,8 +4650,8 @@ const Views = (() => {
       <div class="strip-axis"><span>now</span><span>+24 h</span><span>+48 h</span></div>
       <dl class="agro-rows">
         <div class="agro-row"><dt>${esc(t('Good hours'))}</dt><dd>${s.blocks.filter(b => b.rating === 'good').length} / 48</dd></div>
-        <div class="agro-row"><dt>${esc(t('Wind limit'))}</dt><dd>${Agronomy.SPRAY.windMax} km/h</dd></div>
-        <div class="agro-row"><dt>${esc(t('Humidity floor'))}</dt><dd>${Agronomy.SPRAY.rhMin}%</dd></div>
+        <div class="agro-row"><dt>${esc(t('Wind limit'))}</dt><dd>${Agronomy.limits().windMax} km/h</dd></div>
+        <div class="agro-row"><dt>${esc(t('Humidity floor'))}</dt><dd>${Agronomy.limits().rhMin}%</dd></div>
       </dl>
       <div class="prov">${esc(t('Conventional limits · wind, gusts, humidity and rain probability'))}</div>
     </div>`;
@@ -4617,6 +4719,76 @@ const Views = (() => {
      reader chose "follow the machine", and a button claiming "light" would be
      answering a question they did not ask -- and it keeps the app from having
      to query matchMedia for a colour the stylesheet is already handling. */
+  /* The four assumptions, as a form. Every row says what the field changes and
+     what the app is using in the meantime, because a setting whose effect is not
+     visible is a setting nobody has any basis to change. */
+  function renderFarm(){
+    const host = el('farmBody');
+    if(!host) return;
+    const L = Farm.LIMITS;
+    const num = (key, unit, note) => `
+      <label class="farm-row">
+        <span class="farm-k">${esc(t(FARM_LABEL[key]))}</span>
+        <span class="farm-in">
+          <input class="field" type="number" data-farm="${key}" inputmode="numeric"
+                 min="${L[key].min}" max="${L[key].max}" step="${L[key].step}"
+                 placeholder="${Farm.DEFAULTS[key]}"
+                 value="${Farm.answered(key) ? Farm.value(key) : ''}">
+          <i class="farm-unit">${esc(unit)}</i>
+        </span>
+        <span class="farm-note">${note}</span>
+      </label>`;
+
+    const c = Farm.crop(), crop = c ? CROPS[c] : null;
+    const soil = Farm.soil();
+    const taw = Math.round((soil.fieldCapacity - soil.wilting) * Farm.rootMm());
+
+    host.innerHTML = `
+      <div class="farm-sect">
+        <label class="farm-row">
+          <span class="farm-k">${esc(t('Crop'))}</span>
+          <span class="farm-in">
+            <select class="field" data-farm="crop">
+              <option value="">${esc(t('From the plot layout'))}</option>
+              ${Object.keys(CROPS).map(k =>
+                `<option value="${esc(k)}" ${c === k ? 'selected' : ''}>${esc(t(k))}</option>`).join('')}
+            </select>
+          </span>
+          <span class="farm-note">${crop
+            ? esc(t('Base {b} °C · {g} GDD to maturity', { b: fmt(crop.baseTempC,0), g: fmt(crop.gddToMaturity,0) }))
+            : esc(t('The plots are synthesised, so this crop is a guess.'))}</span>
+        </label>
+
+        <label class="farm-row">
+          <span class="farm-k">${esc(t('Soil texture'))}</span>
+          <span class="farm-in">
+            <select class="field" data-farm="soil">
+              <option value="">${esc(t('Assumed mid-texture'))}</option>
+              ${Object.keys(SOILS).map(k =>
+                `<option value="${esc(k)}" ${Farm.data().soil === k ? 'selected' : ''}>${esc(t(SOILS[k].label))}</option>`).join('')}
+            </select>
+          </span>
+          <span class="farm-note">${esc(t('Holds {mm} mm of usable water in a {root} mm root zone',
+            { mm: fmt(taw,0), root: fmt(Farm.rootMm(),0) }))}</span>
+        </label>
+
+        ${num('rootMm', 'mm', esc(t('Deeper roots reach more water, so the refill point moves.')))}
+      </div>
+
+      <div class="farm-sect">
+        <div class="farm-sect-head">
+          <span>${esc(t('Spray limits'))}</span>
+          <i>${esc(t('conventional, not a regulation'))}</i>
+        </div>
+        ${num('windMax', 'km/h', esc(t('Above this, do not spray.')))}
+        ${num('gustMax', 'km/h', esc(t('A gust that carries the spray off the plot.')))}
+        ${num('rhMin',   '%',    esc(t('Below this, fine droplets evaporate before they land.')))}
+      </div>`;
+
+    const btn = el('btnFarm');
+    if(btn) btn.setAttribute('aria-expanded', String(!el('farmSheet').hidden));
+  }
+
   function renderThemeMenu(){
     const menu = el('themeMenu');
     if(!menu) return;
@@ -4688,7 +4860,10 @@ const Views = (() => {
       return;
     }
     const now = State.data.clock;
-    const crop = Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
+    /* The grower's crop wins over the plot layout, which the app synthesised and
+       says so. The layout is the fallback, so a searched farm still answers
+       before anyone has filled the sheet in. */
+    const crop = Farm.crop() || Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
     host.innerHTML = [
       waterCard(Agronomy.water(now)),
       thermalCard(Agronomy.thermal(now)),
@@ -4721,13 +4896,20 @@ const Views = (() => {
   const GROUP_LABEL = { act:'Needs you', warn:'Watching', ok:'All clear' };
   const GROUP_CHIP  = { act:'warning',   warn:'serious',  ok:'good' };
   const TONE_DOT    = { act:'var(--warning)', warn:'var(--serious)', ok:'var(--good)' };
+
+  /* Reaches t() as t(FARM_LABEL[key]), so the i18n scan reads this block by
+     name the way it reads DECK_NAME. */
+  const FARM_LABEL = { rootMm:'Root zone', windMax:'Wind max', gustMax:'Gust max', rhMin:'Humidity floor' };
   const TONE_INK    = { act:'var(--warning-ink)', warn:'var(--serious-ink)', ok:'var(--good-ink)' };
 
   /** Every model the deck ranks, gathered once per paint. */
   function deckModels(){
     if(!Live.ready()) return null;
     const now  = State.data.clock;
-    const crop = Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
+    /* The grower's crop wins over the plot layout, which the app synthesised and
+       says so. The layout is the fallback, so a searched farm still answers
+       before anyone has filled the sheet in. */
+    const crop = Farm.crop() || Region.cropOf(ROUTE_ORIGIN) || Region.cropOf('F1');
     return {
       water:   Agronomy.water(now),
       spray:   Agronomy.spray(now),
@@ -5022,6 +5204,12 @@ const Views = (() => {
 
     hosts.forEach(h => { h.innerHTML = html + notice; });
 
+    /* The suggestions follow these calls, so they are repainted with them. They
+       were computed once at boot instead -- before the first payload had landed,
+       when there was nothing contextual to say -- and then never again, so the
+       row stayed on the standing four for the life of the session. */
+    renderQuickReplies();
+
     /* The pane always shows something: whatever the reader last picked, or the
        first call that needs them. An empty pane beside a full rail reads as
        broken rather than as calm.
@@ -5071,7 +5259,7 @@ const Views = (() => {
     // Rebuilding the region re-runs those labels in the new language, which is
     // cheaper and far less error-prone than translating at every display site.
     if(Region.current()) Region.load(Region.current().id);
-    renderLangMenu(); renderThemeMenu(); renderRegionPicker(); renderLiveChip(); renderLinks();
+    renderLangMenu(); renderThemeMenu(); renderFarm(); renderRegionPicker(); renderLiveChip(); renderLinks();
     renderTiles(); renderThermal(); renderTable(); renderHero(); renderPosture();
     renderClock(); renderMap(true); renderSatBar(); renderAgronomy();
     renderTriggers(); renderQuickReplies(); renderLog(); renderChat();
@@ -5380,7 +5568,9 @@ const Views = (() => {
           [t('Rain, next 48 h'), m.rain48 === null ? '—' : fmt(m.rain48,1) + ' mm']
         ])}
         ${provBlock(
-          [t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Agronomy.ROOT_DEPTH_MM }),
+          [Farm.touched()
+             ? t('Derived · FAO-56 over a {mm} mm root zone on {soil}, as you set them', { mm: Farm.rootMm(), soil: t(Farm.soil().label) })
+             : t('Derived · FAO-56 over a {mm} mm root zone, assumed mid-texture soil', { mm: Farm.rootMm() }),
            t('Its inputs are modelled rather than measured: soil moisture and ET₀ from ECMWF IFS / DWD ICON at roughly 11 km. One model cell covers this whole holding.')],
           [{ text: t('Derived') }, { text: t('Modelled input') }, { text: '~11 km' }])}`;
     },
@@ -5392,13 +5582,17 @@ const Views = (() => {
         ${detailSect(t('Hour by hour'), deckChart('spray', m))}
         ${rowsBlock([
           [t('Good hours'),      `${m.blocks.filter(b => b.rating === 'good').length} / 48`],
-          [t('Wind limit'),      `${Agronomy.SPRAY.windMax} km/h`],
-          [t('Gust limit'),      `${Agronomy.SPRAY.gustMax} km/h`],
-          [t('Humidity floor'),  `${Agronomy.SPRAY.rhMin}%`]
+          [t('Wind limit'),      `${Agronomy.limits().windMax} km/h`],
+          [t('Gust limit'),      `${Agronomy.limits().gustMax} km/h`],
+          [t('Humidity floor'),  `${Agronomy.limits().rhMin}%`]
         ])}
         ${provBlock(
-          [t('Conventional limits, not a regulation · wind, gusts, humidity and rain probability')],
-          [{ text: t('Derived') }, { text: t('Our thresholds') }])}`;
+          [Farm.answered('windMax') || Farm.answered('gustMax') || Farm.answered('rhMin')
+             ? t('Your own limits · wind, gusts, humidity and rain probability')
+             : t('Conventional limits, not a regulation · wind, gusts, humidity and rain probability')],
+          [{ text: t('Derived') },
+           { text: Farm.answered('windMax') || Farm.answered('gustMax') || Farm.answered('rhMin')
+                     ? t('Your thresholds') : t('Our thresholds') }])}`;
     },
 
     thermal(m){
@@ -5565,7 +5759,7 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, renderFarm, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            toggleTable, scrollToBottom, startDriver, stopDriver,
@@ -6773,10 +6967,15 @@ const Agronomy = (() => {
     if(!Live.ready()) return null;
     const vwc = Live.hourlyAt('soil_moisture_3_to_9cm', epochMs);
     if(vwc === null) return null;
-    const S = Live.soilRefs();
+    /* The grower's soil and root zone when they have given them, the textbook
+       mid-texture and 300 mm when they have not. Both numbers move the whole
+       balance: the span between wilting point and field capacity is three times
+       wider on a clay than on a sand. */
+    const S = Farm.soil();
+    const rootMm = Farm.rootMm();
 
-    const taw = (S.fieldCapacity - S.wilting) * ROOT_DEPTH_MM;      // total available water, mm
-    const available = Math.max(0, (vwc - S.wilting) * ROOT_DEPTH_MM);
+    const taw = (S.fieldCapacity - S.wilting) * rootMm;             // total available water, mm
+    const available = Math.max(0, (vwc - S.wilting) * rootMm);
     const depletion = Math.max(0, taw - available);
     const trigger = taw * ALLOWED_DEPLETION;
 
@@ -6831,9 +7030,13 @@ const Agronomy = (() => {
   /* Spray suitability. The limits are conventional agricultural practice:
      drift above ~15 km/h, poor retention below ~40% humidity, and rain within
      the hour after application washes the product off. */
-  const SPRAY = { windOk: 15, windMax: 20, gustMax: 28, rhMin: 40, rainProbMax: 30 };
+  /* The limits are the grower's when they have set them, and the conventional
+     ones otherwise. Read fresh on every call rather than captured once, because
+     changing a limit has to change the next spray window without a reload. */
+  const limits = () => Farm.sprayLimits();
 
   function spray(epochMs){
+    const LIM = limits();
     if(!Live.ready()) return null;
     const blocks = [];
     for(let h = 0; h < 48; h++){
@@ -6845,12 +7048,12 @@ const Agronomy = (() => {
       if(wind === null) continue;
 
       const fails = [];
-      if(wind > SPRAY.windMax)             fails.push('wind');
-      if(gust !== null && gust > SPRAY.gustMax) fails.push('gusts');
-      if(rh !== null && rh < SPRAY.rhMin)  fails.push('too dry');
-      if(pop !== null && pop > SPRAY.rainProbMax) fails.push('rain risk');
+      if(wind > LIM.windMax)             fails.push('wind');
+      if(gust !== null && gust > LIM.gustMax) fails.push('gusts');
+      if(rh !== null && rh < LIM.rhMin)  fails.push('too dry');
+      if(pop !== null && pop > LIM.rainProbMax) fails.push('rain risk');
 
-      const marginal = !fails.length && (wind > SPRAY.windOk || (pop !== null && pop > 15));
+      const marginal = !fails.length && (wind > LIM.windOk || (pop !== null && pop > 15));
       blocks.push({ h, at, wind, gust, rh, pop,
                     rating: fails.length ? 'no' : marginal ? 'marginal' : 'good',
                     fails });
@@ -6898,7 +7101,7 @@ const Agronomy = (() => {
     };
   }
 
-  return { water, thermal, spray, heatUnits, ROOT_DEPTH_MM, ALLOWED_DEPLETION, SPRAY };
+  return { water, thermal, spray, heatUnits, ROOT_DEPTH_MM, ALLOWED_DEPLETION, limits };
 })();
 
 
@@ -7169,6 +7372,94 @@ const I18n = (() => {
            STORE_KEY, langFor };
 })();
 
+/* ===================== MODULE 7b: THE FARM =====================
+
+   Four things this app had been assuming on the grower's behalf, and printing
+   the assumption next to the number it produced: "assumed mid-texture soil",
+   "FAO-56 over a 300 mm root zone", "conventional limits, not a regulation",
+   and a crop taken from a plot layout the app admits it synthesised.
+
+   Each is now something the grower can answer, and each is already wired into a
+   calculation, so answering one changes a call on the deck rather than filing a
+   preference. Every default is exactly the constant that was there before, so an
+   untouched install computes precisely what it computed yesterday -- and the
+   provenance line stops saying "assumed" and starts saying "yours" only for the
+   fields actually answered. */
+const SOILS = {
+  /* Volumetric water content at wilting point and field capacity. The span
+     between them is the water a crop can actually use, and it is roughly three
+     times wider on a clay than on a sand -- which is why an irrigation call made
+     against the wrong one is wrong by more than a rounding. */
+  sand:      { id:'sand',      label:'Sand',       wilting:0.05, fieldCapacity:0.15 },
+  sandyLoam: { id:'sandyLoam', label:'Sandy loam', wilting:0.09, fieldCapacity:0.24 },
+  loam:      { id:'loam',      label:'Loam',       wilting:0.12, fieldCapacity:0.32 },
+  clayLoam:  { id:'clayLoam',  label:'Clay loam',  wilting:0.17, fieldCapacity:0.38 },
+  clay:      { id:'clay',      label:'Clay',       wilting:0.22, fieldCapacity:0.45 }
+};
+
+const Farm = (() => {
+  /* null means "not answered", which is not the same as a value that happens to
+     equal the default: it is what lets the app keep saying "assumed" until the
+     grower has actually said otherwise. */
+  const BLANK = { crop:null, soil:null, rootMm:null, windMax:null, gustMax:null, rhMin:null };
+
+  const DEFAULTS = {
+    soil:    'loam',                 // the mid-texture the code assumed
+    rootMm:  300,
+    windMax: 20, gustMax: 28, rhMin: 40
+  };
+
+  const LIMITS = {
+    rootMm:  { min:100, max:1500, step:10 },
+    windMax: { min:5,   max:60,   step:1 },
+    gustMax: { min:5,   max:80,   step:1 },
+    rhMin:   { min:0,   max:95,   step:1 }
+  };
+
+  const data = () => (State.data.farm = State.data.farm || { ...BLANK });
+
+  /** What a field resolves to: the answer if there is one, else the assumption. */
+  function value(key){
+    const v = data()[key];
+    return (v === null || v === undefined) ? (DEFAULTS[key] === undefined ? null : DEFAULTS[key]) : v;
+  }
+  const answered = key => {
+    const v = data()[key];
+    return v !== null && v !== undefined;
+  };
+  /** True when the grower has answered anything at all. */
+  const touched = () => Object.keys(BLANK).some(answered);
+
+  function set(key, v){
+    if(!(key in BLANK)) return;
+    if(v === null || v === '' || v === undefined){ data()[key] = null; return; }
+    if(key === 'crop') { data().crop = CROPS[v] ? v : null; return; }
+    if(key === 'soil') { data().soil = SOILS[v] ? v : null; return; }
+    const n = Number(v);
+    const lim = LIMITS[key];
+    if(!isFinite(n) || !lim) return;
+    data()[key] = Math.max(lim.min, Math.min(lim.max, Math.round(n)));
+  }
+
+  function reset(){ State.data.farm = { ...BLANK }; }
+
+  /* ---- what the arithmetic reads ---- */
+  const soil    = () => SOILS[value('soil')] || SOILS.loam;
+  const rootMm  = () => value('rootMm');
+  const crop    = () => (answered('crop') && CROPS[data().crop]) ? data().crop : null;
+  const sprayLimits = () => ({
+    windOk:      Math.max(1, Math.round(value('windMax') * 0.75)),
+    windMax:     value('windMax'),
+    gustMax:     value('gustMax'),
+    rhMin:       value('rhMin'),
+    rainProbMax: 30
+  });
+
+  return { SOILS, DEFAULTS, LIMITS, BLANK, data, value, answered, touched, set, reset,
+           soil, rootMm, crop, sprayLimits };
+})();
+
+
 /* ===================== MODULE 8a: ICONS =====================
 
    The controls used to be labelled with emoji -- 🌱 for the farmer, 📦 for the
@@ -7201,6 +7492,9 @@ const ICONS = {
      three arcs over a point read as "signal" instantly. */
   ops:    '<circle cx="12" cy="17.5" r="2"/><path d="M8.6 14.1a4.8 4.8 0 0 1 6.8 0"/>'
         + '<path d="M5.6 11.1a9 9 0 0 1 12.8 0"/>',
+  /* Sliders: the one shape that says "these are set, and you can move them". */
+  farm:   '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/>'
+        + '<circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   globe:  '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>'
         + '<path d="M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18Z"/>',
   /* Open, not closed. A closed book at this size is a rounded rectangle with a
@@ -7778,6 +8072,7 @@ const Search = (() => {
 
   Views.renderLangMenu();
   Views.renderThemeMenu();
+  Views.renderFarm();
   Views.renderRegionPicker();
   Views.renderSatBar();
   Views.renderAgronomy();
@@ -7891,6 +8186,36 @@ const Search = (() => {
     }
     Views.repaintAll();
   });
+  /* --- your farm ---
+     An answer changes an agronomy call, so the whole deck is repainted rather
+     than the sheet alone. Saved on every edit: a setting the app forgets is
+     worse than one it never offered. */
+  function farmSheet(open){
+    const sh = el('farmSheet');
+    if(!sh) return;
+    sh.hidden = !open;
+    Views.renderFarm();
+  }
+  el('btnFarm').addEventListener('click', () => farmSheet(el('farmSheet').hidden));
+  el('farmClose').addEventListener('click', () => farmSheet(false));
+  el('farmReset').addEventListener('click', () => {
+    Farm.reset();
+    State.save();
+    Views.renderFarm();
+    Views.repaintAll();
+  });
+  el('farmSheet').addEventListener('change', e => {
+    const f = e.target.closest && e.target.closest('[data-farm]');
+    if(!f) return;
+    Farm.set(f.dataset.farm, f.value);
+    State.save();
+    Views.renderFarm();
+    Views.renderAgronomy();
+    Views.renderDeck();
+    Views.renderRolePanes();
+    State.emit('alerts');
+  });
+
   /* --- theme --- */
   el('btnTheme').addEventListener('click', e => {
     e.stopPropagation();

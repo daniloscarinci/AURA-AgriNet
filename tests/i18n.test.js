@@ -63,6 +63,10 @@ module.exports = ({ suite, test, assert }) => {
     for (const m of block('function statusWord(key, sev){', 'if(words[key]')
       .matchAll(/(?:good|warning|serious|critical):'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const QUICK = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    /* The contextual replies are pushed as bare literals and reach t() by the
+       same path the standing four do, so they are UI strings exactly as much. */
+    for (const m of block('function contextualQuick(){', 'function renderQuickReplies(){')
+      .matchAll(/'([^']+\?)'/g)) set.add(m[1]);
     /* The deck names its calls and its groups from lookup tables, so every key
        reaches t() as t(DECK_NAME[id]) rather than as a literal. Read from their
        own bodies for the same reason QUICK is: a bare pattern over the script
@@ -76,6 +80,10 @@ module.exports = ({ suite, test, assert }) => {
        proper nouns and are left alone in every language, exactly as city names
        are. */
     for (const m of block('const MODES = [', '];').matchAll(/label:'([^']+)'/g)) set.add(m[1]);
+    /* The farm form names its rows from a lookup, reaching t() as
+       t(FARM_LABEL[key]), and the soil catalogue the same way via t(s.label). */
+    for (const m of block('const FARM_LABEL = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    for (const m of block('const SOILS = {', '};').matchAll(/label:'([^']+)'/g)) set.add(m[1]);
     /* The agent's refusal when no farm has been chosen is stored as English
        source too, for the same reason the greeting is: a line in the transcript
        is translated when it is painted, not when it is written. */

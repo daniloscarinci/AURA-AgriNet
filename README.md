@@ -418,6 +418,46 @@ right-to-left language would need that layout work done again; keeping unused
 machinery alive against a language that may never come is how a codebase
 accumulates rules nobody can test.
 
+## What you tell it
+
+The app made four assumptions on the grower's behalf and printed each one beside the number
+it produced. They are questions now, in **Your farm** in the header, and every one of them is
+already wired into a calculation — so answering one changes a call on the deck rather than
+filing a preference.
+
+| You set | It was assuming | What it decides |
+|---|---|---|
+| **Crop** | whatever the *synthesised* plot layout said | frost sensitivity, GDD base, days to maturity |
+| **Soil texture** | mid-texture loam | the span between wilting point and field capacity — three times wider on a clay than on a sand |
+| **Root zone** | 300 mm | total available water, and therefore the refill point |
+| **Spray limits** | wind 20, gust 28, RH 40 % | when the spray window opens |
+
+Every default is exactly the constant that was there before, so an untouched install computes
+precisely what it computed yesterday. Answering is what changes things: set a sand soil on a
+150 mm root zone and the water balance goes from *4 % depleted* to *0 %*, because 15 mm of
+usable water is a different quantity from 60. The provenance follows — *"FAO-56 over a 300 mm
+root zone, assumed mid-texture soil"* becomes *"over a 150 mm root zone on Sand, as you set
+them"*. Text in a numeric field is refused rather than clamped: a field nobody answered
+legibly is unanswered, and the honest value for it is the assumption the app was already
+printing.
+
+## Talking to it
+
+The quick replies follow the deck. A fixed four — *soil moisture, frost risk, crop health,
+full status* — asks the same thing on the morning of a frost as on a quiet Tuesday, so on the
+day it matters the buttons are furniture. They now offer *Why can I not spray?* when there is
+no window, *How much water?* when the call is irrigate, *Should I harvest early?* when frost
+is in the forecast, and fall back to the standing four to fill the row. Each still resolves
+to an intent the matcher answers, and a test puts every one of them through it.
+
+They are repainted with the deck, which is the second half of that: computed once at boot
+they were built before the first payload landed, when there was nothing contextual to say,
+and then never rebuilt.
+
+*Send as — Amara, Farmer, Plot F-2* has moved to Ops. It is simulation machinery: in real use
+the reader is the farmer, the role tab has already said so, and choosing to speak as the buyer
+is something you do while driving the simulation.
+
 ## Sources, on the page
 
 Every feed the app can draw on is listed in the footer, in every role and at both
@@ -460,7 +500,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 789 checks, no dependencies, no network
+node tests/run.js              # 804 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
@@ -476,7 +516,7 @@ keywords per language, a suite that switches language *after* a transcript and i
 rereads them, and guards against the three regressions that actually happened: shadowing
 the translator, dropping a prose key on its way to the message, and painting the chat
 before the prose it needs has arrived),
-**211 control-reachability** (every referenced element exists, every trigger names a real
+**226 control-reachability** (every referenced element exists, every trigger names a real
 code path, every quick reply resolves to an intent, every deck row opens a detail the
 renderer answers for, the first-run panel replaces the deck and not a plot reading,
 the theme survives a restart, the manual's numbers match the engine), and **161 PWA asset

@@ -136,6 +136,35 @@ module.exports = ({ suite, test, assert }) => {
           assert.ok(Console.match(q), `"${q}" matches no intent — the button does nothing useful`)));
     });
 
+    /* A quick reply the matcher does not understand is a button that does
+       nothing, which is what this whole suite exists for. The contextual ones
+       are generated from live models rather than listed, so they are read out of
+       the source and put through the same matcher as the standing four. */
+    test('every contextual quick reply resolves to an intent', () => {
+      const src = readSource().script;
+      const body = src.slice(src.indexOf('function contextualQuick(){'),
+                             src.indexOf('function renderQuickReplies(){'));
+      const asked = [...body.matchAll(/'([^']+\?)'/g)].map(m => m[1]);
+      assert.greater(asked.length, 3, 'the contextual replies vanished');
+      asked.forEach(q =>
+        assert.ok(app.Console.match(q),
+          `"${q}" matches no intent — the button would do nothing on the day it appears`));
+    });
+
+    test('the replies follow the deck rather than a fixed list', () => {
+      const h = boot();
+      h.app.State.data.chosen = true;
+      const src = readSource().script;
+      assert.includes(src, 'contextualQuick()',
+        'renderQuickReplies no longer consults the deck');
+      // With no live models there is nothing contextual to say, and the standing
+      // four still fill the row so a quiet day can still be asked about.
+      h.app.Views.renderQuickReplies();
+      const html = h.document.getElementById('quickReplies').innerHTML;
+      assert.greater([...html.matchAll(/data-quick=/g)].length, 0,
+        'a farm with no live model left the composer with no suggestions at all');
+    });
+
     test('every channel tab names a real channel', () => {
       const tabs = [...markup.matchAll(/data-channel="([^"]+)"/g)].map(m => m[1]);
       assert.greater(tabs.length, 0, 'no channel tabs found');
@@ -674,6 +703,110 @@ module.exports = ({ suite, test, assert }) => {
   });
 
   /* ------------------------------------------------------------------------ */
+  /* Four things the app had been assuming and printing the assumption for. The
+     point of making them answerable is not tidiness: each one is wired into a
+     calculation, so answering one has to change what the deck says. A setting
+     that changes nothing is a preference, and this app does not have those. */
+  suite('controls · your farm', () => {
+
+    test('an untouched install computes exactly what it computed before', () => {
+      const h = boot();
+      const F = h.app.Farm;
+      assert.notOk(F.touched(), 'a fresh farm claims to have been answered');
+      assert.equal(F.soil().id, 'loam', 'the default soil is not the mid-texture the code assumed');
+      assert.equal(F.rootMm(), 300, 'the default root zone moved');
+      assert.equal(F.sprayLimits().windMax, 20, 'the default wind limit moved');
+      assert.equal(F.crop(), null, 'a crop was invented before anyone named one');
+    });
+
+    test('a coarser soil holds less water, so the refill point moves', () => {
+      const h = boot();
+      const span = id => {
+        h.app.Farm.set('soil', id);
+        const s = h.app.Farm.soil();
+        return (s.fieldCapacity - s.wilting) * h.app.Farm.rootMm();
+      };
+      const sand = span('sand'), clay = span('clay');
+      assert.less(sand, clay,
+        'sand and clay hold the same usable water, so the soil field decides nothing');
+      assert.greater(clay - sand, 20, 'the difference is too small to change any call');
+    });
+
+    test('the grower’s crop wins over the synthesised plot layout', () => {
+      const h = boot();
+      h.app.Farm.set('crop', 'Wheat');
+      assert.equal(h.app.Farm.crop(), 'Wheat');
+      h.app.Farm.set('crop', '');
+      assert.equal(h.app.Farm.crop(), null, 'clearing the crop did not fall back to the layout');
+    });
+
+    test('a spray limit the grower sets is the limit spray uses', () => {
+      const h = boot();
+      h.app.Farm.set('windMax', 8);
+      assert.equal(h.app.Agronomy.limits().windMax, 8,
+        'the agronomy still reads the conventional limit');
+      assert.less(h.app.Agronomy.limits().windOk, 8,
+        'the marginal band should sit under the hard limit, whatever it is');
+    });
+
+    test('nonsense is clamped rather than believed', () => {
+      const h = boot();
+      const F = h.app.Farm;
+      F.set('rootMm', 99999);
+      assert.equal(F.rootMm(), F.LIMITS.rootMm.max, 'an absurd root zone was accepted');
+      F.set('rootMm', -5);
+      assert.equal(F.rootMm(), F.LIMITS.rootMm.min);
+      /* Text is refused outright rather than clamped to the nearest end of the
+         range: a field nobody answered legibly is unanswered, and the honest
+         value for it is the assumption the app was already printing. */
+      F.set('windMax', 'not a number');
+      assert.notOk(F.answered('windMax'), 'text was accepted as an answer');
+      assert.equal(F.value('windMax'), F.DEFAULTS.windMax, 'a rejected edit left a bad value behind');
+      F.set('soil', 'basalt');
+      assert.equal(F.soil().id, 'loam', 'an unknown soil was stored');
+    });
+
+    test('the answers survive a restart', () => {
+      const h = boot();
+      h.app.Farm.set('soil', 'clay');
+      h.app.Farm.set('rootMm', 700);
+      h.app.State.save();
+      const again = boot({ storage: Object.fromEntries(h.storage) });
+      assert.equal(again.app.Farm.soil().id, 'clay', 'the soil was forgotten');
+      assert.equal(again.app.Farm.rootMm(), 700, 'the root zone was forgotten');
+      assert.ok(again.app.Farm.touched(), 'a restored farm reads as unanswered');
+    });
+
+    test('the sheet is reachable and offers every soil and crop', () => {
+      const h = boot();
+      const { markup } = readSource();
+      assert.includes(markup, 'id="btnFarm"', 'no way to open the sheet');
+      assert.includes(markup, 'id="farmSheet"', 'no sheet');
+      h.app.Views.renderFarm();
+      const html = h.document.getElementById('farmBody').innerHTML;
+      Object.keys(h.app.SOILS).forEach(k =>
+        assert.includes(html, `value="${k}"`, `${k} is missing from the soil list`));
+      Object.keys(h.app.CROPS).forEach(k =>
+        assert.includes(html, `value="${k}"`, `${k} is missing from the crop list`));
+      Object.keys(h.app.Farm.LIMITS).forEach(k =>
+        assert.includes(html, `data-farm="${k}"`, `${k} has no field`));
+    });
+
+    /* The provenance under a number is the app's whole argument. It has to stop
+       saying "assumed" once it is no longer assuming. */
+    test('the provenance stops saying assumed once it has been answered', () => {
+      const h = boot();
+      h.app.Views.renderFarm();
+      h.app.Farm.set('soil', 'clay');
+      const { html } = readSource();
+      assert.includes(html, 'as you set them',
+        'nothing in the app ever credits the grower for the values they gave');
+      assert.includes(html, 'assumed mid-texture soil',
+        'the honest default wording was removed along with the assumption');
+    });
+  });
+
+  /* ------------------------------------------------------------------------ */
   /* Where the numbers come from, on the page rather than in the console. When the
      roles were split these chips went into Ops with the rest of the
      instrumentation, so a grower could no longer see which feeds were up without
@@ -887,11 +1020,14 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(h.app.State.data.chosen, 'a deliberately picked catchment was forgotten');
     });
 
-    /* The composer's cast list names a plot of the catchment nobody picked. */
-    test('the persona row is gated with the rest of it', () => {
+    /* The composer's cast list names a plot of the catchment nobody picked. It
+       is gated by role now rather than by first run -- speaking as the buyer is
+       something you do while driving the simulation -- and first run is the
+       Farmer role, so it stays hidden there too. */
+    test('the persona row stays out of a grower composer', () => {
       const { html } = readSource();
-      assert.includes(html, 'body[data-firstrun] .persona-row',
-        'the "Send as: Amara — Farmer, Plot F-2" row survives on the first screen');
+      assert.includes(html, 'body:not([data-role="OPS"]) .persona-row',
+        'the "Send as: Amara — Farmer, Plot F-2" row is still in every role');
       assert.includes(html, 'body[data-firstrun] header .search',
         'two search boxes on a screen built to ask one question');
     });
