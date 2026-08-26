@@ -157,6 +157,17 @@ module.exports = ({ suite, test, assert }) => {
     ['id', 'name', 'short_name', 'start_url', 'scope', 'display', 'theme_color', 'background_color', 'icons']
       .forEach(k => test(`manifest declares ${k}`, () => assert.ok(mf[k] !== undefined, `${k} missing`)));
 
+    /* This app is served from wherever it is put: the repository root under
+       GitHub Pages, `/` in the Android package, a subdirectory on anyone's own
+       host. An absolute id or scope pins it to one of those and is wrong in the
+       others -- `id: "/aura-agrinet/"` did not match the Pages path at all, so
+       the installed app and the page would have had different identities. */
+    test('the manifest names nothing absolutely, so it survives a subpath', () => {
+      ['id', 'start_url', 'scope'].forEach(k =>
+        assert.notOk(String(mf[k]).startsWith('/'),
+          `${k} is "${mf[k]}" — an absolute path breaks everywhere the app is not at the root`));
+    });
+
     test('short_name fits a home-screen label (≤12 chars)', () =>
       assert.ok(mf.short_name.length <= 12, `short_name is ${mf.short_name.length} chars and will be truncated`));
 

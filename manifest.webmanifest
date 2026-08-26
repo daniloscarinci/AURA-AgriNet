@@ -1,5 +1,5 @@
 {
-  "id": "/aura-agrinet/",
+  "id": ".",
   "name": "AURA-AgriNet — Agricultural Micro-Logistics",
   "short_name": "AURA-AgriNet",
   "description": "Autonomous remote-sensing agent fusing NASA SMAP, ESA Sentinel-1/2 and thermal-IR telemetry into frost, drought and flood advisories, with live micro-logistics dispatch for farmers, buyers and drivers.",
