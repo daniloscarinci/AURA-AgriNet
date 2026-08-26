@@ -976,6 +976,22 @@ body[data-ios-hint] .ios-hint{ display:flex; }
   text-transform:uppercase; color:var(--text-muted); flex:none;
 }
 .srcstrip-chips{ display:flex; gap:6px; flex-wrap:wrap; min-width:0; }
+.lat-ms{ font-style:normal; }
+
+/* On a small screen the strip was costing a quarter of the viewport: four
+   chips, each on its own line, pushing the app's actual question below the
+   fold on a 320x568 phone. The latency in milliseconds goes -- it is console
+   detail, and the Ops console still prints it -- while the source and its
+   state word both stay, because a status here is icon and text and never
+   colour alone. */
+@media (max-width:479px){
+  .srcstrip{ gap:7px; padding:9px 0 10px; }
+  .srcstrip-label{ font-size:8.5px; letter-spacing:.1em; }
+  .srcstrip-chips{ gap:5px; }
+  .srcstrip .link-chip{ padding:3px 7px; gap:5px; font-size:9px; letter-spacing:.05em; }
+  .srcstrip .link-dot{ width:6px; height:6px; }
+  .srcstrip .lat-ms{ display:none; }
+}
 
 /* ---------- deck charts ----------
    One shape per question. A ribbon for a run of hours, a curve for something
@@ -3920,7 +3936,8 @@ const Views = (() => {
       return `<div class="link-chip ${l.rx ? 'rx' : ''}" title="${esc(t('{source} · {size} pixel', { source: src.label, size: src.id === 'SMAP' ? '9 km' : src.id === 'TIR' ? '1 km' : '10 m' }))}">
         <span class="link-dot ${cls}"></span>
         <span>${esc(label)}</span>
-        <span class="link-lat">${l.rx ? '···' : word}${(l.latency && l.status === 'nominal') ? ' ' + l.latency + 'ms' : ''}</span>
+        <span class="link-lat">${l.rx ? '···' : word}${(l.latency && l.status === 'nominal')
+          ? `<i class="lat-ms"> ${l.latency}ms</i>` : ''}</span>
       </div>`;
     }).join('');
   }

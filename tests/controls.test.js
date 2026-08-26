@@ -917,6 +917,30 @@ module.exports = ({ suite, test, assert }) => {
       assert.includes(html, 'N/A', 'it is listed but its state is not stated');
     });
 
+    /* On a 320px screen the strip was four chips on four lines, a quarter of the
+       viewport, pushing the app's own question below the fold. What it sheds
+       there is the latency in milliseconds -- console detail, still printed in
+       Ops -- and never the state word, because a status in this app is an icon
+       AND a label, never colour alone. */
+    test('the strip compacts on a small screen without dropping a state', () => {
+      const { html } = readSource();
+      assert.includes(html, '.srcstrip .lat-ms{ display:none; }',
+        'the strip does not shed its latency figures on a narrow screen');
+      assert.notIncludes(html, '.srcstrip .link-lat{ display:none',
+        'hiding the state word would leave the dot colour saying it alone');
+    });
+
+    test('the latency is separable from the state it sits beside', () => {
+      const h = boot();
+      h.app.Views.renderLinks();
+      const html = h.document.getElementById('sourceStrip').innerHTML;
+      assert.includes(html, 'class="lat-ms"',
+        'the milliseconds share an element with the state word, so neither can go without the other');
+      const words = [...html.matchAll(/class="link-lat">([^<]*)/g)].map(m => m[1].trim());
+      assert.greater(words.filter(Boolean).length, 0,
+        'no chip states anything in words');
+    });
+
     test('both hosts get the same chips', () => {
       const h = boot();
       h.app.Views.renderLinks();
