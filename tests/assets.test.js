@@ -821,15 +821,56 @@ module.exports = ({ suite, test, assert }) => {
       });
     });
 
-    test('neither fixed bar is translucent', () => {
-      const bar = html.slice(html.indexOf('.tabbar{'), html.indexOf('}', html.indexOf('.tabbar{')));
-      assert.includes(bar, 'background:var(--surface-1)',
-        'the tab bar is see-through, so the page reads across its labels');
-      assert.notIncludes(html, 'backdrop-filter:blur(14px)',
-        'the frosted tab bar is back, and with it the 8% that shows through');
+    /* Both bars are frosted glass now, which this app has twice tried and twice
+       reverted -- the reverts are in the comment above .appbar. The thing that
+       actually went wrong both times was never the translucency: it was
+       translucency arriving somewhere the blur did not, leaving the page
+       readable straight through the bar at full contrast. So what is guarded is
+       the guard. Each bar declares an opaque background unconditionally, and
+       every see-through value lives inside @supports. */
+    const rule = (sel) => {
+      const a = html.indexOf(sel + '{');
+      return a < 0 ? '' : html.slice(a, html.indexOf('}', a));
+    };
+
+    test('each bar is opaque before @supports has a say', () => {
+      ['.appbar', '.tabbar'].forEach(sel =>
+        assert.includes(rule(sel), 'background:var(--surface-1)',
+          `${sel} has no opaque fallback, so a WebView that cannot blur shows the page through it`));
+    });
+
+    test('the glass exists only where the browser can genuinely blur', () => {
+      const guard = html.indexOf('@supports ((backdrop-filter: blur(1px))');
+      assert.ok(guard > 0, 'the frost is no longer behind an @supports guard');
+      /* Every mention of the glass wash must sit after the guard opens. A rule
+         above it applies unconditionally, which is exactly the bug. */
+      [...html.matchAll(/background:var\(--bar-glass\)/g)].forEach(m =>
+        assert.ok(m.index > guard,
+          'a bar takes the glass wash outside @supports, so it goes see-through where nothing blurs'));
+    });
+
+    /* env() is dead on Android -- no display-cutout API sits behind it in a
+       WebView -- so MainActivity writes the two properties itself. It is a Java
+       string literal, so nothing but this checks that the names still match the
+       ones the stylesheet reads, and a rename on either side would silently put
+       the header back under the status bar. */
+    test('the Android wrapper writes the inset properties the stylesheet reads', () => {
+      const java = fs.readFileSync(
+        path.join(ROOT, 'android/app/src/main/java/earth/aura/agrinet/MainActivity.java'), 'utf8');
+      ['--safe-t', '--safe-b'].forEach(prop => {
+        assert.includes(java, `setProperty('${prop}'`,
+          `the wrapper never sets ${prop}, so it stays at the env() zero Android gives it`);
+        assert.includes(html, `var(${prop})`,
+          `the stylesheet no longer reads ${prop}, so the wrapper is writing into nothing`);
+      });
+      assert.includes(java, 'view.setPadding(bars.left, 0, bars.right',
+        'the WebView is padded away from the top bar again, so the page cannot run under it');
+    });
+
+    test('the header carries the class the glass is written against', () => {
       const hdr = markup.slice(markup.indexOf('<header'), markup.indexOf('>', markup.indexOf('<header')));
-      assert.includes(hdr, 'background:var(--surface-1)',
-        'the header is see-through, so content scrolls visibly under it');
+      assert.includes(hdr, 'appbar',
+        'the header no longer matches .appbar, so it has neither the frost nor the status-bar clearance');
     });
   });
 

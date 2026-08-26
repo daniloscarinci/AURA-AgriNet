@@ -87,6 +87,12 @@ public class MainActivity extends ComponentActivity {
     private WebView webView;
     private boolean firstPaint;
 
+    /* The system-bar insets in CSS pixels, as last handed to the page. Held
+       because the first insets arrive before there is a document to hand them
+       to, so the first paint has to be able to repeat the delivery. */
+    private int safeTopCss;
+    private int safeBottomCss;
+
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
 
@@ -126,13 +132,30 @@ public class MainActivity extends ComponentActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(webView);
 
-        /* The IME inset is included on purpose. The chat composer sits at the
-           bottom of the shell, and without it the keyboard covers the field you
-           are typing into. */
+        /* The sides stay native. The top and bottom go to the PAGE.
+
+           Padding the WebView away from all four bars is what this shell did
+           before, and it is why the header stopped below the status bar and the
+           tab bar above the gesture bar: the strip behind each one was window,
+           not page. A frosted bar there has nothing to frost, and a seam runs
+           across the top and bottom of every screen. Handing the vertical insets
+           to the page instead lets both bars paint under the system furniture
+           and clear it with their own padding -- --safe-t and --safe-b, which the
+           stylesheet already reads and which env() never fills in on Android.
+
+           The IME inset stays native, and stays on the bottom padding: the chat
+           composer sits at the bottom of the shell, and without it the keyboard
+           covers the field you are typing into. While the keyboard is up the
+           page's --safe-b goes to zero, because the gesture bar is behind the
+           keyboard and counting both would open a gap the height of one. */
         ViewCompat.setOnApplyWindowInsetsListener(webView, (view, windowInsets) -> {
-            Insets bars = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            Insets ime  = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean keyboard = ime.bottom > bars.bottom;
+            view.setPadding(bars.left, 0, bars.right, keyboard ? ime.bottom : 0);
+            safeTopCss    = toCssPx(bars.top);
+            safeBottomCss = keyboard ? 0 : toCssPx(bars.bottom);
+            pushSafeAreas();
             return WindowInsetsCompat.CONSUMED;
         });
 
@@ -194,6 +217,9 @@ public class MainActivity extends ComponentActivity {
             public void onPageCommitVisible(WebView view, String url) {
                 firstPaint = true;
                 pushSystemTheme();
+                // The insets almost always arrive before this. Repeat them, or
+                // the first paint is the one frame drawn under the status bar.
+                pushSafeAreas();
             }
 
             @Override
@@ -307,6 +333,31 @@ public class MainActivity extends ComponentActivity {
        against the real script for the same reason: it is a Java string that no
        compiler checks. Wrapped in try/catch because it also runs on a
        configuration change that arrives before the page exists. */
+    /** Device pixels to CSS pixels. A WebView's devicePixelRatio is the display
+        density, so an inset measured in the first is this in the second. Rounded
+        to an int, which also keeps the number away from a locale that would
+        write its decimal point as a comma and hand the page an invalid length. */
+    private int toCssPx(int devicePx) {
+        float density = getResources().getDisplayMetrics().density;
+        return density > 0 ? Math.round(devicePx / density) : devicePx;
+    }
+
+    /* env(safe-area-inset-*) resolves to zero in an Android WebView: there is no
+       display-cutout API behind it here, whatever the viewport asks for. So the
+       page is told. An inline property on documentElement outranks the :root
+       default, and every calc() already written against these two picks it up
+       with no further work -- the header's status-bar clearance, the tab bar's
+       gesture-bar clearance, the chat panel's height and the footer's tail.
+       tests/assets.test.js checks the property names against the stylesheet,
+       because this is a Java string that no compiler will ever look at. */
+    private void pushSafeAreas() {
+        if (webView == null) return;
+        webView.evaluateJavascript(
+                "try{var s=document.documentElement.style;"
+                + "s.setProperty('--safe-t','" + safeTopCss + "px');"
+                + "s.setProperty('--safe-b','" + safeBottomCss + "px');}catch(e){}", null);
+    }
+
     private void pushSystemTheme() {
         boolean night = (getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;

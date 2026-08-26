@@ -124,7 +124,14 @@
   --hairline:  rgba(43,38,34,0.13);
   --hairline-2:rgba(43,38,34,0.24);
 
-  --header-bg: rgba(255,255,255,0.92);
+  /* The two bars. `--bar-glass` is the wash that goes OVER the blur, so it is
+     deliberately lower than the 92% the old --header-bg carried: at 92% the bar
+     is a panel with a rumour behind it, and the blur below is doing no work you
+     can see. The frost is shared by both themes -- 22px is wide enough to carry
+     a 40px glyph past its own width, which is what turns text into tone. */
+  --bar-glass:      rgba(255,255,255,0.72);
+  --bar-glass-line: rgba(43,38,34,0.16);
+  --bar-frost:      blur(22px) saturate(180%);
   --scrim:     rgba(43,38,34,0.42);
   --mine-bubble: #e8f0dd;
   --mine-line:   rgba(79,122,42,0.34);
@@ -200,7 +207,8 @@
     --hairline:  rgba(245,239,228,0.09);
     --hairline-2:rgba(245,239,228,0.18);
 
-    --header-bg: rgba(21,18,14,0.92);
+    --bar-glass:      rgba(21,18,14,0.66);
+    --bar-glass-line: rgba(245,239,228,0.12);
     --scrim:     rgba(8,6,4,0.66);
     --mine-bubble: #2a3520;
     --mine-line:   rgba(138,186,94,0.34);
@@ -258,7 +266,8 @@
   --hairline:  rgba(245,239,228,0.09);
   --hairline-2:rgba(245,239,228,0.18);
 
-  --header-bg: rgba(21,18,14,0.92);
+  --bar-glass:      rgba(21,18,14,0.66);
+  --bar-glass-line: rgba(245,239,228,0.12);
   --scrim:     rgba(8,6,4,0.66);
   --mine-bubble: #2a3520;
   --mine-line:   rgba(138,186,94,0.34);
@@ -579,14 +588,36 @@ body{
   .toggle{ min-height:44px; padding:8px 12px; }
 }
 
+/* ---------- the two bars ----------
+
+   Light frosted glass at the top of the screen and the bottom, with the page
+   passing under them rather than stopping at their edge.
+
+   This is the third attempt, and what the first two wrote down is still true: at
+   92% alpha the harvest card's 40px "Normal" read straight across the tab
+   labels, even in a browser blurring properly. What changes here is which layer
+   does the work. Those attempts leant on the wash and used the blur as a hint;
+   at blur(22px) a 40px glyph is spread past its own width before any wash goes
+   over it, so what survives underneath is a tone and not a letter. The wash is
+   then free to be LOWER -- 72% rather than 92% -- which is what makes a bar read
+   as glass rather than as a panel with a rumour behind it.
+
+   Both bars take the glass only where the browser can genuinely blur. Where it
+   cannot -- an Android WebView carrying the effect unavailable -- they keep the
+   opaque surface they ship as today. A bar that content shows through UNBLURRED
+   is worse than an opaque one, and that failure is the whole reason the frost
+   came off twice before. */
+.appbar{
+  background:var(--surface-1);
+  border-bottom:1px solid var(--hairline);
+  /* Clear the status bar, then leave a margin after it. On Android these insets
+     arrive from MainActivity rather than from env(); see pushSafeAreas(). */
+  padding-top:calc(var(--safe-t) + 10px);
+  padding-bottom:4px;
+}
 .tabbar{
   position:fixed; left:0; right:0; bottom:0; z-index:50;
   display:none; grid-template-columns:repeat(4,1fr);
-  /* Opaque. --header-bg is 92% alpha and leans on backdrop-filter to hide what
-     is behind it; where that filter does not apply -- an Android WebView with
-     the effect unavailable -- the page simply shows through, and the harvest
-     card's 40px "Normal" reads straight across the tab labels. The frost is put
-     back below, only where the browser can genuinely blur. */
   background:var(--surface-1);
   border-top:1px solid var(--hairline);
   /* Clear the home indicator, and then leave a margin after it. Sitting exactly
@@ -594,11 +625,22 @@ body{
   padding-bottom:calc(var(--safe-b) + 10px);
   padding-top:4px;
 }
-/* No frosted variant. It was restored under @supports for browsers that can
-   genuinely blur, but --header-bg is 92% alpha and 8% of a card still reads
-   through it: a plot name and its status chip were legible across the tab
-   labels even in a browser doing the blur properly. A bar that content shows
-   through is a bar the reader has to look past, so both are simply opaque. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  .appbar, .tabbar{
+    background:var(--bar-glass);
+    -webkit-backdrop-filter:var(--bar-frost);
+    backdrop-filter:var(--bar-frost);
+  }
+  .appbar{ border-bottom-color:var(--bar-glass-line); }
+  .tabbar{ border-top-color:var(--bar-glass-line); }
+}
+
+/* Below 1024px the fixed tab bar clears the gesture bar itself. Above it there
+   is no tab bar, but the page now runs edge to edge under the system furniture,
+   so the last line of the footer would sit beneath it. pb-6 is a Tailwind
+   utility and a class beats an element selector, so this needs the weight. The
+   mobile rule further down declares its own and wins there by source order. */
+footer{ padding-bottom:calc(var(--safe-b) + 24px) !important; }
 
 .rolebtn{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -1475,7 +1517,7 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
 <body>
 
 <!-- ══════════════════════ HEADER ══════════════════════ -->
-<header class="sticky top-0 z-40" style="background:var(--surface-1);border-bottom:1px solid var(--hairline);padding-top:calc(var(--safe-t) + 10px);padding-bottom:4px">
+<header class="appbar sticky top-0 z-40">
   <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
 
     <div class="flex items-center gap-2.5 flex-none">
@@ -1863,7 +1905,7 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
           <div class="text-[10px] truncate" style="color:var(--text-muted)">Amara · Kwesi · Tunde · +2 stakeholders</div>
         </div>
         <div class="flex-1"></div>
-        <span class="chip good"><span class="chip-icon">✓</span><span>Online</span></span>
+        <span id="chatLink" class="chip good"><span class="chip-icon">✓</span><span data-i18n>Online</span></span>
       </div>
 
       <div class="px-2.5 py-2 flex gap-1.5 overflow-x-auto" style="border-bottom:1px solid var(--hairline)" role="tablist" aria-label="Conversation channels" data-i18n-attr="aria-label">
@@ -3177,6 +3219,14 @@ const Console = (() => {
     return msg;
   }
 
+  /** The channel a step's message will actually carry: its own when it names
+      one, its sender's otherwise. This is the resolution post() performs, lifted
+      out so the typing indicator can ask the question before the message that
+      would answer it exists. */
+  function channelOf(step){
+    return step.channel || (PEOPLE[step.from] || PEOPLE.BOT).channel;
+  }
+
   /** Staggered multi-party thread with typing indicators. */
   function play(steps){
     steps.forEach(s => queue.push(s));
@@ -3190,15 +3240,26 @@ const Console = (() => {
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const think = reduced ? 60 : Math.max(240, (step.delay || 750) / State.data.speed);
-    State.emit('typing', step.from);
+    /* The channel travels with the indicator. Emitting the sender alone left the
+       dots playing for a thread the current tab filters out -- watch Drivers
+       while a farmer thread runs and you get three dots and then no message. */
+    State.emit('typing', { from: step.from, channel: channelOf(step) });
 
     setTimeout(() => {
       State.emit('typing', null);
       // pkey and vars must travel with the message or it can never retranslate —
       // dropping them here is what left four briefing lines stuck in English
       // with their {farmer} placeholder unfilled.
+      /* channelOf, not step.channel. Object.assign copies a key whose value is
+         undefined, so a step naming no channel used to overwrite post()'s
+         default with undefined -- and channelVisible reads a missing channel as
+         a broadcast. Amara's "the pump is working" is a reply on the farmer's
+         line; it was arriving on the buyer's tab and the driver's. Resolving it
+         here also keeps the message on the same channel the typing indicator
+         just announced, which is the only reason the two can be trusted to
+         agree. */
       post(step.from, step.text, {
-        severity: step.severity, channel: step.channel, kv: step.kv,
+        severity: step.severity, channel: channelOf(step), kv: step.kv,
         pkey: step.pkey || null, vars: step.vars || null
       });
       draining = false;
@@ -3583,7 +3644,7 @@ const Console = (() => {
        that the agent declines instead of answering for somebody else's plot. */
     if(!State.data.chosen){
       const reduced0 = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      State.emit('typing', 'BOT');
+      State.emit('typing', { from:'BOT', channel: PEOPLE[persona].channel });
       setTimeout(() => {
         State.emit('typing', null);
         /* English source, not t(...): a stored line keeps its source and is
@@ -3596,7 +3657,7 @@ const Console = (() => {
     }
     const res = reply(match(text), persona);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    State.emit('typing', 'BOT');
+    State.emit('typing', { from:'BOT', channel: PEOPLE[persona].channel });
     setTimeout(() => {
       State.emit('typing', null);
       post('BOT', res.text, { kv: res.kv, channel: PEOPLE[persona].channel });
@@ -3625,7 +3686,7 @@ const Console = (() => {
     ]);
   }
 
-  return { post, cascade, handleUserMessage, greet, match, reply };
+  return { post, cascade, handleUserMessage, greet, match, reply, channelOf };
 })();
 
 
@@ -3850,7 +3911,34 @@ const Views = (() => {
 
   /* Where the numbers are coming from, in the header, at all times. This chip is
      the honesty contract made visible: live, cached-and-how-old, or simulated. */
+  /* The dispatch console's own state chip. It shipped as static markup reading a
+     green "Online" that nothing ever updated, so it said Online on a phone with
+     no signal at all -- three inches under a header chip honestly reading
+     "Offline · cached". In an app whose whole argument is that where a number
+     came from is part of the number, a console asserting a link it does not have
+     is the worst lie on the screen.
+
+     It reads Live.statusLine() now, the same source the header chip reads, and
+     renderLiveChip calls it rather than the wiring calling both: two chips over
+     one fact cannot drift apart if only one of them is ever scheduled. */
+  function renderChatLink(){
+    const chip = el('chatLink');
+    if(!chip) return;
+    const st = Live.statusLine();
+    const map = {
+      live:      { cls:'good',    icon:'✓', text:t('Online') },
+      stale:     { cls:'warning', icon:'▲', text:t('Stale link') },
+      cached:    { cls:'warning', icon:'▲', text:t('Offline') },
+      simulated: { cls:'idle',    icon:'·', text:t('Simulated') }
+    };
+    const m = map[st.mode] || map.simulated;
+    chip.className = `chip ${m.cls}`;
+    chip.innerHTML = `<span class="chip-icon">${m.icon}</span><span>${esc(m.text)}</span>`;
+    chip.setAttribute('title', st.text);
+  }
+
   function renderLiveChip(){
+    renderChatLink();
     const chip = el('liveChip');
     if(!chip) return;
     const st = Live.statusLine();
@@ -4525,12 +4613,13 @@ const Views = (() => {
     const ch = State.data.channel;
     if(ch === 'ALL') return true;
     if(m.from === 'SYSTEM') return false;
-    /* A broadcast reaches every channel. It arrives in two shapes -- channel
-       'ALL' from post's default, and no channel at all from a cascade step that
-       names none -- and neither used to be visible anywhere but the All tab.
-       So the headline "FROST EVENT ..." was hidden from the farmer, who read
-       the instruction to start cutting without the sentence saying why.
-       Addressed lines stay addressed: a buyer's revision is still the buyer's. */
+    /* A broadcast reaches every channel, so the headline "FROST EVENT ..." is
+       not hidden from the farmer reading the instruction to start cutting.
+       Addressed lines stay addressed: a buyer's revision is still the buyer's.
+
+       A missing channel counts as a broadcast for one reason only -- transcripts
+       saved before drain() resolved the sender's channel are restored from
+       localStorage and still carry it. New messages always name one. */
     if(!m.channel || m.channel === 'ALL') return true;
     return m.channel === ch || m.from === ch;
   }
@@ -4560,10 +4649,20 @@ const Views = (() => {
     requestAnimationFrame(() => { s.scrollTop = s.scrollHeight; el('newPill').classList.add('hidden'); });
   }
 
-  function renderTyping(fromId){
+  /* `info` is {from, channel} — the sender, and the channel the message it is
+     announcing will carry. A bare sender id is still accepted: the indicator
+     predates the channel, and a caller holding only the one is less specific
+     rather than wrong. */
+  function renderTyping(info){
     const row = el('typingRow');
-    if(!fromId){ row.classList.add('hidden'); return; }
-    const p = PEOPLE[fromId] || PEOPLE.BOT;
+    if(!info){ row.classList.add('hidden'); return; }
+    const fromId  = typeof info === 'string' ? info : info.from;
+    const p       = PEOPLE[fromId] || PEOPLE.BOT;
+    const channel = typeof info === 'string' ? p.channel : info.channel;
+    /* Dots for a message this tab will never show are a promise the console
+       does not keep — three of them, and then silence. Put the announcement
+       through the same filter the message itself is about to face. */
+    if(!channelVisible({ from: fromId, channel })){ row.classList.add('hidden'); return; }
     const av = el('typingAvatar');
     av.style.background = p.colour;
     av.textContent = p.initials;
@@ -4615,6 +4714,48 @@ const Views = (() => {
     const list = [...(State.data.persona === 'FARMER' ? contextualQuick() : []), ...base]
       .filter(q => !seen.has(q) && seen.add(q)).slice(0, 4);
     el('quickReplies').innerHTML = list.map(q => `<button class="toggle" data-quick="${esc(q)}">${esc(t(q))}</button>`).join('');
+  }
+
+  /* ---------- the console's one selection ----------
+
+     The channel tab and the "Send as" persona were two independent controls over
+     one conversation, and nothing stopped them disagreeing. post() stamps a
+     message with the PERSONA's channel; the transcript is filtered by the TAB.
+     Six of the twelve combinations therefore threw away both the line you typed
+     and the reply to it -- silently, the message sitting in state with nowhere on
+     screen to go. Reading the Buyers tab as Amara is one tap from a cold boot,
+     so this was not an exotic corner.
+
+     They are one selection now: the channel you are reading is the channel you
+     speak on. "All" stays a reading position rather than a channel to be dragged
+     around -- a message sent from it is visible under it whatever channel it
+     carries -- so choosing a persona there moves nothing. The disagreement is
+     unreachable rather than compensated for. */
+  function personaForChannel(ch){
+    const p = PEOPLE[ch];
+    return (p && p.channel === ch && QUICK[ch]) ? ch : null;
+  }
+
+  /** Put both controls back in step with the state they each describe. */
+  function syncConsole(){
+    const ch = State.data.channel;
+    document.querySelectorAll('[data-channel]').forEach(tab =>
+      tab.setAttribute('aria-selected', String(tab.dataset.channel === ch)));
+    const sel = el('personaSel');
+    if(sel && sel.value !== State.data.persona) sel.value = State.data.persona;
+  }
+
+  function setChannel(ch){
+    const persona = personaForChannel(ch);
+    State.commit(persona ? { channel: ch, persona } : { channel: ch });
+    syncConsole(); renderChat(); renderQuickReplies();
+  }
+
+  function setPersona(persona){
+    State.commit(State.data.channel === 'ALL'
+      ? { persona }
+      : { channel: PEOPLE[persona].channel, persona });
+    syncConsole(); renderChat(); renderQuickReplies();
   }
 
   /* ---------- trigger panel ---------- */
@@ -5854,9 +5995,10 @@ const Views = (() => {
     if(open) syncControls();
   }
 
-  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, renderFarm, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
+  return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderChatLink, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, renderFarm, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
+           setChannel, setPersona, syncConsole, personaForChannel, channelVisible,
            toggleTable, scrollToBottom, startDriver, stopDriver,
            setRole, renderRolePanes, renderRoleBadges, alertsFor,
            syncControls, openSheet, placeMap,
@@ -8688,18 +8830,17 @@ const Search = (() => {
   });
 
   el('personaSel').addEventListener('change', e => {
-    State.commit({ persona: e.target.value });
-    Views.renderQuickReplies();
+    Views.setPersona(e.target.value);
     el('chatInput').focus();
   });
 
-  document.querySelectorAll('[data-channel]').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('[data-channel]').forEach(tab => tab.setAttribute('aria-selected','false'));
-      tab.setAttribute('aria-selected','true');
-      State.commit({ channel: tab.dataset.channel });
-      Views.renderChat();
-    });
+  /* Delegated, for the same reason the role buttons are: querySelectorAll runs
+     once at DOM-ready and binds the nodes that existed then. Both controls now
+     go through Views, which moves the other one with them. */
+  document.addEventListener('click', e => {
+    const tab = e.target.closest && e.target.closest('[data-channel]');
+    if(!tab || !tab.dataset.channel) return;
+    Views.setChannel(tab.dataset.channel);
   });
 
   /* --- role tab bar --- */
