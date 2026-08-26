@@ -813,12 +813,15 @@ module.exports = ({ suite, test, assert }) => {
      going to look for them. */
   suite('controls · sources', () => {
 
-    test('the strip is in the shell, outside any one role', () => {
+    /* Between the header and the grid: under the controls, above everything they
+       produced, and outside every role pane so all four roles carry it. */
+    test('the strip is in the shell, above the grid and outside any one role', () => {
       const { markup } = readSource();
       assert.includes(markup, 'id="sourceStrip"', 'no source strip in the page');
-      const footer = markup.slice(markup.indexOf('<footer'));
-      assert.includes(footer, 'id="sourceStrip"',
-        'the strip sits inside a role pane, so three roles out of four cannot see it');
+      const at = markup.indexOf('id="sourceStrip"');
+      assert.greater(at, markup.indexOf('</header>'), 'the strip is above the header');
+      assert.less(at, markup.indexOf('<main'),
+        'the strip is inside or below the grid, so it moves with whichever role is showing');
     });
 
     test('every simulated source is listed, up or not', () => {

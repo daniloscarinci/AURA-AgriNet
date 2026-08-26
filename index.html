@@ -558,11 +558,11 @@ body{
   padding-bottom:calc(var(--safe-b) + 10px);
   padding-top:4px;
 }
-/* The frosted look, only where it is real. */
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)){
-  .tabbar{ background:var(--header-bg); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
-  header.sticky{ background:var(--header-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
-}
+/* No frosted variant. It was restored under @supports for browsers that can
+   genuinely blur, but --header-bg is 92% alpha and 8% of a card still reads
+   through it: a plot name and its status chip were legible across the tab
+   labels even in a browser doing the blur properly. A bar that content shows
+   through is a bar the reader has to look past, so both are simply opaque. */
 
 .rolebtn{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -618,7 +618,7 @@ body{
      sibling, so padding on main pushed a large empty gap into the middle of the
      page and left the last thing on it -- the sources strip and the simulation
      note -- running underneath the tab bar anyway. */
-  main{ padding-top:14px !important; padding-bottom:10px !important; }
+  main{ padding-top:12px !important; padding-bottom:10px !important; }
   footer{ padding-bottom:calc(var(--safe-b) + 168px) !important; }   /* fixed bar + FAB, then air */
   /* Ops is the desktop console; on mobile only the active role pane shows. */
   body[data-role="FARMER"] .rolepane[data-pane="FARMER"],
@@ -910,9 +910,10 @@ body{
 }
 
 /* ---------- source strip ---------- */
+.srcstrip-wrap{ max-width:1800px; margin:0 auto; padding:0 16px; }
 .srcstrip{
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-  padding:10px 0 12px; margin-bottom:8px;
+  padding:11px 0 12px;
   border-bottom:1px solid var(--hairline);
 }
 .srcstrip-label{
@@ -1505,6 +1506,17 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
   </div>
 </header>
 
+<!-- Where the numbers come from, directly under the controls and above
+     everything they produced. In every role and at every width; the Ops console
+     keeps its own copy, and one function paints both. -->
+<div class="srcstrip-wrap">
+  <div class="srcstrip">
+    <span class="srcstrip-label" data-i18n>Sources</span>
+    <div id="sourceStrip" class="srcstrip-chips" role="status" aria-live="polite"
+         aria-label="Data sources" data-i18n-attr="aria-label"></div>
+  </div>
+</div>
+
 <!-- ══════════════════════ MAIN GRID ══════════════════════ -->
 <main class="max-w-[1800px] mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
 
@@ -1915,14 +1927,6 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
 </nav>
 
 <footer class="max-w-[1800px] mx-auto px-4 pb-6 pt-1 text-[10px] leading-relaxed" style="color:var(--text-muted)">
-  <!-- Where the numbers come from, in every role and at every width. The Ops
-       console keeps its own copy; this is the one a grower sees without going to
-       look for the instrumentation. Painted by renderLinks into both hosts. -->
-  <div class="srcstrip">
-    <span class="srcstrip-label" data-i18n>Sources</span>
-    <div id="sourceStrip" class="srcstrip-chips" role="status" aria-live="polite"
-         aria-label="Data sources" data-i18n-attr="aria-label"></div>
-  </div>
   <p><strong style="color:var(--text-secondary)"><span data-i18n>Simulation.</span></strong> <span data-i18n>Telemetry is synthetic and generated in-browser where no live source exists. Routing, order adjustment and readiness scoring run real arithmetic over the observations shown.</span></p>
 </footer>
 
@@ -7606,6 +7610,20 @@ const Theme = (() => {
     const r = resolved();
     if(r === null) root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', r);
+
+    /* A host that draws system bars around this page needs to know which theme
+       won, not which one the machine is set to. Without it the Android wrapper
+       picked its status-bar icons from the phone's night mode: choose Light on a
+       dark phone and it drew white icons over a white header, which is the app
+       and the phone disagreeing about the same strip of screen. */
+    try{
+      if(typeof AuraHost !== 'undefined' && AuraHost && AuraHost.themeResolved){
+        const dark = r !== null ? r === 'dark'
+          : (typeof window !== 'undefined' && window.matchMedia
+             && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        AuraHost.themeResolved(!!dark);
+      }
+    }catch(e){ /* no host, or an older one: the page is unaffected */ }
 
     const ground = r === null ? null : PLANE[r];
     const light = el('tcLight'), dark = el('tcDark');

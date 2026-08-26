@@ -576,6 +576,46 @@ module.exports = ({ suite, test, assert }) => {
         'the page was told the system is dark and stayed light');
     });
 
+    /* The bars are drawn by Android around a page it cannot see. Dressed from the
+       phone's night mode they contradicted the theme the reader chose: white
+       status-bar icons over a white header, and a dark band behind both bars
+       above and below a light app. */
+    test('the bars follow the theme the page resolved, not the phone', () => {
+      assert.includes(java, 'pageDark',
+        'the Activity has no idea which theme the page actually painted');
+      const fn = java.slice(java.indexOf('private void applyBarAppearance'));
+      assert.includes(fn.slice(0, 900), '(pageDark != null)',
+        'the phone night mode still decides the bar icons outright');
+      assert.includes(java, 'addJavascriptInterface',
+        'nothing carries the resolved theme back from the page');
+      assert.includes(java, '"AuraHost"', 'the bridge is not named where the page looks for it');
+    });
+
+    test('the strip behind each bar is painted the page ground', () => {
+      assert.includes(java, 'setBackgroundColor(ground)',
+        'the window keeps its theme default, so a light app gets dark bands at both ends');
+    });
+
+    /* Two colours spelled out in Java that the stylesheet also spells out. They
+       are the same seam Theme.PLANE covers on the web side, and this is the only
+       thing stopping them drifting apart. */
+    test('the grounds Java paints match the palettes', () => {
+      const { html } = readSource();
+      const tokensOf = (start) => {
+        const a = html.indexOf(start);
+        const body = html.slice(a, html.indexOf('\n}', a));
+        const out = {};
+        for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) out[m[1]] = m[2].trim();
+        return out;
+      };
+      const light = tokensOf(':root{')['--plane'].replace('#', '').toUpperCase();
+      const dark = tokensOf(':root[data-theme="dark"]{')['--plane'].replace('#', '').toUpperCase();
+      assert.includes(java, `GROUND_LIGHT = 0xFF${light}`,
+        'the Java light ground has drifted from --plane');
+      assert.includes(java, `GROUND_DARK  = 0xFF${dark}`,
+        'the Java dark ground has drifted from the dark --plane');
+    });
+
     test('the Activity pauses and resumes the WebView', () => {
       assert.includes(java, 'webView.onPause()',
         'the page keeps its timers running behind a dark screen, draining the battery');
@@ -669,6 +709,21 @@ module.exports = ({ suite, test, assert }) => {
     test('the shell still declares a translucent iOS status bar', () =>
       assert.includes(markup, 'black-translucent',
         'dropping this changes the inset contract'));
+
+    /* Both fixed bars have to be opaque. --header-bg is 92% alpha and leans on
+       backdrop-filter; where that does not apply the page shows straight
+       through, and even where it does, 8% of a card is legible across the tab
+       labels -- a plot name and its status chip were. */
+    test('neither fixed bar is translucent', () => {
+      const bar = html.slice(html.indexOf('.tabbar{'), html.indexOf('}', html.indexOf('.tabbar{')));
+      assert.includes(bar, 'background:var(--surface-1)',
+        'the tab bar is see-through, so the page reads across its labels');
+      assert.notIncludes(html, 'backdrop-filter:blur(14px)',
+        'the frosted tab bar is back, and with it the 8% that shows through');
+      const hdr = markup.slice(markup.indexOf('<header'), markup.indexOf('>', markup.indexOf('<header')));
+      assert.includes(hdr, 'background:var(--surface-1)',
+        'the header is see-through, so content scrolls visibly under it');
+    });
   });
 
   /* ================================================= themes =============== */

@@ -23,6 +23,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
+import android.graphics.Color;
+import android.webkit.JavascriptInterface;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -73,6 +75,14 @@ public class MainActivity extends ComponentActivity {
 
     /** A load that never commits must not leave the user staring at a splash. */
     private static final long SPLASH_TIMEOUT_MS = 4000L;
+
+    /* Which theme the PAGE resolved to, as opposed to what the phone is set to.
+       null until the page has said. See applyBarAppearance(). */
+    private Boolean pageDark = null;
+
+    /* The two grounds, kept in step with --plane by tests/assets.test.js. */
+    private static final int GROUND_LIGHT = 0xFFFBF9F5;
+    private static final int GROUND_DARK  = 0xFF15120E;
 
     private WebView webView;
     private boolean firstPaint;
@@ -125,6 +135,23 @@ public class MainActivity extends ComponentActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
+
+        /* The page tells us which theme it actually painted. Without this the bars
+           were dressed from the phone's night mode, so choosing Light on a dark
+           phone drew white status-bar icons over a white header -- the app and
+           the phone disagreeing about the same strip of screen.
+
+           A one-way channel carrying one boolean, from a page served out of this
+           APK's own assets. */
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void themeResolved(final boolean dark) {
+                runOnUiThread(() -> {
+                    pageDark = dark;
+                    applyBarAppearance();
+                });
+            }
+        }, "AuraHost");
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -287,13 +314,29 @@ public class MainActivity extends ComponentActivity {
                 "try{Theme.systemIsDark(" + night + ")}catch(e){}", null);
     }
 
-    /** Dark icons on the oat background, light icons on the bark one. */
+    /** Dark icons on the paper background, light icons on the bark one.
+
+        Driven by the theme the PAGE resolved to whenever it has told us, and only
+        by the phone's night mode before that -- during the splash, and on any
+        build of the shell too old to have the channel. The reader can hold a
+        light theme on a dark phone, and these bars belong to what they are
+        looking at rather than to what the phone is set to. */
     private void applyBarAppearance() {
-        boolean night = (getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        boolean dark = (pageDark != null) ? pageDark
+                : (getResources().getConfiguration().uiMode
+                   & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         WindowInsetsControllerCompat controller =
                 WindowCompat.getInsetsController(getWindow(), webView);
-        controller.setAppearanceLightStatusBars(!night);
-        controller.setAppearanceLightNavigationBars(!night);
+        controller.setAppearanceLightStatusBars(!dark);
+        controller.setAppearanceLightNavigationBars(!dark);
+
+        /* The window is edge to edge and the WebView is padded away from the
+           bars, so the strip behind each one shows the WINDOW, not the page. Left
+           at the theme default it was a dark band above and below a light app.
+           Painting it the page's own ground closes the seam. */
+        int ground = dark ? GROUND_DARK : GROUND_LIGHT;
+        getWindow().getDecorView().setBackgroundColor(ground);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
     }
 }

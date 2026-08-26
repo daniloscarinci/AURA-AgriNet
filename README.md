@@ -460,15 +460,28 @@ is something you do while driving the simulation.
 
 ## Sources, on the page
 
-Every feed the app can draw on is listed in the footer, in every role and at both
-widths — **whether it is active or not**, because a source that is missing is exactly the
-one worth naming. *Open-Meteo LIVE · GloFAS LIVE · NASA GIBS OFF*, or the four simulated
+Every feed the app can draw on is listed **directly under the controls and above everything
+they produced**, in every role and at both widths — **whether it is active or not**, because
+a source that is missing is exactly the one worth naming. *Open-Meteo LIVE · GloFAS LIVE · NASA GIBS OFF*, or the four simulated
 instruments with their lock state when no location is loaded.
 
 These chips existed from the first build but lived only in the Ops console, so from the day
 the roles were split a grower could not see where their numbers came from without going to
 find the instrumentation. Ops keeps its copy; one function builds both, and a test fails if
 the two ever disagree about which feeds are up.
+
+**The bars belong to the app, not to the phone.** Android draws the status bar and the
+navigation bar around a page it cannot see, and dressed them from the phone's night mode:
+choose Light on a dark phone and it drew white status-bar icons over a white header, with a
+dark band behind both bars above and below a light app. The page now tells the wrapper which
+theme it actually resolved to, the bar icons follow that, and the window ground is painted
+the page's own `--plane` so the strip behind each bar matches what it borders. A test compares
+the two colours Java spells out against the palettes, since that is the only thing stopping
+them drifting.
+
+Neither fixed bar is translucent any more either. `--header-bg` is 92 % alpha leaning on
+`backdrop-filter`, and even where the browser blurs properly the remaining 8 % is legible —
+a plot name and its status chip could be read straight across the tab labels.
 
 The screen also has room at its edges now. The header clears the status bar and then leaves
 a margin after it, and the tab bar does the same at the bottom. The clearance for the fixed
@@ -500,7 +513,7 @@ catchment with real crops is the most useful thing this app does.
 ## Tests
 
 ```
-node tests/run.js              # 804 checks, no dependencies, no network
+node tests/run.js              # 808 checks, no dependencies, no network
 node tests/run.js i18n -v      # filter by file, list every check
 ```
 
