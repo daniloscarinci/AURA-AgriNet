@@ -332,12 +332,20 @@ synthesised from the coordinates*. Four checks fail if any detail screen loses i
 
 ## Run it
 
+Live at **<https://daniloscarinci.github.io/AURA-AgriNet/>**, served from `master` by GitHub
+Pages. That is the address to open on a phone: a service worker needs a secure origin, so
+HTTPS is what makes the installed app work offline at all.
+
+Locally:
+
 ```
 serve.cmd            # or: python -m http.server 8080
 ```
 
-Then open <http://localhost:8080>. A service worker will **not** register over `file://`,
-so opening `index.html` directly gives you the app without offline support.
+Then open <http://localhost:8080>. A service worker will **not** register over `file://`, so
+opening `index.html` directly gives you the app without offline support — and it will not
+register over plain `http://` to another machine either, which is why testing on a phone
+means HTTPS rather than your LAN address.
 
 ## Manual
 
@@ -607,6 +615,9 @@ surface they were looking at. Opening the app showed two they were not:
 Neither is a bug in a function. Both are what the screen actually said.
 
 ## iPhone
+
+**Open <https://daniloscarinci.github.io/AURA-AgriNet/> in Safari, then Share → Add to Home
+Screen.** That is the install.
 
 There is no App Store build and there is no Xcode project, because there is no Mac: iOS
 binaries can only be compiled on macOS, and writing a wrapper here would mean committing
