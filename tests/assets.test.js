@@ -267,6 +267,37 @@ module.exports = ({ suite, test, assert }) => {
       assert.deepEqual(rogue, [], 'an undeclared host is being contacted');
     });
 
+    /* This ships as one inline script, so a single piece of syntax an old engine
+       cannot parse does not degrade the app -- it takes the whole thing down and
+       renders a blank page. An iPhone 5 tops out at iOS 10.3, and object spread
+       is a syntax error there; two characters of convenience in the farm module
+       would have shown its owner nothing at all.
+
+       The floor is deliberately low and deliberately stated: iOS 10.3 / Safari
+       10.1, which is async/await, template literals and const/let, and is not
+       object spread, optional chaining, nullish coalescing or logical
+       assignment. Comments are stripped first -- a note explaining why a
+       construct is absent is not that construct. */
+    test('the shipped script parses on Safari 10.1, the floor an iPhone 5 has', () => {
+      const { script } = readSource();
+      const code = script
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1 ');
+      const tooNew = [
+        [/\{\s*\.\.\./,            'object spread {...x}',        'Safari 11.3'],
+        [/\?\./,                   'optional chaining ?.',        'Safari 13.4'],
+        [/[^?]\?\?[^?]/,           'nullish coalescing ??',       'Safari 13.4'],
+        [/(\|\|=|&&=|\?\?=)/,      'logical assignment',          'Safari 14'],
+        [/\.replaceAll\(/,         'String.replaceAll',           'Safari 13.4'],
+        [/Object\.fromEntries/,    'Object.fromEntries',          'Safari 12.2'],
+        [/\.flatMap\(/,            'Array.flatMap',               'Safari 12'],
+        [/\bglobalThis\b/,         'globalThis',                  'Safari 12.1'],
+      ];
+      const found = tooNew.filter(([re]) => re.test(code)).map(([, what, since]) => `${what} (${since})`);
+      assert.deepEqual(found, [],
+        'this is one inline script — anything the engine cannot parse blanks the whole app');
+    });
+
     test('no API key, token or secret is embedded in the source', () => {
       const { script } = readSource();
       const suspicious = [...script.matchAll(/(api[_-]?key|access[_-]?token|client[_-]?secret|bearer)\s*[:=]\s*['"][^'"]{8,}/gi)];

@@ -7494,7 +7494,12 @@ const Farm = (() => {
     rhMin:   { min:0,   max:95,   step:1 }
   };
 
-  const data = () => (State.data.farm = State.data.farm || { ...BLANK });
+  /* Object.assign rather than { ...BLANK }. Object spread is a SYNTAX error
+     before Safari 11.3, and a syntax error anywhere in this file takes the whole
+     inline script with it -- the app would render nothing at all on an iPhone
+     that tops out at iOS 10.3, rather than rendering imperfectly. Two characters
+     of convenience are not worth a blank screen on a phone somebody owns. */
+  const data = () => (State.data.farm = State.data.farm || Object.assign({}, BLANK));
 
   /** What a field resolves to: the answer if there is one, else the assumption. */
   function value(key){
@@ -7519,7 +7524,7 @@ const Farm = (() => {
     data()[key] = Math.max(lim.min, Math.min(lim.max, Math.round(n)));
   }
 
-  function reset(){ State.data.farm = { ...BLANK }; }
+  function reset(){ State.data.farm = Object.assign({}, BLANK); }   // see data() above
 
   /* ---- what the arithmetic reads ---- */
   const soil    = () => SOILS[value('soil')] || SOILS.loam;
