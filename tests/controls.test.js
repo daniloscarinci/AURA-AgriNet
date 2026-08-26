@@ -203,6 +203,199 @@ module.exports = ({ suite, test, assert }) => {
       assert.ok(h.app.State.data.chat.length <= h.app.CFG.MAX_CHAT + 1,
         `transcript grew to ${h.app.State.data.chat.length}`);
     });
+
+    /* post() stamps a message with the PERSONA's channel and the transcript is
+       filtered by the TAB. While those were two free controls, six of the twelve
+       combinations threw away both the line you typed and the reply to it --
+       silently, the message sitting in state with nowhere on screen to go, and
+       one tap from a cold boot. They are one selection now, and this walks every
+       combination rather than the pair that happened to get reported. */
+    test('a sent message survives every tab and persona combination', async () => {
+      const lost = [];
+      for (const ch of ['ALL', 'FARMER', 'BUYER', 'DRIVER']) {
+        for (const p of ['FARMER', 'BUYER', 'DRIVER']) {
+          const h = boot();
+          h.app.Telemetry.stop();
+          h.app.State.data.chosen = true;
+          await h.advance(10000);              // let the greeting finish draining
+          h.app.State.data.chat.length = 0;
+          h.app.Views.setChannel(ch);
+          h.app.Views.setPersona(p);
+          h.app.Console.handleUserMessage('Full status');
+          await h.advance(4000);
+          h.app.Views.renderChat();
+          const dom = h.document.getElementById('chatStream').innerHTML;
+          if (!dom.includes('Full status')) lost.push(`${ch}/${p}: your own line`);
+          if (!dom.includes('Field readiness')) lost.push(`${ch}/${p}: the reply`);
+        }
+      }
+      assert.deepEqual(lost, [], 'a message was sent and never appeared');
+    });
+
+    test('choosing a channel and choosing a speaker move together', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.Views.setChannel('BUYER');
+      assert.equal(h.app.State.data.persona, 'BUYER',
+        'the tab says Buyers while the composer still speaks as somebody else');
+      h.app.Views.setPersona('DRIVER');
+      assert.equal(h.app.State.data.channel, 'DRIVER',
+        'the composer moved and the transcript did not follow it');
+      /* All is a reading position rather than a channel to be dragged around:
+         anything sent from it is visible under it whatever channel it carries. */
+      h.app.Views.setChannel('ALL');
+      h.app.Views.setPersona('FARMER');
+      assert.equal(h.app.State.data.channel, 'ALL',
+        'choosing who to speak as dragged the reader off the All tab');
+    });
+
+    /* Dots followed by nothing are a promise the console does not keep. The
+       indicator carries the channel its message will arrive on and faces the
+       same filter, so the two can only agree. */
+    test('the typing indicator never plays for a message this tab will not show', () => {
+      const h = boot();
+      const { Views, Console, PEOPLE } = h.app;
+      h.app.Telemetry.stop();
+      const row = h.document.getElementById('typingRow');
+      const cases = [
+        ['DRIVER', { from: 'FARMER', channel: 'FARMER' }, false],
+        ['DRIVER', { from: 'BOT', channel: 'ALL' }, true],
+        ['ALL', { from: 'FARMER', channel: 'FARMER' }, true],
+        ['BUYER', { from: 'BUYER', channel: 'BUYER' }, true],
+        ['BUYER', { from: 'BOT', channel: 'DRIVER' }, false],
+      ];
+      cases.forEach(([tab, info, shown]) => {
+        h.app.State.data.channel = tab;
+        Views.renderTyping(info);
+        assert.equal(!row.className.includes('hidden'), shown,
+          `on the ${tab} tab, ${info.from}/${info.channel} dots should be ${shown ? 'shown' : 'hidden'}`);
+      });
+      // And the message that follows must face the same answer the dots gave.
+      h.app.State.data.channel = 'DRIVER';
+      assert.equal(Views.channelVisible({ from: 'FARMER', channel: 'FARMER' }), false,
+        'the indicator and the message disagree about the same conversation');
+      assert.equal(Console.channelOf({ from: 'FARMER' }), PEOPLE.FARMER.channel,
+        'a step naming no channel no longer resolves to its sender, so it broadcasts');
+    });
+
+    /* Object.assign copies a key whose value is undefined, so a cascade step
+       naming no channel used to overwrite post()'s default with nothing -- and
+       channelVisible reads a missing channel as a broadcast. Amara's reply on
+       the farmer's line was landing on the buyer's tab and the driver's. */
+    test('an addressed reply stays addressed', async () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.State.data.chat.length = 0;
+      h.app.Console.cascade('DROUGHT', {});
+      await h.advance(9000);
+      const farmer = h.app.State.data.chat.filter(m => m.from === 'FARMER');
+      assert.greater(farmer.length, 0, 'the farmer never replied, so this proves nothing');
+      farmer.forEach(m => assert.equal(m.channel, 'FARMER',
+        'a farmer reply carries no channel, so every tab shows it'));
+    });
+
+    test('the console chip reports the link it actually has', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.Views.renderLiveChip();
+      const chat = h.document.getElementById('chatLink');
+      assert.ok(chat.innerHTML.length > 0, 'the console chip was never rendered');
+      assert.notIncludes(chat.className, 'good',
+        'the console claims a live link with no observation behind it');
+      /* The header chip and this one describe one fact, and renderLiveChip calls
+         renderChatLink rather than the wiring calling both -- so they cannot be
+         scheduled apart. That arrangement is what this holds in place. */
+      const { script } = readSource();
+      const at = script.indexOf('function renderLiveChip(){');
+      assert.includes(script.slice(at, at + 200), 'renderChatLink()',
+        'the two chips over one fact are scheduled separately and will drift');
+    });
+  });
+
+  /* =========================================================== alarm ======= */
+  /* A critical message has to reach a grower who is not looking at the phone.
+     The sound itself cannot be tested without an audio device, so what is tested
+     is the decision around it: which messages are worth interrupting somebody
+     for, and whether the reader can make it stop. */
+  suite('controls · the alarm', () => {
+    test('only a critical message is worth interrupting someone for', () => {
+      const { app } = boot();
+      const cases = [
+        [{ severity: 'critical' }, true],
+        [{ severity: 'serious' }, false],
+        [{ severity: 'warning' }, false],
+        [{ severity: 'good' }, false],
+        [{ severity: null }, false],
+        [{}, false],
+        [null, false],
+        // Your own words, echoed back into the transcript, are not news.
+        [{ severity: 'critical', mine: true }, false],
+      ];
+      cases.forEach(([msg, want]) =>
+        assert.equal(app.Alarm.shouldFire(msg), want,
+          `shouldFire(${JSON.stringify(msg)}) should be ${want}`));
+    });
+
+    test('muting it actually stops it', () => {
+      const h = boot();
+      h.app.State.data.muted = true;
+      assert.equal(h.app.Alarm.fire(), false, 'the alarm sounded while muted');
+      h.app.State.data.muted = false;
+      assert.equal(h.app.Alarm.fire(), true, 'the alarm stayed silent while armed');
+    });
+
+    test('the mute survives a restart', () => {
+      const h = boot();
+      h.app.State.data.muted = true;
+      h.app.State.save();
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      assert.equal(back.app.State.data.muted, true,
+        'the alarm comes back armed after somebody deliberately silenced it');
+    });
+
+    test('the toggle reports its state without renaming itself', () => {
+      const h = boot();
+      const b = h.document.getElementById('btnMute');
+      h.app.State.data.muted = false;
+      h.app.Views.renderMute();
+      const armed = b.getAttribute('aria-label');
+      assert.equal(b.getAttribute('aria-pressed'), 'true', 'an armed alarm reads as unpressed');
+      h.app.State.data.muted = true;
+      h.app.Views.renderMute();
+      assert.equal(b.getAttribute('aria-pressed'), 'false', 'a muted alarm reads as pressed');
+      assert.equal(b.getAttribute('aria-label'), armed,
+        'the accessible name changes with the state, so translateStatic will revert it');
+      assert.equal(b.getAttribute('data-muted'), 'true', 'the glyph is never struck through');
+    });
+
+    /* A transcript restored from localStorage is assigned into state and painted
+       by renderChat -- it never goes back through post(). If it did, every cold
+       start would replay yesterday's frost, and an alarm that greets every launch
+       is one the reader learns to ignore. */
+    test('a restored transcript does not sound the alarm', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.Console.post('BOT', 'FROST EVENT', { severity: 'critical' });
+      h.app.State.save();
+
+      let fired = 0;
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      back.app.Alarm.fire = () => { fired++; return true; };
+      back.app.State.restore();
+      back.app.Views.renderChat();
+      assert.equal(fired, 0, 'reopening the app replayed an old alarm');
+      assert.ok(back.app.State.data.chat.some(m => m.severity === 'critical'),
+        'the critical message did not survive the round trip, so this proves nothing');
+    });
+
+    test('the vibration carries the same rhythm as the tone', () => {
+      const { app } = boot();
+      assert.ok(Array.isArray(app.Alarm.VIBE), 'no vibration pattern');
+      assert.greater(app.Alarm.VIBE.length, 3,
+        'a single buzz is indistinguishable from every other notification on the phone');
+      app.Alarm.VIBE.forEach(ms =>
+        assert.between(ms, 20, 400, 'a vibration step is outside anything a phone will render'));
+    });
   });
 
   /* ========================================================== roles ======== */

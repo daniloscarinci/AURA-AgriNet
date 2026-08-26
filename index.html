@@ -1001,6 +1001,23 @@ body[data-ios-hint] .ios-hint{ display:flex; }
 .ios-hint-txt b{ display:block; font-size:12.5px; color:var(--text-primary); margin-bottom:2px; }
 @media (max-width:1023px){ .ios-hint{ margin:12px 16px 0; } }
 
+/* The alarm's off switch, in the console head where the alarm's messages arrive.
+   The glyph is struck through rather than swapped for a second one: a bell and a
+   crossed-out bell are two shapes to learn, and a line through one shape is not.
+   An alarm nobody can silence is one the reader escapes by turning the phone
+   off, which silences everything else along with it. */
+.alarm-toggle{
+  flex:none; display:grid; place-items:center;
+  width:38px; height:38px; padding:0;
+  border:1px solid var(--hairline); border-radius:9px;
+  background:var(--surface-2); color:var(--text-secondary);
+  font-size:15px; line-height:1; cursor:pointer;
+}
+.alarm-toggle:hover{ border-color:var(--hairline-2); color:var(--text-primary); }
+.alarm-toggle[data-muted="true"]{ color:var(--text-muted); }
+.alarm-toggle[data-muted="true"] .alarm-glyph{ text-decoration:line-through; }
+@media (max-width:1023px){ .alarm-toggle{ width:44px; height:44px; } }
+
 .chat-panel{
   height:calc(100vh - 88px);
   height:calc(100dvh - 88px - var(--safe-b));
@@ -1905,6 +1922,7 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
           <div class="text-[10px] truncate" style="color:var(--text-muted)">Amara · Kwesi · Tunde · +2 stakeholders</div>
         </div>
         <div class="flex-1"></div>
+        <button id="btnMute" class="alarm-toggle" aria-pressed="true" aria-label="Critical alert sound" data-i18n-attr="aria-label"><span class="alarm-glyph" aria-hidden="true">♫</span></button>
         <span id="chatLink" class="chip good"><span class="chip-icon">✓</span><span data-i18n>Online</span></span>
       </div>
 
@@ -2425,6 +2443,10 @@ const State = (() => {
     chat: [],
     channel: 'ALL',
     persona: 'FARMER',
+    /* Whether the critical-message alarm is silenced. An alarm that cannot be
+       turned off is one the reader escapes by turning the phone off, which
+       silences everything else with it. */
+    muted: false,
     /* Farmer, not Ops. A first visit should open on the decisions, not on the
        instrumentation -- landing everyone in the console is the habit this
        restructure exists to break. A stored choice still wins over this. */
@@ -2504,6 +2526,7 @@ const State = (() => {
       role: data.role,
       persona: data.persona,
       channel: data.channel,
+      muted: data.muted,
       speed: data.speed,
       orders: data.orders,
       orderAudit: data.orderAudit.slice(0, 20),
@@ -2548,6 +2571,9 @@ const State = (() => {
       if(s.role)    data.role    = s.role;
       if(s.persona) data.persona = s.persona;
       if(s.channel) data.channel = s.channel;
+      // Explicit typeof: a snapshot written before this field existed must not
+      // read as "unmuted on purpose" and it must not read as muted either.
+      if(typeof s.muted === 'boolean') data.muted = s.muted;
       if(s.speed)   data.speed   = s.speed;
       if(Array.isArray(s.orders) && s.orders.length) data.orders = s.orders;
       if(Array.isArray(s.orderAudit)) data.orderAudit = s.orderAudit;
@@ -3191,6 +3217,125 @@ const Log = (() => {
 })();
 
 
+/* ===================== MODULE 5b: THE ALARM =====================
+
+   A critical message has to reach a grower who is not looking at the phone. A
+   frost line that lands silently in a transcript is a line nobody reads until
+   the canopy is already gone.
+
+   Synthesised, not shipped. This repository carries no binary audio and sw.js
+   precaches by hand, so a tone built at call time keeps both facts true, adds
+   nothing to cache, and works on a first launch with no network -- which is the
+   launch this app is written for.
+
+   The motif is its own: two pulses on the root and a third lifted to the fifth
+   above it, each a triangle with its own fifth stacked over it, riding a low
+   sine that decays across all three. It is not a system notification sound and
+   not a sound anything else on the phone makes, which is the whole job -- an
+   alert you have to look at the screen to identify has not alerted you.
+
+   It fires on critical severity and nothing else. An alarm that goes off for
+   advisories is one the reader learns to ignore, and an alarm that is ignored
+   is not an alarm. It is also silent on a cold start: a restored transcript is
+   assigned into state and painted by renderChat, never replayed through post(),
+   so yesterday's frost does not sound this morning. */
+const Alarm = (() => {
+  const ROOT = 587.33;      // D5
+  const LIFT = 880.00;      // A5 -- the fifth above it, and the reason it lifts
+  const STEP = 0.17;        // seconds between pulses
+  /* Matched to the rhythm above, because the two are one signal. This is the
+     half that survives a phone on silent in a coat pocket, which is where the
+     phone actually is. */
+  const VIBE = [90, 70, 90, 70, 170];
+
+  let ctx = null;
+
+  function context(){
+    if(ctx) return ctx;
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    if(!Ctor) return null;                       // no Web Audio: the buzz still runs
+    try{ ctx = new Ctor(); }catch(e){ ctx = null; }
+    return ctx;
+  }
+
+  /** Most engines hold a fresh context suspended until a gesture, and the system
+      suspends a running one when the screen goes off. Called once from the first
+      interaction anywhere in the page, and again from every fire. */
+  function unlock(){
+    const c = context();
+    if(c && c.state === 'suspended'){ try{ c.resume(); }catch(e){} }
+    return c;
+  }
+
+  /** One pulse: a fundamental with its fifth over it, struck and left to decay.
+      exponentialRampToValueAtTime cannot reach zero, hence the near-zero floor
+      at both ends -- a linear ramp here clicks. */
+  function pulse(c, at, freq, gain, dur){
+    [[freq, gain], [freq * 1.5, gain * 0.45]].forEach(pair => {
+      const osc = c.createOscillator();
+      const amp = c.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(pair[0], at);
+      amp.gain.setValueAtTime(0.0001, at);
+      amp.gain.exponentialRampToValueAtTime(pair[1], at + 0.006);
+      amp.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      osc.connect(amp).connect(c.destination);
+      osc.start(at);
+      osc.stop(at + dur + 0.02);
+    });
+  }
+
+  /** The low body the three pulses ride on. Without it they read as a beep. */
+  function body(c, at){
+    const osc = c.createOscillator();
+    const amp = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(ROOT / 4, at);
+    amp.gain.setValueAtTime(0.0001, at);
+    amp.gain.exponentialRampToValueAtTime(0.15, at + 0.02);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + 0.62);
+    osc.connect(amp).connect(c.destination);
+    osc.start(at);
+    osc.stop(at + 0.66);
+  }
+
+  function play(c){
+    const t0 = c.currentTime + 0.02;
+    body(c, t0);
+    pulse(c, t0,            ROOT, 0.22, 0.19);
+    pulse(c, t0 + STEP,     ROOT, 0.22, 0.19);
+    pulse(c, t0 + STEP * 2, LIFT, 0.26, 0.30);
+  }
+
+  /** Which messages are worth interrupting somebody for. Pure, so the rule can
+      be tested without an audio device anywhere near it. */
+  function shouldFire(msg){
+    return !!msg && msg.severity === 'critical' && !msg.mine;
+  }
+
+  /** Returns whether the alarm was allowed to sound, not whether a speaker was
+      reached -- there is no way to know the second, and mute is the only reason
+      worth reporting. */
+  function fire(){
+    if(State.data.muted) return false;
+    try{ if(navigator.vibrate) navigator.vibrate(VIBE); }catch(e){}
+    const c = context();
+    if(!c) return true;                          // buzzed, and that is what there was
+    /* resume() first and schedule in its callback. Scheduling against a
+       suspended context writes events against a clock that is not moving, and
+       they all arrive at once when it starts again. */
+    if(c.state === 'suspended'){
+      try{ c.resume().then(() => play(c)).catch(() => {}); }catch(e){}
+      return true;
+    }
+    try{ play(c); }catch(e){}
+    return true;
+  }
+
+  return { fire, shouldFire, unlock, VIBE };
+})();
+
+
 /* ===================== MODULE 6: AGENT COMMUNICATION CONSOLE ===================== */
 
 const Console = (() => {
@@ -3215,6 +3360,10 @@ const Console = (() => {
     }, opts || {});
     State.data.chat.push(msg);
     if(State.data.chat.length > CFG.MAX_CHAT) State.data.chat.shift();
+    /* Before the paint, not after: the sound and the bubble should land
+       together. Restored transcripts never come through here, so a cold start
+       is silent -- see the note on the module. */
+    if(Alarm.shouldFire(msg)) Alarm.fire();
     State.emit('chat', msg);
     return msg;
   }
@@ -3921,6 +4070,22 @@ const Views = (() => {
      It reads Live.statusLine() now, the same source the header chip reads, and
      renderLiveChip calls it rather than the wiring calling both: two chips over
      one fact cannot drift apart if only one of them is ever scheduled. */
+  /* The accessible NAME stays put and names the control; aria-pressed carries
+     the state. Writing the state into the label instead was the obvious move and
+     the wrong one: translateStatic stashes a marked attribute's English on first
+     run and retranslates from the stash forever after, so a label rebuilt here
+     would be reverted by the next language change -- and "Muted" as a name makes
+     a button that reports its state indistinguishable from one that sets it.
+     The strike through the glyph says the same thing to everyone else. */
+  function renderMute(){
+    const b = el('btnMute');
+    if(!b) return;
+    const muted = !!State.data.muted;
+    b.setAttribute('data-muted', String(muted));
+    b.setAttribute('aria-pressed', String(!muted));
+    b.setAttribute('title', muted ? t('Unmute critical alerts') : t('Mute critical alerts'));
+  }
+
   function renderChatLink(){
     const chip = el('chatLink');
     if(!chip) return;
@@ -5498,7 +5663,7 @@ const Views = (() => {
     renderLangMenu(); renderThemeMenu(); renderFarm(); renderRegionPicker(); renderLiveChip(); renderLinks();
     renderTiles(); renderThermal(); renderTable(); renderHero(); renderPosture();
     renderClock(); renderMap(true); renderSatBar(); renderAgronomy();
-    renderTriggers(); renderQuickReplies(); renderLog(); renderChat();
+    renderTriggers(); renderQuickReplies(); renderLog(); renderChat(); renderMute();
     renderRolePanes(); syncControls(); placeMap();
     if(Manual.isOpen()) Manual.build();
   }
@@ -5998,7 +6163,7 @@ const Views = (() => {
   return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderChatLink, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, renderFarm, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
-           setChannel, setPersona, syncConsole, personaForChannel, channelVisible,
+           setChannel, setPersona, syncConsole, personaForChannel, channelVisible, renderMute,
            toggleTable, scrollToBottom, startDriver, stopDriver,
            setRole, renderRolePanes, renderRoleBadges, alertsFor,
            syncControls, openSheet, placeMap,
@@ -8863,6 +9028,18 @@ const Search = (() => {
     State.save();
   });
 
+  el('btnMute').addEventListener('click', () => {
+    State.commit({ muted: !State.data.muted });
+    Views.renderMute();
+    State.save();
+  });
+
+  /* Audio needs a gesture in most engines, and the context only has to be built
+     once. Any interaction anywhere will do, so the alarm is ready long before
+     the first critical message rather than swallowing it to unlock. */
+  ['pointerdown', 'keydown'].forEach(evt =>
+    document.addEventListener(evt, Alarm.unlock, { once: true }));
+
   el('newPill').addEventListener('click', Views.scrollToBottom);
   el('chatScroll').addEventListener('scroll', () => {
     const s = el('chatScroll');
@@ -8916,6 +9093,13 @@ const Search = (() => {
   Telemetry.start();
   Console.greet();
   Views.renderLog();
+  /* Both of these read state that may have come back from a snapshot, so they
+     have to run after restore rather than sitting on the markup's defaults: a
+     reader who muted the alarm and closed the app would find it armed again,
+     and a reader who left the Buyers tab open would come back to it showing
+     the All tab's contents. */
+  Views.renderMute();
+  Views.syncConsole();
 
   /* And then, after the screen is already useful, go and see whether the world
      has moved. The cached frame above is what the reader looks at while this
