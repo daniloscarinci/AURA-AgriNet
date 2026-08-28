@@ -322,7 +322,7 @@ module.exports = ({ suite, test, assert }) => {
       const { app } = boot();
       const cases = [
         [{ severity: 'critical' }, true],
-        [{ severity: 'serious' }, false],
+        [{ severity: 'serious' }, true],
         [{ severity: 'warning' }, false],
         [{ severity: 'good' }, false],
         [{ severity: null }, false],
@@ -560,6 +560,77 @@ module.exports = ({ suite, test, assert }) => {
       h.document.dispatch('pointerdown');
       h.document.dispatch('pointerdown');
       assert.equal(h.audio.resumeCalls, calls, 'every tap is resuming a running context');
+    });
+
+    /* Critical lifts to the fifth above the root; serious drops to the fifth
+       below it. The same interval in opposite directions -- a relationship a
+       listener learns once and then reads without attending to it. Serious is
+       shorter, quieter and carries no low body, so it is audibly the subordinate
+       of the two rather than a second emergency. */
+    test('serious sounds, and sounds like the smaller sibling', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire('serious');
+      const s = { peak: peakGain(h.audio), span: span(h.audio), n: h.audio.oscs.length };
+      const h2 = boot();
+      h2.app.State.data.muted = false;
+      h2.app.Alarm.fire('critical');
+      const c = { peak: peakGain(h2.audio), span: span(h2.audio) };
+
+      assert.greater(s.n, 0, 'a serious message makes no sound at all');
+      assert.less(s.peak, c.peak, 'the two tones are equally loud, so neither ranks');
+      assert.less(s.span, c.span, 'the two tones are the same length');
+      assert.notOk(h.audio.oscs.some(o => o.type === 'sine'),
+        'the serious tone carries the low body, which is what makes critical urgent');
+    });
+
+    test('the two tones move in opposite directions', () => {
+      /* Each pulse is a fundamental with its own fifth stacked over it, so the
+         melody has to be read off the fundamentals -- the lowest voice struck at
+         each instant. Comparing raw frequencies instead reads the first pulse's
+         fundamental against the last pulse's stacked fifth, which rises in both
+         tones and would call this passing. */
+      const at = (h, sev) => {
+        h.app.State.data.muted = false;
+        h.app.Alarm.fire(sev);
+        const byOnset = new Map();
+        h.audio.oscs.filter(o => o.type === 'triangle').forEach(o => {
+          const f = o.frequency.ops[0][1];
+          const t = o.startedAt.toFixed(4);
+          if (!byOnset.has(t) || f < byOnset.get(t)) byOnset.set(t, f);
+        });
+        const v = [...byOnset.entries()].sort((a, b) => Number(a[0]) - Number(b[0])).map(e => e[1]);
+        return { first: v[0], last: v[v.length - 1] };
+      };
+      const c = at(boot(), 'critical');
+      const s = at(boot(), 'serious');
+      assert.greater(c.last, c.first, 'critical does not lift');
+      assert.less(s.last, s.first, 'serious does not fall');
+    });
+
+    test('a serious message is worth a sound and a warning is not', () => {
+      const { app } = boot();
+      assert.equal(app.Alarm.toneFor({ severity: 'critical' }), 'critical');
+      assert.equal(app.Alarm.toneFor({ severity: 'serious' }), 'serious');
+      assert.equal(app.Alarm.toneFor({ severity: 'warning' }), null);
+      assert.equal(app.Alarm.toneFor({ severity: 'good' }), null);
+      assert.equal(app.Alarm.toneFor({ severity: null }), null);
+      assert.equal(app.Alarm.toneFor(null), null);
+      assert.equal(app.Alarm.toneFor({ severity: 'serious', mine: true }), null,
+        'your own words, echoed back into the transcript, are not news');
+    });
+
+    /* The console resolves the tone and passes it through. Dropping it there
+       would leave every serious message sounding the emergency motif, which
+       un-ranks the pair the moment it ships. */
+    test('the console posts a serious message at its own weight', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.State.data.muted = false;
+      h.app.Console.post('BOT', 'ROOT-ZONE MOISTURE STRESS', { severity: 'serious' });
+      assert.ok(h.audio, 'a serious message made no sound at all');
+      assert.notOk(h.audio.oscs.some(o => o.type === 'sine'),
+        'a serious message sounded the critical motif');
     });
   });
 

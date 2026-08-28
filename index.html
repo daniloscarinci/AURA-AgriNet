@@ -3242,11 +3242,30 @@ const Log = (() => {
 const Alarm = (() => {
   const ROOT = 587.33;      // D5
   const LIFT = 880.00;      // A5 -- the fifth above it, and the reason it lifts
+  const DROP = 440.00;      // A4 -- the same fifth below, and the reason it falls
   const STEP = 0.17;        // seconds between pulses
-  /* Matched to the rhythm above, because the two are one signal. This is the
-     half that survives a phone on silent in a coat pocket, which is where the
-     phone actually is. */
-  const VIBE = [90, 70, 90, 70, 170];
+
+  /* Two tones, one family.
+
+     Critical lifts to the fifth above the root; serious drops to the fifth below
+     it. The same interval in opposite directions, which is a relationship a
+     listener learns once and afterwards reads without attending to it. Serious is
+     shorter, quieter, and carries no low body under it, so it is plainly the
+     subordinate of the two rather than a second emergency -- an alarm that fires
+     twice at full weight for two different things is one that ranks neither.
+
+     The vibration is matched to the rhythm of each, because the two are one
+     signal: the buzz is the half that survives a phone on silent in a coat
+     pocket, which is where the phone actually is. */
+  const TONES = {
+    critical: { body:true,  gain:0.22, lift:0.26, tail:0.30, at:LIFT,
+                dur:0.19, span:0.66, vibe:[90, 70, 90, 70, 170] },
+    serious:  { body:false, gain:0.14, lift:0.16, tail:0.22, at:DROP,
+                dur:0.15, span:0.41, vibe:[60, 60, 110] }
+  };
+  /* The critical rhythm, named where the harness can reach it: a single buzz is
+     indistinguishable from every other notification the phone makes. */
+  const VIBE = TONES.critical.vibe;
 
   const GAP   = 0.12;       // seconds of air between two motifs that follow each other
   const QUEUE = 1.5;        // beyond this a queued alarm is stale news; drop it
@@ -3313,15 +3332,16 @@ const Alarm = (() => {
     osc.frequency.setValueAtTime(ROOT / 4, at);
     amp.gain.setValueAtTime(0.0001, at);
     amp.gain.exponentialRampToValueAtTime(0.15, at + 0.02);
-    amp.gain.exponentialRampToValueAtTime(0.0001, at + 0.62);
+    amp.gain.exponentialRampToValueAtTime(0.0001, at + TONES.critical.span - 0.04);
     osc.connect(amp).connect(out);
     osc.start(at);
-    osc.stop(at + 0.66);
+    osc.stop(at + TONES.critical.span);
   }
 
   /** Schedules the motif and returns the context time it finishes at, or 0 when
       it was dropped for landing too far behind a queue of its own kind. */
-  function play(c){
+  function play(c, sev){
+    const T = TONES[sev] || TONES.critical;
     const now = c.currentTime;
     /* Not on top of a motif still sounding. Two summed motifs peak at 1.37,
        which clips -- a crack, not an alarm -- and the reader hears one damaged
@@ -3329,19 +3349,34 @@ const Alarm = (() => {
        heard as themselves. */
     const t0 = Math.max(now + 0.02, busyUntil + GAP);
     if(t0 - now > QUEUE) return 0;    // a queue this deep is noise, not an alarm
-    body(c, t0);
-    pulse(c, t0,            ROOT, 0.22, 0.19);
-    pulse(c, t0 + STEP,     ROOT, 0.22, 0.19);
-    pulse(c, t0 + STEP * 2, LIFT, 0.26, 0.30);
-    busyUntil = t0 + 0.66;
+    if(T.body){
+      body(c, t0);
+      pulse(c, t0,            ROOT, T.gain, T.dur);
+      pulse(c, t0 + STEP,     ROOT, T.gain, T.dur);
+      pulse(c, t0 + STEP * 2, T.at, T.lift, T.tail);
+    } else {
+      // Two pulses rather than three, and no body under them. The shorter phrase
+      // is half of what makes this one read as the smaller of the pair.
+      pulse(c, t0,        ROOT, T.gain, T.dur);
+      pulse(c, t0 + STEP, T.at, T.lift, T.tail);
+    }
+    /* T.span is the real audible length -- last onset plus its tail -- not a
+       nominal figure. busyUntil is what the next tone is scheduled behind, so an
+       understated span puts a second alarm over the first one's decay. */
+    busyUntil = t0 + T.span;
     return busyUntil;
   }
 
-  /** Which messages are worth interrupting somebody for. Pure, so the rule can
-      be tested without an audio device anywhere near it. */
-  function shouldFire(msg){
-    return !!msg && msg.severity === 'critical' && !msg.mine;
+  /** Which tone a message earns, or null for one not worth interrupting anybody
+      for. Pure, so the rule can be tested without an audio device anywhere near
+      it. A message the reader typed is their own words echoed back, never news. */
+  function toneFor(msg){
+    if(!msg || msg.mine) return null;
+    return TONES[msg.severity] ? msg.severity : null;
   }
+  /* Expressed in terms of toneFor so the two can never come to disagree about
+     which messages are worth interrupting somebody for. */
+  function shouldFire(msg){ return toneFor(msg) !== null; }
 
   /* What the alarm managed to do, rather than what it was permitted to attempt.
 
@@ -3357,7 +3392,8 @@ const Alarm = (() => {
      is then refused outside a gesture, so not one oscillator is ever built --
      it returned true, reporting a grower as alerted who had heard and felt
      nothing at all. */
-  function fire(){
+  function fire(sev){
+    const tone = TONES[sev] ? sev : 'critical';
     if(State.data.muted) return (outcome = 'muted');
     let buzzed = false;
     try{
@@ -3366,9 +3402,9 @@ const Alarm = (() => {
          truncates the rhythm -- and the rhythm is what tells this alert apart from
          every other notification on the phone. */
       const nowMs = Date.now();
-      if(navigator.vibrate && nowMs >= vibeUntil){
-        navigator.vibrate(VIBE);
-        vibeUntil = nowMs + VIBE.reduce((a, b) => a + b, 0);
+      if(navigator.vibrate && State.data.haptics !== false && nowMs >= vibeUntil){
+        navigator.vibrate(TONES[tone].vibe);
+        vibeUntil = nowMs + TONES[tone].vibe.reduce((a, b) => a + b, 0);
         buzzed = true;
       }
     }catch(e){}
@@ -3381,13 +3417,13 @@ const Alarm = (() => {
        they all arrive at once when it starts again. */
     if(c.state === 'suspended'){
       try{
-        c.resume().then(() => { outcome = play(c) ? 'played' : 'coalesced'; })
+        c.resume().then(() => { outcome = play(c, tone) ? 'played' : 'coalesced'; })
                   .catch(() => { outcome = 'blocked'; });
       }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
       return (outcome = 'waking');
     }
     let ends = 0;
-    try{ ends = play(c); }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
+    try{ ends = play(c, tone); }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
     return (outcome = ends ? 'played' : 'coalesced');
   }
 
@@ -3395,7 +3431,7 @@ const Alarm = (() => {
       settled. The synchronous return cannot know that a wake was refused. */
   function lastOutcome(){ return outcome; }
 
-  return { fire, lastOutcome, shouldFire, unlock, VIBE };
+  return { fire, lastOutcome, shouldFire, toneFor, unlock, VIBE, TONES };
 })();
 
 
@@ -3426,7 +3462,8 @@ const Console = (() => {
     /* Before the paint, not after: the sound and the bubble should land
        together. Restored transcripts never come through here, so a cold start
        is silent -- see the note on the module. */
-    if(Alarm.shouldFire(msg)) Alarm.fire();
+    const tone = Alarm.toneFor(msg);
+    if(tone) Alarm.fire(tone);
     State.emit('chat', msg);
     return msg;
   }
