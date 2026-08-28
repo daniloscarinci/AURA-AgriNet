@@ -3274,8 +3274,9 @@ const Alarm = (() => {
   }
 
   /** Most engines hold a fresh context suspended until a gesture, and the system
-      suspends a running one when the screen goes off. Called once from the first
-      interaction anywhere in the page, and again from every fire. */
+      suspends a running one when the screen goes off. Called from EVERY gesture
+      rather than the first, so it must cost nothing when there is nothing to do:
+      one property read on a context that is already running. */
   function unlock(){
     const c = context();
     if(c && c.state === 'suspended'){ try{ c.resume(); }catch(e){} }
@@ -9098,11 +9099,22 @@ const Search = (() => {
     State.save();
   });
 
-  /* Audio needs a gesture in most engines, and the context only has to be built
-     once. Any interaction anywhere will do, so the alarm is ready long before
-     the first critical message rather than swallowing it to unlock. */
+  /* Audio needs a gesture in most engines, and the context only has to be BUILT
+     once. Any interaction anywhere will do, so the alarm is ready long before the
+     first critical message rather than swallowing it to unlock.
+
+     Bound permanently rather than {once:true}, because a context does not stay
+     usable once built: the system suspends a running one whenever the screen goes
+     off or the app is backgrounded, and fire() resumes from a timer -- precisely
+     the place iOS refuses. Spent on the first tap, the listener left the alarm
+     silent for the rest of the session while still reporting that it sounded.
+     The reader's next tap is what brings it back, and unlock returns immediately
+     when there is nothing to do. */
   ['pointerdown', 'keydown'].forEach(evt =>
-    document.addEventListener(evt, Alarm.unlock, { once: true }));
+    document.addEventListener(evt, Alarm.unlock));
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) Alarm.unlock();
+  });
 
   el('newPill').addEventListener('click', Views.scrollToBottom);
   el('chatScroll').addEventListener('scroll', () => {

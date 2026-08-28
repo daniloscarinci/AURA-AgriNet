@@ -534,6 +534,33 @@ module.exports = ({ suite, test, assert }) => {
       assert.greater(coalesced, 5,
         'ten criticals in one tick queued ten motifs, which is a minute of noise');
     });
+
+    /* Bound {once:true}, the unlock listener is spent on the first gesture. The
+       system re-suspends a context whenever the screen goes off or the app is
+       backgrounded, and fire() then calls resume() from a timer rather than from
+       a gesture -- which is exactly where iOS refuses. The alarm is silent for
+       the rest of the session. The reader's next tap has to be able to bring it
+       back, so the listener has to still be there to hear it. */
+    test('a later gesture revives a context the system suspended again', () => {
+      const h = boot();
+      h.document.dispatch('pointerdown');            // first gesture: builds it
+      assert.ok(h.audio, 'no context was built by the first gesture');
+      h.audio.state = 'suspended';                   // screen off, app backgrounded
+      const before = h.audio.resumeCalls;
+      h.document.dispatch('pointerdown');            // the reader comes back
+      assert.greater(h.audio.resumeCalls, before,
+        'the unlock listener was spent on the first gesture and never re-armed');
+      assert.equal(h.audio.state, 'running', 'the context stayed suspended');
+    });
+
+    test('an already running context costs a gesture nothing', () => {
+      const h = boot();
+      h.document.dispatch('pointerdown');
+      const calls = h.audio.resumeCalls;
+      h.document.dispatch('pointerdown');
+      h.document.dispatch('pointerdown');
+      assert.equal(h.audio.resumeCalls, calls, 'every tap is resuming a running context');
+    });
   });
 
   /* ========================================================== roles ======== */
