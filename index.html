@@ -1605,6 +1605,18 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
   .fr-search .search .field,
   #personaSel{ font-size:16px; }
 }
+
+/* While the iOS keyboard is up. The same three consequences MainActivity
+   already produces on Android from the same fact, so the two platforms behave
+   the same way for the same reason rather than each inventing a shape.
+
+   Both bars are position:fixed against the bottom, so with the keyboard drawn
+   over the viewport they sit on top of the keys. And the home indicator is
+   BEHIND the keyboard, so counting --safe-b as well as the keyboard inset
+   leaves a gap twice as big as either. */
+body[data-kb] .tabbar{ display:none; }
+body[data-kb] .fab{ display:none; }
+body[data-kb]{ --safe-b: 0px; }
 </style>
 </head>
 <body>
@@ -8355,6 +8367,76 @@ const IosHint = (() => {
 })();
 
 
+/* ===================== MODULE 8c: THE KEYBOARD =====================
+
+   Android never needed this: MainActivity reads the IME inset natively and pads
+   the WebView, and hands the page a --safe-b of zero while the keyboard is up.
+   iOS offers no equivalent. In a standalone app the keyboard is drawn OVER the
+   viewport without resizing it, so a fixed bar sits on top of the keys and the
+   composer can end up underneath them.
+
+   visualViewport is the only signal WebKit gives, and this module is the whole
+   of what reads it: an inset in pixels, published as --kb, and a flag on the
+   body that the stylesheet keys off. Everything it does is guarded on
+   visualViewport existing, so an engine without it behaves exactly as before. */
+const Keyboard = (() => {
+  /* Safari's form accessory bar -- the Previous/Next/Done strip -- is roughly
+     44px and is not a keyboard. Treating it as one would hide the tab bar every
+     time a field was focused on a device with a hardware keyboard attached. */
+  const FLOOR = 120;
+
+  const vv = () => (typeof window !== 'undefined' && window.visualViewport) || null;
+
+  /** How much of the layout viewport the keyboard is covering, in CSS pixels.
+
+      offsetTop is in the expression because WebKit scrolls the VISUAL viewport
+      to reveal the focused field rather than resizing the layout one. Without it
+      the two terms cancel exactly when the keyboard is up, and the inset reads
+      as zero at the only moment it matters. */
+  function inset(){
+    const v = vv();
+    if(!v) return 0;
+    return Math.max(0, Math.round(window.innerHeight - v.height - v.offsetTop));
+  }
+
+  function apply(){
+    const px = inset();
+    const up = px > FLOOR;
+    const root = document.documentElement;
+    if(root && root.style && root.style.setProperty) root.style.setProperty('--kb', px + 'px');
+    if(document.body){
+      if(up) document.body.dataset.kb = '1';
+      else delete document.body.dataset.kb;
+    }
+    return px;
+  }
+
+  /** WebKit fires resize and scroll on the visual viewport as the keyboard
+      animates, several times. apply() is cheap and idempotent, so it simply runs
+      on each rather than debouncing and arriving after the animation. */
+  function start(){
+    const v = vv();
+    if(!v) return false;
+    ['resize', 'scroll'].forEach(e => v.addEventListener(e, apply));
+    /* The field has to be scrolled into view AFTER the inset lands, or it is
+       scrolled to a position the keyboard then covers. One frame is not enough
+       on iOS; the keyboard animation is about a quarter of a second. */
+    document.addEventListener('focusin', e => {
+      const t = e && e.target;
+      if(!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '')) return;
+      setTimeout(() => {
+        apply();
+        try{ t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }catch(err){}
+      }, 280);
+    });
+    apply();
+    return true;
+  }
+
+  return { inset, apply, start, FLOOR };
+})();
+
+
 /* ===================== MODULE 8b: THEME =====================
 
    Light, dark, or whatever the machine says. Shaped like I18n on purpose --
@@ -9517,6 +9599,9 @@ const Search = (() => {
   Views.renderMute();
   Views.syncConsole();
   Panel.render();
+  /* Nothing to do where visualViewport is absent, which is every engine but
+     WebKit and Chrome; start() reports that and binds nothing. */
+  Keyboard.start();
 
   /* And then, after the screen is already useful, go and see whether the world
      has moved. The cached frame above is what the reader looks at while this

@@ -910,6 +910,96 @@ module.exports = ({ suite, test, assert }) => {
     });
   });
 
+  /* ======================================================== keyboard ====== */
+  /* Android does not need this -- MainActivity reads the IME inset natively and
+     pads the WebView. iOS has no equivalent: in a standalone app the keyboard
+     overlays the viewport without resizing it, and visualViewport is the only
+     signal WebKit gives. Nothing in the file read it. */
+  suite('controls · the iOS keyboard', () => {
+    /* A visualViewport that can be driven the way WebKit drives it. */
+    function withViewport(h, height, offsetTop) {
+      const listeners = {};
+      h.window.visualViewport = {
+        height, offsetTop: offsetTop || 0, offsetLeft: 0, scale: 1,
+        addEventListener: (t, fn) => { (listeners[t] ||= []).push(fn); },
+        removeEventListener: () => {},
+        fire: t => (listeners[t] || []).forEach(fn => fn({ type: t })),
+      };
+      return h.window.visualViewport;
+    }
+
+    test('the inset is the layout height less what is still visible', () => {
+      const h = boot({ mobile: true });
+      h.window.innerHeight = 844;
+      withViewport(h, 508);                 // 844 - 508 = a 336px keyboard
+      assert.equal(h.app.Keyboard.inset(), 336, 'the keyboard inset is measured wrong');
+    });
+
+    /* WebKit scrolls the VISUAL viewport to reveal the focused field, so its
+       offsetTop grows as the keyboard comes up. Leave it out of the expression
+       and the inset reads as zero exactly when the keyboard is up. */
+    test('a scrolled visual viewport does not read as no keyboard', () => {
+      const h = boot({ mobile: true });
+      h.window.innerHeight = 844;
+      withViewport(h, 508, 120);
+      assert.equal(h.app.Keyboard.inset(), 216,
+        'offsetTop is not in the expression, so a scrolled page hides the keyboard');
+      assert.greater(h.app.Keyboard.inset(), 0, 'the keyboard vanished from the measurement');
+    });
+
+    /* Safari's form accessory bar is roughly 44px and is not a keyboard. Treating
+       it as one hides the tab bar every time a field is focused on a device with
+       a hardware keyboard attached. */
+    test('an accessory bar alone is not a keyboard', () => {
+      const h = boot({ mobile: true });
+      h.window.innerHeight = 844;
+      withViewport(h, 800);                 // 44px
+      h.app.Keyboard.apply();
+      assert.notOk(h.document.body.dataset.kb, 'a 44px inset was treated as a keyboard');
+    });
+
+    test('a keyboard-sized inset is', () => {
+      const h = boot({ mobile: true });
+      h.window.innerHeight = 844;
+      withViewport(h, 508);
+      h.app.Keyboard.apply();
+      assert.equal(h.document.body.dataset.kb, '1', 'a 336px keyboard went unnoticed');
+      assert.equal(h.document.documentElement.style.getPropertyValue('--kb'), '336px',
+        'the inset was never published to the stylesheet');
+    });
+
+    test('putting the keyboard away clears it again', () => {
+      const h = boot({ mobile: true });
+      h.window.innerHeight = 844;
+      const vv = withViewport(h, 508);
+      h.app.Keyboard.apply();
+      vv.height = 844;
+      h.app.Keyboard.apply();
+      assert.notOk(h.document.body.dataset.kb, 'the page stayed in keyboard mode');
+    });
+
+    /* The same three consequences MainActivity already produces on Android from
+       the same fact: a fixed bar would float over the keys, and the home
+       indicator is behind the keyboard so counting it too doubles the gap. */
+    test('the bars get out of the way and the inset stops being counted twice', () => {
+      const { html } = readSource();
+      assert.match(html, /body\[data-kb\][^{]*\.tabbar\s*\{[^}]*display\s*:\s*none/,
+        'the tab bar floats over the keyboard');
+      assert.match(html, /body\[data-kb\][^{]*\.fab\s*\{[^}]*display\s*:\s*none/,
+        'the floating button floats over the keyboard');
+      assert.match(html, /body\[data-kb\]\s*\{[^}]*--safe-b\s*:\s*0/,
+        'the home indicator inset is counted on top of the keyboard, doubling the gap');
+    });
+
+    test('an engine with no visualViewport is left exactly as it was', () => {
+      const h = boot({ mobile: true });
+      h.window.visualViewport = undefined;
+      assert.equal(h.app.Keyboard.inset(), 0, 'a missing visualViewport did not read as zero');
+      h.app.Keyboard.apply();               // must not throw
+      assert.notOk(h.document.body.dataset.kb, 'keyboard mode was entered with nothing to measure');
+    });
+  });
+
   /* ========================================================== roles ======== */
   suite('controls · role views', () => {
     const { app } = boot();
