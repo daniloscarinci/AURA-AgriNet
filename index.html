@@ -1752,7 +1752,7 @@ body[data-kb]{ --safe-b: 0px; }
   <span class="ios-hint-ic" data-icon="share"></span>
   <p class="ios-hint-txt">
     <b data-i18n>Add AURA to your Home Screen</b>
-    <span data-i18n>Tap Share, then “Add to Home Screen”. It opens without Safari around it and keeps working offline.</span>
+    <span data-i18n>Tap Share, then “Add to Home Screen”. It opens without Safari around it, keeps working offline, and can alert you when something critical happens.</span>
   </p>
   <button id="iosInstallClose" class="toggle" aria-label="Dismiss this tip"
           data-i18n-attr="aria-label" data-i18n>Got it</button>
@@ -2106,6 +2106,9 @@ body[data-kb]{ --safe-b: 0px; }
         </div>
         <div class="ctrl-row">
           <button id="btnHapticsP" class="btn c-info" aria-pressed="true" aria-label="Vibration" data-i18n-attr="aria-label"><span class="btn-glyph">≈</span><span data-i18n>Vibration</span><span class="ctrl-state">On</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnNotifyP" class="btn c-info" aria-pressed="false" aria-label="Lock screen alerts" data-i18n-attr="aria-label"><span class="btn-glyph">▢</span><span data-i18n>Lock screen alerts</span><span class="ctrl-state">Off</span></button>
         </div>
         <div class="ctrl-row">
           <button id="btnTestAlarm" class="btn c-info"><span class="btn-glyph">▸</span><span data-i18n>Test the alert sound</span></button>
@@ -2615,6 +2618,10 @@ const State = (() => {
        the alarm that lands; on a desk it is the half that startles. One switch
        cannot serve both, so there are two. */
     haptics: true,
+    /* The lock screen, which on iPhone is often the only channel that registered
+       anything. Off until asked for: turning it on is what triggers the
+       permission prompt, and a prompt nobody asked for is one they deny. */
+    notify: false,
     /* Farmer, not Ops. A first visit should open on the decisions, not on the
        instrumentation -- landing everyone in the console is the habit this
        restructure exists to break. A stored choice still wins over this. */
@@ -2696,6 +2703,7 @@ const State = (() => {
       channel: data.channel,
       muted: data.muted,
       haptics: data.haptics,
+      notify: data.notify,
       speed: data.speed,
       orders: data.orders,
       orderAudit: data.orderAudit.slice(0, 20),
@@ -2746,6 +2754,7 @@ const State = (() => {
       // Same explicit typeof, for the same reason: a snapshot written before this
       // field existed must not read as a deliberate choice in either direction.
       if(typeof s.haptics === 'boolean') data.haptics = s.haptics;
+      if(typeof s.notify === 'boolean') data.notify = s.notify;
       if(s.speed)   data.speed   = s.speed;
       if(Array.isArray(s.orders) && s.orders.length) data.orders = s.orders;
       if(Array.isArray(s.orderAudit)) data.orderAudit = s.orderAudit;
@@ -3636,6 +3645,14 @@ const Console = (() => {
        is silent -- see the note on the module. */
     const tone = Alarm.toneFor(msg);
     if(tone) Alarm.fire(tone);
+    /* Narrower than the alarm, and translated at raise time the same way the
+       bubble is -- a notification frozen in the language it was written in would
+       be the one line of the app that is. */
+    if(Notify.shouldRaise(msg)){
+      // The title is the app's name, which is a proper noun in every language.
+      // The body is the line itself, translated the way the bubble is.
+      Notify.raise('AURA-AgriNet', Views.msgText(msg)).catch(() => {});
+    }
     State.emit('chat', msg);
     return msg;
   }
@@ -6490,10 +6507,33 @@ const Panel = (() => {
     if(tag) tag.textContent = on ? t('On') : t('Off');
   }
 
+  /* The lock-screen switch has five states, not two, because four of them are
+     reasons it cannot be turned on -- and a switch that silently refuses is
+     worse than one that says why. The word carries it; the button keeps its
+     name, as the other two do. */
+  const NOTIFY_WORD = {
+    on: 'On', off: 'Off',
+    denied: 'Blocked',
+    'needs-install': 'Install first',
+    unsupported: 'Unavailable'
+  };
+
+  function renderNotify(){
+    const b = el('btnNotifyP');
+    if(!b) return;
+    const st = Notify.state();
+    const on = st === 'on';
+    b.setAttribute('aria-pressed', String(on));
+    b.disabled = (st === 'unsupported');
+    const tag = b.querySelector('.ctrl-state');
+    if(tag) tag.textContent = t(NOTIFY_WORD[st] || 'Off');
+  }
+
   function render(){
     if(!node()) return;
     setSwitch('btnAlarmP', !State.data.muted);
     setSwitch('btnHapticsP', State.data.haptics !== false);
+    renderNotify();
     const st = el('ctrlStatus');
     if(st) st.textContent = Live.statusLine().text;
     Views.syncControls();
@@ -6522,7 +6562,7 @@ const Panel = (() => {
     try{ location.reload(); }catch(e){}
   }
 
-  return { open, toggle, isOpen, render, armReset, resetAll };
+  return { open, toggle, isOpen, render, renderNotify, armReset, resetAll };
 })();
 
 
@@ -8367,6 +8407,98 @@ const IosHint = (() => {
 })();
 
 
+/* ===================== MODULE 8d: NOTIFICATIONS =====================
+
+   On iPhone the alarm has one channel where it has two everywhere else. WebKit
+   implements no Vibration API, so navigator.vibrate is undefined and the buzz
+   never happens; iOS also honours the hardware silent switch for Web Audio. A
+   farmer with the phone on silent in a pocket gets nothing at all.
+
+   BE CLEAR ABOUT WHAT THIS DOES NOT DO. It does not wake a sleeping phone.
+   visibilitychange stops telemetry, deliberately, so while the page is hidden no
+   rule runs and there is no critical message to raise; and this app has no
+   backend, so nothing can push one either.
+
+   What it buys is a DURABLE RECORD. The tone is over in two thirds of a second
+   and the bubble scrolls out of the transcript, while the notification is still
+   on the lock screen an hour later. When the frost line lands with the app open
+   but the phone face-down or on silent, it is frequently the only channel that
+   registered anything.
+
+   Critical only. A notification outlives the moment it was raised, and a lock
+   screen carrying four of them from one app is one a farmer swipes away without
+   reading -- which spends exactly the scarcity that makes the frost line mean
+   something. */
+const Notify = (() => {
+  const has = () => typeof Notification !== 'undefined' && Notification
+                 && typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
+
+  /** What the switch should say, in one word.
+
+        'unsupported'   this engine has no Notification API
+        'needs-install' iOS Safari, not yet on the Home Screen -- iOS grants
+                        notifications to installed apps and to nothing else
+        'denied'        refused; requestPermission resolves without prompting
+                        again, so the browser's own settings are the way back
+        'off' / 'on'    available, and whether the reader has asked for it   */
+  function state(){
+    if(!has()) return 'unsupported';
+    if(IosHint.isIosSafari() && !IosHint.standalone()) return 'needs-install';
+    let perm = 'default';
+    try{ perm = Notification.permission; }catch(e){}
+    if(perm === 'denied') return 'denied';
+    if(perm === 'granted') return State.data.notify ? 'on' : 'off';
+    return State.data.notify ? 'on' : 'off';
+  }
+
+  const granted = () => { try{ return Notification.permission === 'granted'; }catch(e){ return false; } };
+
+  /** Must be called from a gesture: iOS refuses otherwise, and asking on load is
+      hostile on every platform. Returns the state afterwards, so the caller can
+      say what happened rather than guessing. */
+  async function request(){
+    if(!has()) return 'unsupported';
+    if(IosHint.isIosSafari() && !IosHint.standalone()) return 'needs-install';
+    try{
+      const perm = await Notification.requestPermission();
+      if(perm !== 'granted') return perm === 'denied' ? 'denied' : 'off';
+    }catch(e){ return 'off'; }
+    return 'on';
+  }
+
+  /* Through the service worker registration, never `new Notification(...)`:
+     the constructor does not exist on iOS at all, and this path works on every
+     engine that has the API, so there is no reason to carry both. */
+  async function raise(title, body){
+    if(!State.data.notify || !has() || !granted()) return false;
+    try{
+      const reg = await navigator.serviceWorker.getRegistration();
+      if(!reg || !reg.showNotification) return false;
+      await reg.showNotification(title, {
+        body,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        /* One tag, so a second critical replaces the first rather than stacking.
+           renotify makes the replacement alert again instead of landing silently
+           -- a new frost line is news even when an older one is still showing. */
+        tag: 'aura-critical',
+        renotify: true,
+        requireInteraction: false
+      });
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /** Which messages are worth a lock screen. Deliberately narrower than the
+      alarm's two tones -- see the note on the module. */
+  function shouldRaise(msg){
+    return !!msg && msg.severity === 'critical' && !msg.mine;
+  }
+
+  return { state, request, raise, shouldRaise, granted, has };
+})();
+
+
 /* ===================== MODULE 8c: THE KEYBOARD =====================
 
    Android never needed this: MainActivity reads the IME inset natively and pads
@@ -9222,6 +9354,37 @@ const Search = (() => {
   el('btnHapticsP').addEventListener('click', () => {
     State.commit({ haptics: State.data.haptics === false });
     Panel.render(); State.save();
+  });
+
+  /* The permission is requested HERE and nowhere else: iOS refuses
+     Notification.requestPermission() outside a gesture, and asking on load is
+     hostile on every platform -- a prompt nobody asked for is one they deny,
+     and a denial cannot be taken back from inside the page.
+
+     Every refusal says why rather than leaving a switch that will not move. */
+  el('btnNotifyP').addEventListener('click', async () => {
+    if(State.data.notify){                       // turning it off needs no permission
+      State.commit({ notify: false });
+      Panel.renderNotify(); State.save();
+      return;
+    }
+    const st = await Notify.request();
+    if(st === 'on'){
+      State.commit({ notify: true });
+      State.save();
+      Log.add('good', 'Lock screen alerts are on',
+        'A critical advisory will also arrive as a notification.');
+    } else if(st === 'needs-install'){
+      Log.add('info', 'Add AURA to your Home Screen first',
+        'iOS gives notifications to an installed app and to nothing else.');
+    } else if(st === 'denied'){
+      Log.add('warning', 'Notifications are blocked',
+        'The app cannot ask again. Your browser settings are the way back.');
+    } else if(st === 'unsupported'){
+      Log.add('warning', 'This device has no notifications',
+        'The alert sound and the vibration are the channels available here.');
+    }
+    Panel.renderNotify();
   });
 
   /* The one control that answers "is this thing working" without waiting for a

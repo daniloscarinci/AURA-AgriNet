@@ -154,3 +154,21 @@ self.addEventListener('fetch', event => {
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
+
+/* A critical advisory is raised through this worker's registration, because the
+   Notification constructor does not exist on iOS and this path works everywhere.
+   Tapping it has to reach the transcript the line came from.
+
+   Focus a window that is already open rather than opening a second one: the app
+   holds its state in memory and writes a snapshot every twenty seconds, so a
+   fresh copy would show the reader a slightly older app beside their live one. */
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of all) {
+      if ('focus' in client) return client.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow('./');
+  })());
+});

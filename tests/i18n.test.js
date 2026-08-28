@@ -83,6 +83,10 @@ module.exports = ({ suite, test, assert }) => {
     /* The farm form names its rows from a lookup, reaching t() as
        t(FARM_LABEL[key]), and the soil catalogue the same way via t(s.label). */
     for (const m of block('const FARM_LABEL = {', '};').matchAll(/'([^']+)'/g)) set.add(m[1]);
+    /* The lock-screen switch names its five states from a lookup, reaching t() as
+       t(NOTIFY_WORD[state]). Values only -- one of the KEYS is quoted too
+       ('needs-install'), and that is a code value, not something to translate. */
+    for (const m of block('const NOTIFY_WORD = {', '};').matchAll(/:\s*'([^']+)'/g)) set.add(m[1]);
     for (const m of block('const SOILS = {', '};').matchAll(/label:'([^']+)'/g)) set.add(m[1]);
     /* The agent's refusal when no farm has been chosen is stored as English
        source too, for the same reason the greeting is: a line in the transcript

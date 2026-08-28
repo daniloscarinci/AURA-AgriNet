@@ -7,7 +7,7 @@
    buttons shipped broken before these checks existed. */
 'use strict';
 
-const { boot, readSource } = require('./harness');
+const { boot, readSource, ROOT } = require('./harness');
 
 module.exports = ({ suite, test, assert }) => {
 
@@ -997,6 +997,201 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(h.app.Keyboard.inset(), 0, 'a missing visualViewport did not read as zero');
       h.app.Keyboard.apply();               // must not throw
       assert.notOk(h.document.body.dataset.kb, 'keyboard mode was entered with nothing to measure');
+    });
+  });
+
+  /* ==================================================== notifications ===== */
+  /* On iPhone the alarm has one channel, not two: WebKit implements no Vibration
+     API, and iOS honours the hardware silent switch for Web Audio. A farmer with
+     the phone on silent gets nothing at all.
+
+     What a notification buys is NOT waking a sleeping phone -- visibilitychange
+     stops telemetry, so no rule runs while hidden and there is no backend to push
+     one. It buys a durable record: the tone is over in 0.66s and the bubble
+     scrolls away, and the notification is still on the lock screen an hour on. */
+  suite('controls · notifications', () => {
+    const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15'
+                 + ' (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+
+    /* A Notification global and a service worker registration that record rather
+       than display. `permission` is what the engine would answer. */
+    function withNotifications(h, permission, opts) {
+      const o = opts || {};
+      const shown = [];
+      h.window.Notification = {
+        permission,
+        requestPermission: () => Promise.resolve(o.grants || permission),
+      };
+      h.window.navigator.serviceWorker = {
+        getRegistration: () => Promise.resolve(o.noRegistration ? null : {
+          showNotification: (title, init) => { shown.push({ title, init }); return Promise.resolve(); },
+        }),
+        ready: Promise.resolve({}),
+      };
+      return shown;
+    }
+
+    test('it is off until somebody turns it on', () => {
+      const h = boot();
+      assert.equal(h.app.State.data.notify, false,
+        'notifications default to on, which is a permission prompt nobody asked for');
+    });
+
+    test('a critical message raises one and a serious message does not', async () => {
+      const h = boot();
+      const shown = withNotifications(h, 'granted');
+      h.app.Telemetry.stop();
+      h.app.State.data.notify = true;
+
+      h.app.Console.post('BOT', 'FROST EVENT — surface temperature -3.4°C', { severity: 'critical' });
+      await new Promise(r => setImmediate(r));
+      assert.equal(shown.length, 1, 'a frost line reached no lock screen');
+
+      h.app.Console.post('BOT', 'Root-zone moisture stress', { severity: 'serious' });
+      await new Promise(r => setImmediate(r));
+      assert.equal(shown.length, 1,
+        'a serious advisory reached the lock screen, where four of them teach a farmer to swipe');
+    });
+
+    test('the notification carries the message, not a generic ping', async () => {
+      const h = boot();
+      const shown = withNotifications(h, 'granted');
+      h.app.Telemetry.stop();
+      h.app.State.data.notify = true;
+      h.app.Console.post('BOT', 'FROST EVENT — surface temperature -3.4°C', { severity: 'critical' });
+      await new Promise(r => setImmediate(r));
+      assert.ok(shown[0], 'nothing was shown');
+      assert.includes(shown[0].init.body, 'FROST',
+        'the alert says nothing about what happened, so it has to be opened to be read');
+      assert.ok(shown[0].init.icon, 'no icon, so it renders as a blank square on the lock screen');
+    });
+
+    /* new Notification() does not exist on iOS. The service worker registration
+       is the only path that works there, and it works everywhere else too. */
+    test('it goes through the service worker, not the Notification constructor', () => {
+      const { script } = readSource();
+      assert.includes(script, 'showNotification', 'nothing calls showNotification');
+      /* Comments stripped first: the module explains in prose why it never uses
+         the constructor, and a bare substring search reads that as using it. */
+      const code = script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      assert.notIncludes(code, 'new Notification(',
+        'new Notification() is used, which does not exist on iOS at all');
+    });
+
+    test('a message raises nothing while the switch is off', async () => {
+      const h = boot();
+      const shown = withNotifications(h, 'granted');
+      h.app.Telemetry.stop();
+      h.app.State.data.notify = false;
+      h.app.Console.post('BOT', 'FROST EVENT', { severity: 'critical' });
+      await new Promise(r => setImmediate(r));
+      assert.equal(shown.length, 0, 'it notified without being asked to');
+    });
+
+    test('a denied permission raises nothing and does not re-prompt', async () => {
+      const h = boot();
+      const shown = withNotifications(h, 'denied');
+      h.app.Telemetry.stop();
+      h.app.State.data.notify = true;
+      h.app.Console.post('BOT', 'FROST EVENT', { severity: 'critical' });
+      await new Promise(r => setImmediate(r));
+      assert.equal(shown.length, 0, 'it showed one against a denied permission');
+      assert.equal(h.app.Notify.state(), 'denied', 'the denial is not reported');
+    });
+
+    /* iOS grants notifications only to an app on the Home Screen. Saying so is
+       the difference between a switch that explains itself and one that fails. */
+    test('in iOS Safari it says the app has to be installed first', () => {
+      const h = boot();
+      withNotifications(h, 'default');
+      h.window.navigator.userAgent = IPHONE;
+      h.window.navigator.standalone = false;
+      assert.equal(h.app.Notify.state(), 'needs-install',
+        'an iPhone reader is offered a switch that cannot work until they install it');
+    });
+
+    test('installed on an iPhone, it is offerable', () => {
+      const h = boot();
+      withNotifications(h, 'default');
+      h.window.navigator.userAgent = IPHONE;
+      h.window.navigator.standalone = true;
+      assert.equal(h.app.Notify.state(), 'off', 'the installed app cannot reach notifications');
+    });
+
+    test('an engine with no Notification at all says unsupported', () => {
+      const h = boot();
+      h.window.Notification = undefined;
+      assert.equal(h.app.Notify.state(), 'unsupported', 'it claims a channel it does not have');
+    });
+
+    test('the choice survives a restart', () => {
+      const h = boot();
+      h.app.State.data.notify = true;
+      h.app.State.save();
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      assert.equal(back.app.State.data.notify, true, 'the reader had to turn it on again');
+    });
+
+    /* Five states, not two: four of them are reasons it cannot be turned on, and
+       a switch that silently refuses teaches the reader the app is broken. */
+    test('the switch says why it cannot be turned on', () => {
+      const cases = [
+        ['unsupported',   h => { h.window.Notification = undefined; }],
+        ['denied',        h => { withNotifications(h, 'denied'); }],
+        ['needs-install', h => { withNotifications(h, 'default');
+                                 h.window.navigator.userAgent = IPHONE;
+                                 h.window.navigator.standalone = false; }],
+      ];
+      cases.forEach(([want, arrange]) => {
+        const h = boot();
+        arrange(h);
+        h.app.Panel.renderNotify();
+        assert.equal(h.app.Notify.state(), want, `${want} was not reported`);
+        assert.equal(h.document.getElementById('btnNotifyP').getAttribute('aria-pressed'), 'false',
+          `the switch reads as on while ${want}`);
+      });
+    });
+
+    test('turning it off again asks for no permission', async () => {
+      const h = boot();
+      let asked = 0;
+      withNotifications(h, 'granted');
+      h.window.Notification.requestPermission = () => { asked++; return Promise.resolve('granted'); };
+      h.app.State.data.notify = true;
+      h.document.getElementById('btnNotifyP').dispatch('click');
+      await new Promise(r => setImmediate(r));
+      assert.equal(h.app.State.data.notify, false, 'the switch did not turn it off');
+      assert.equal(asked, 0, 'turning a thing OFF asked for permission to do it');
+    });
+
+    test('granting it turns the switch on and says so', async () => {
+      const h = boot();
+      withNotifications(h, 'default', { grants: 'granted' });
+      h.document.getElementById('btnNotifyP').dispatch('click');
+      await new Promise(r => setImmediate(r));
+      await new Promise(r => setImmediate(r));
+      assert.equal(h.app.State.data.notify, true, 'a granted permission did not turn it on');
+      assert.ok(h.app.State.data.log.some(e => /lock screen alerts are on/i.test(e.title || '')),
+        'nothing told the reader it had worked');
+    });
+
+    test('a refusal leaves it off and explains itself', async () => {
+      const h = boot();
+      withNotifications(h, 'default', { grants: 'denied' });
+      h.document.getElementById('btnNotifyP').dispatch('click');
+      await new Promise(r => setImmediate(r));
+      await new Promise(r => setImmediate(r));
+      assert.equal(h.app.State.data.notify, false, 'a refusal was recorded as consent');
+      assert.ok(h.app.State.data.log.some(e => /blocked/i.test(e.title || '')),
+        'the reader is left with a switch that will not move and no reason');
+    });
+
+    test('the service worker knows what to do when one is tapped', () => {
+      const sw = require('fs').readFileSync(require('path').join(ROOT, 'sw.js'), 'utf8');
+      assert.includes(sw, 'notificationclick',
+        'tapping the alert does nothing, so it cannot reach the transcript it came from');
+      assert.includes(sw, 'clients.matchAll',
+        'it opens a second copy rather than focusing the one already running');
     });
   });
 

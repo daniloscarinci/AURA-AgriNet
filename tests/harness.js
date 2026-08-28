@@ -505,7 +505,7 @@ function boot(opts = {}) {
 
   const PROBE = `
 ;globalThis.__AURA__ = {
-  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Alarm, Console, EventEngine, Triage, Views, Panel, Keyboard, Manual, Live, Places, Cities, Agronomy, Sat, Search, I18n, Theme, IosHint, Farm, SOILS, ICONS, icon, paintIcons,
+  Geo, Region, State, Telemetry, Dispatch, Orders, Scoring, Log, Alarm, Notify, Console, EventEngine, Triage, Views, Panel, Keyboard, Manual, Live, Places, Cities, Agronomy, Sat, Search, I18n, Theme, IosHint, Farm, SOILS, ICONS, icon, paintIcons,
   CFG, SOURCES, METRICS, CROPS, REGIONS, EDGE_SPEC, PEOPLE, SEV, MAP_VIEW,
   DEFAULT_REGION, PLOTS, ROUTE_ORIGIN, ROUTE_DEST,
   get NODES(){ return NODES; }, get EDGES(){ return EDGES; }, get REGION(){ return REGION; },
