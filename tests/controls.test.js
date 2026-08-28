@@ -339,9 +339,9 @@ module.exports = ({ suite, test, assert }) => {
     test('muting it actually stops it', () => {
       const h = boot();
       h.app.State.data.muted = true;
-      assert.equal(h.app.Alarm.fire(), false, 'the alarm sounded while muted');
+      assert.equal(h.app.Alarm.fire(), 'muted', 'the alarm sounded while muted');
       h.app.State.data.muted = false;
-      assert.equal(h.app.Alarm.fire(), true, 'the alarm stayed silent while armed');
+      assert.notEqual(h.app.Alarm.fire(), 'muted', 'the alarm stayed silent while armed');
     });
 
     test('the mute survives a restart', () => {
@@ -380,7 +380,7 @@ module.exports = ({ suite, test, assert }) => {
 
       let fired = 0;
       const back = boot({ storage: Object.fromEntries(h.storage) });
-      back.app.Alarm.fire = () => { fired++; return true; };
+      back.app.Alarm.fire = () => { fired++; return 'played'; };
       back.app.State.restore();
       back.app.Views.renderChat();
       assert.equal(fired, 0, 'reopening the app replayed an old alarm');
@@ -395,6 +395,102 @@ module.exports = ({ suite, test, assert }) => {
         'a single buzz is indistinguishable from every other notification on the phone');
       app.Alarm.VIBE.forEach(ms =>
         assert.between(ms, 20, 400, 'a vibration step is outside anything a phone will render'));
+    });
+  });
+
+  /* ===================================================== alarm · sound ===== */
+  /* The decision around the alarm was always tested; the sound never was. The
+     harness defined no AudioContext, so context() returned null in every test and
+     play() had never once executed. These assert the graph itself: what reaches
+     the speaker, how loud, and when. */
+
+  /* The loudest instant of a motif: the summed peak of every voice alive at once.
+     Past 1.0 the sum clips, which is heard as a crack rather than a tone. */
+  function peakGain(ctx) {
+    const voices = ctx.oscs.map(o => ({
+      s: o.startedAt, e: o.stoppedAt, g: o.outs[0] ? o.outs[0].gain.peak : 0,
+    }));
+    let peak = 0;
+    [...new Set(voices.flatMap(v => [v.s, v.e]))].forEach(t => {
+      const sum = voices.filter(v => t >= v.s && t < v.e).reduce((a, v) => a + v.g, 0);
+      if (sum > peak) peak = sum;
+    });
+    return peak;
+  }
+
+  /** How long a motif occupies the speaker, first voice on to last voice off. */
+  function span(ctx) {
+    return Math.max(...ctx.oscs.map(o => o.stoppedAt)) -
+           Math.min(...ctx.oscs.map(o => o.startedAt));
+  }
+
+  suite('controls · the alarm sounds', () => {
+    test('every voice reaches the speaker through the master gain', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire();
+      const ctx = h.audio;
+      assert.greater(ctx.oscs.length, 3, 'the motif is a single tone, not a phrase');
+      ctx.oscs.forEach((o, i) => {
+        assert.ok(o.reaches(ctx.destination), `voice ${i} is built but never heard`);
+        // osc -> envelope -> master -> destination. A voice wired straight at the
+        // destination cannot be scaled or held apart from the others.
+        assert.ok(o.outs[0] && o.outs[0].kind === 'gain', `voice ${i} has no envelope`);
+        assert.ok(o.outs[0].outs[0] && o.outs[0].outs[0].kind === 'gain',
+          `voice ${i} bypasses the master gain`);
+      });
+    });
+
+    test('one alarm does not clip', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire();
+      assert.less(peakGain(h.audio), 1.0, 'the summed voices clip');
+    });
+
+    test('fire() says what happened rather than that something did', () => {
+      const h = boot();
+      h.app.State.data.muted = true;
+      assert.equal(h.app.Alarm.fire(), 'muted', 'a silenced alarm did not say so');
+      h.app.State.data.muted = false;
+      assert.equal(h.app.Alarm.fire(), 'played', 'a sounded alarm did not say so');
+    });
+
+    test('an engine with no audio and no motor admits nothing happened', () => {
+      const h = boot({ audio: false });
+      h.window.navigator.vibrate = undefined;
+      h.app.State.data.muted = false;
+      assert.equal(h.app.Alarm.fire(), 'silent',
+        'the caller was told a grower had been alerted when nothing at all occurred');
+    });
+
+    test('an engine with a motor but no audio reports the buzz', () => {
+      const h = boot({ audio: false });
+      h.app.State.data.muted = false;
+      assert.equal(h.app.Alarm.fire(), 'buzzed', 'the vibration went unreported');
+      assert.equal(h.vibes.length, 1, 'nothing buzzed');
+    });
+
+    test('a suspended context is resumed before anything is scheduled', async () => {
+      const h = boot({ audio: 'suspended' });
+      h.app.State.data.muted = false;
+      assert.equal(h.app.Alarm.fire(), 'waking', 'a suspended context reported as played');
+      assert.equal(h.audio.resumeCalls, 1, 'the context was never resumed');
+      await new Promise(r => setImmediate(r));
+      assert.greater(h.audio.oscs.length, 3, 'the tone never followed the resume');
+    });
+
+    /* The backgrounded-iOS shape. resume() is refused outside a user gesture, so
+       the tone never lands -- and the old fire() returned true regardless, telling
+       the caller a grower had been alerted who heard and felt nothing. */
+    test('a refused resume is not reported as a sound', async () => {
+      const h = boot({ audio: 'blocked' });
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire();
+      await new Promise(r => setImmediate(r));
+      assert.equal(h.audio.oscs.length, 0, 'this proves nothing if the tone played');
+      assert.equal(h.app.Alarm.lastOutcome(), 'blocked',
+        'the alarm believes it sounded when the phone refused it');
     });
   });
 

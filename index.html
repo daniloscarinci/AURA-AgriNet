@@ -3249,12 +3249,22 @@ const Alarm = (() => {
   const VIBE = [90, 70, 90, 70, 170];
 
   let ctx = null;
+  let master = null;
+  let outcome = 'silent';   // what the last fire() actually managed to do
 
   function context(){
     if(ctx) return ctx;
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if(!Ctor) return null;                       // no Web Audio: the buzz still runs
-    try{ ctx = new Ctor(); }catch(e){ ctx = null; }
+    try{ ctx = new Ctor(); }catch(e){ ctx = null; return null; }
+    /* One gain that every voice passes through. Without it there is no single
+       place to scale a tone or to hold two of them apart, and the only volume
+       control the app has is mute-or-not. */
+    try{
+      master = ctx.createGain();
+      master.gain.setValueAtTime(1, ctx.currentTime);
+      master.connect(ctx.destination);
+    }catch(e){ master = null; }
     return ctx;
   }
 
@@ -3271,6 +3281,9 @@ const Alarm = (() => {
       exponentialRampToValueAtTime cannot reach zero, hence the near-zero floor
       at both ends -- a linear ramp here clicks. */
   function pulse(c, at, freq, gain, dur){
+    // master || destination: a context whose gain node could not be built still
+    // makes a sound, it just loses the thing the gain node was for.
+    const out = master || c.destination;
     [[freq, gain], [freq * 1.5, gain * 0.45]].forEach(pair => {
       const osc = c.createOscillator();
       const amp = c.createGain();
@@ -3279,7 +3292,7 @@ const Alarm = (() => {
       amp.gain.setValueAtTime(0.0001, at);
       amp.gain.exponentialRampToValueAtTime(pair[1], at + 0.006);
       amp.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-      osc.connect(amp).connect(c.destination);
+      osc.connect(amp).connect(out);
       osc.start(at);
       osc.stop(at + dur + 0.02);
     });
@@ -3287,6 +3300,7 @@ const Alarm = (() => {
 
   /** The low body the three pulses ride on. Without it they read as a beep. */
   function body(c, at){
+    const out = master || c.destination;
     const osc = c.createOscillator();
     const amp = c.createGain();
     osc.type = 'sine';
@@ -3294,7 +3308,7 @@ const Alarm = (() => {
     amp.gain.setValueAtTime(0.0001, at);
     amp.gain.exponentialRampToValueAtTime(0.15, at + 0.02);
     amp.gain.exponentialRampToValueAtTime(0.0001, at + 0.62);
-    osc.connect(amp).connect(c.destination);
+    osc.connect(amp).connect(out);
     osc.start(at);
     osc.stop(at + 0.66);
   }
@@ -3313,26 +3327,49 @@ const Alarm = (() => {
     return !!msg && msg.severity === 'critical' && !msg.mine;
   }
 
-  /** Returns whether the alarm was allowed to sound, not whether a speaker was
-      reached -- there is no way to know the second, and mute is the only reason
-      worth reporting. */
+  /* What the alarm managed to do, rather than what it was permitted to attempt.
+
+       'muted'     the reader silenced it
+       'silent'    no Web Audio and no motor -- nothing happened at all
+       'buzzed'    vibration only; this engine has no audio
+       'waking'    a suspended context was asked to resume; the tone follows if
+                   the engine allows it, and lastOutcome() turns 'blocked' if not
+       'played'    scheduled against a running context
+
+     The boolean this replaces could not tell 'played' from 'silent'. On a
+     backgrounded iOS PWA -- where the system suspends the context and resume()
+     is then refused outside a gesture, so not one oscillator is ever built --
+     it returned true, reporting a grower as alerted who had heard and felt
+     nothing at all. */
   function fire(){
-    if(State.data.muted) return false;
-    try{ if(navigator.vibrate) navigator.vibrate(VIBE); }catch(e){}
+    if(State.data.muted) return (outcome = 'muted');
+    let buzzed = false;
+    try{
+      if(navigator.vibrate){ navigator.vibrate(VIBE); buzzed = true; }
+    }catch(e){}
+
     const c = context();
-    if(!c) return true;                          // buzzed, and that is what there was
+    if(!c) return (outcome = buzzed ? 'buzzed' : 'silent');
+
     /* resume() first and schedule in its callback. Scheduling against a
        suspended context writes events against a clock that is not moving, and
        they all arrive at once when it starts again. */
     if(c.state === 'suspended'){
-      try{ c.resume().then(() => play(c)).catch(() => {}); }catch(e){}
-      return true;
+      try{
+        c.resume().then(() => { play(c); outcome = 'played'; })
+                  .catch(() => { outcome = 'blocked'; });
+      }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
+      return (outcome = 'waking');
     }
-    try{ play(c); }catch(e){}
-    return true;
+    try{ play(c); }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
+    return (outcome = 'played');
   }
 
-  return { fire, shouldFire, unlock, VIBE };
+  /** What the last fire() ended up doing, once any asynchronous resume has
+      settled. The synchronous return cannot know that a wake was refused. */
+  function lastOutcome(){ return outcome; }
+
+  return { fire, lastOutcome, shouldFire, unlock, VIBE };
 })();
 
 
