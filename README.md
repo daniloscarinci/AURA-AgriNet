@@ -729,10 +729,61 @@ Mac, so the touch-point count is what separates a tablet from a desktop; Chrome 
 on iOS run the same WebKit behind their own share sheets and are excluded by name, because
 the instruction would be wrong for them.
 
+Four more things were wrong or missing, and are not now.
+
+**Every field zoomed the page.** WebKit zooms when it focuses an input whose computed
+font-size is under 16px. In Safari a reader can pinch back out; in an installed app there is
+no pinch-out, so the layout simply stays shifted for the rest of the session. All eleven
+fields were under the threshold — 12.5px, and 11px for the persona select, which carried its
+size in a `style` attribute where no rule could reach it. A `@media (pointer: coarse)` block
+raises them, keyed on the pointer rather than the viewport width because it is the input
+method that decides, not the screen: a touch laptop needs it at 1440px and a desktop does not
+need it at 390px. The desktop density is unchanged.
+
+**Nothing handled the keyboard.** Android never needed it — `MainActivity` reads the IME
+inset natively — but iOS draws the keyboard *over* the viewport without resizing it, so both
+fixed bars sat on top of the keys and the composer could end up underneath them.
+`visualViewport` is the only signal WebKit gives, and it appeared nowhere in the file. One
+module now publishes the inset as `--kb` and flags the body; the tab bar and the floating
+button get out of the way, and `--safe-b` drops to zero because the home indicator is behind
+the keyboard and counting both leaves a gap twice as big as either. Those are the same three
+consequences `MainActivity` already produces from the same fact. `offsetTop` is in the
+measurement because WebKit scrolls the *visual* viewport to reveal the focused field; without
+it the two terms cancel exactly when the keyboard is up. Safari's 44px form accessory bar is
+not a keyboard and does not count as one.
+
+**The alarm had one channel on iPhone, not two.** WebKit implements no Vibration API, so
+`navigator.vibrate` is undefined and the buzz never happens, and iOS honours the hardware
+silent switch for Web Audio. A farmer with the phone on silent got nothing at all. There is
+now a **Lock screen alerts** switch in the control panel.
+
+Be clear about what it does. **It does not wake a sleeping phone**, and nothing here can:
+`visibilitychange` stops telemetry, deliberately, so while the page is hidden no rule runs
+and there is no critical message to raise — and with no backend there is nothing to push one
+either. What it buys is a *durable record*. The tone is over in two thirds of a second and
+the bubble scrolls out of the transcript; the notification is still on the lock screen an
+hour later. When a frost line lands with the app open but the phone face-down or on silent,
+it is frequently the only channel that registered anything.
+
+Critical severity only — a lock screen carrying four advisories from one app is one a farmer
+swipes away without reading, which spends the scarcity that made the frost line mean
+something. It is raised through the service worker registration, because
+`new Notification()` does not exist on iOS at all, and that path works everywhere else too.
+Permission is requested from the switch and nowhere else, because iOS refuses outside a user
+gesture and a prompt nobody asked for is one they deny — and a denial cannot be taken back
+from inside the page. The switch has five states, four of which are reasons it cannot be
+turned on: *Off*, *On*, *Blocked*, *Install first* (iOS grants notifications to an installed
+app and to nothing else), and *Unavailable*. Tapping the notification focuses the window
+already open rather than launching a second copy beside it.
+
+**The hint said how but never why.** It names the two taps and now names what they buy,
+including the third thing that only became true with the switch above.
+
 **What none of this can tell you**, and what only an iPhone will settle: whether iOS honours
 the runtime status-bar swap in an installed app, whether the launch images are picked up,
-what the safe-area insets really are on a notched device, and whether the service worker
-installs and serves offline under iOS's storage rules. Everything above was driven in a
+what the safe-area insets really are on a notched device, whether the service worker installs
+and serves offline under iOS's storage rules, whether WebKit's keyboard inset matches the
+model above, and whether a given iOS build grants an installed app notifications at all. Everything above was driven in a
 desktop browser with an iOS user agent and a simulated home indicator, which is as close as a
 Windows machine gets.
 
@@ -747,7 +798,7 @@ around a hosted URL could not manage.
 
 ```
 cd android
-./gradlew assembleDebug        # writes android/AURA-AgriNet-1.1-debug.apk
+./gradlew assembleDebug        # writes android/AURA-AgriNet-1.2-debug.apk
 ```
 
 **Gradle has to be told where JDK 17 is, and `java` is not necessarily on your `PATH`.**
@@ -783,10 +834,10 @@ rather than a package that looks fine and is not.
 Gradle's own output lands five directories down at
 `android/app/build/outputs/apk/debug/app-debug.apk`, under a name that says neither which
 app nor which version, so every assemble copies it up beside the build file as
-`android/AURA-AgriNet-1.1-debug.apk`. The copy is wired into the build rather than made by
+`android/AURA-AgriNet-1.2-debug.apk`. The copy is wired into the build rather than made by
 hand: a stale package that looks current is worse than a buried one that is honest.
 
-Install it with `adb install -r android/AURA-AgriNet-1.1-debug.apk`. It carries the debug
+Install it with `adb install -r android/AURA-AgriNet-1.2-debug.apk`. It carries the debug
 signing key, so it is for sideloading and testing, not for the Play Store. The APK is
 **gitignored build output** — this repository carries the project that produces the
 package, never the package itself.
