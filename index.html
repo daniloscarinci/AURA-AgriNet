@@ -6435,7 +6435,10 @@ const Panel = (() => {
     if(!b) return;
     b.setAttribute('aria-pressed', String(on));
     const tag = b.querySelector('.ctrl-state');
-    if(tag) tag.textContent = t(on ? 'On' : 'Off');
+    // Two literal t() calls rather than t(on ? 'On' : 'Off'): the catalogue
+    // extractor reads literal arguments, and a string it cannot see is a string
+    // that ships untranslated.
+    if(tag) tag.textContent = on ? t('On') : t('Off');
   }
 
   function render(){
