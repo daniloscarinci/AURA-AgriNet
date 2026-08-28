@@ -632,6 +632,22 @@ module.exports = ({ suite, test, assert }) => {
       assert.notOk(h.audio.oscs.some(o => o.type === 'sine'),
         'a serious message sounded the critical motif');
     });
+
+    /* On a phone in a pocket the buzz is the half of the alarm that lands; on a
+       desk it is the half that startles. One switch cannot serve both. */
+    test('vibration has its own switch, and it survives a restart', () => {
+      const h = boot();
+      assert.equal(h.app.State.data.haptics, true, 'the motor is off by default');
+      h.app.State.data.haptics = false;
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire('critical');
+      assert.equal(h.vibes.length, 0, 'the phone buzzed after the motor was turned off');
+      assert.greater(h.audio.oscs.length, 3, 'turning the buzz off silenced the tone too');
+      h.app.State.save();
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      assert.equal(back.app.State.data.haptics, false,
+        'a reader who turned the buzz off finds it back on next launch');
+    });
   });
 
   /* ========================================================== roles ======== */

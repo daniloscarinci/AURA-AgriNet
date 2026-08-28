@@ -2447,6 +2447,10 @@ const State = (() => {
        turned off is one the reader escapes by turning the phone off, which
        silences everything else with it. */
     muted: false,
+    /* The buzz, separately. On a phone that lives in a pocket it is the half of
+       the alarm that lands; on a desk it is the half that startles. One switch
+       cannot serve both, so there are two. */
+    haptics: true,
     /* Farmer, not Ops. A first visit should open on the decisions, not on the
        instrumentation -- landing everyone in the console is the habit this
        restructure exists to break. A stored choice still wins over this. */
@@ -2527,6 +2531,7 @@ const State = (() => {
       persona: data.persona,
       channel: data.channel,
       muted: data.muted,
+      haptics: data.haptics,
       speed: data.speed,
       orders: data.orders,
       orderAudit: data.orderAudit.slice(0, 20),
@@ -2574,6 +2579,9 @@ const State = (() => {
       // Explicit typeof: a snapshot written before this field existed must not
       // read as "unmuted on purpose" and it must not read as muted either.
       if(typeof s.muted === 'boolean') data.muted = s.muted;
+      // Same explicit typeof, for the same reason: a snapshot written before this
+      // field existed must not read as a deliberate choice in either direction.
+      if(typeof s.haptics === 'boolean') data.haptics = s.haptics;
       if(s.speed)   data.speed   = s.speed;
       if(Array.isArray(s.orders) && s.orders.length) data.orders = s.orders;
       if(Array.isArray(s.orderAudit)) data.orderAudit = s.orderAudit;
