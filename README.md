@@ -514,6 +514,76 @@ including the one whose question was whether to spray this afternoon. They are n
 app that earns the name. They are in Ops, where anyone who wants a downlink table finds
 one and a grower never meets it.
 
+## The control panel
+
+The basic commands sat in four places: the header, the Ops panel, the console head, and a
+sheet behind the phone's floating button titled *Event Simulation* -- which already held the
+feed controls and the location search, and existed below 1024px only. One panel replaces
+that sheet on both screens: a bottom sheet on a phone, a centred panel above 1024px.
+
+Open it from **Controls** in the header, the floating button on a phone, or **Ctrl/Cmd + K**.
+Escape closes it, and the manual closes first if both are open. Six sections: the feed
+(pause, speed, sync now), the alerts, the event triggers, the view (theme, language, your
+farm, the manual), the data (status, refresh, clear the transcript, reset everything) and
+the location search.
+
+Nothing moved. The header and console controls are exactly where they were -- the panel
+reaches the same state rather than relocating buttons anyone has already learnt. Every
+command in it delegates to whatever already implements it, so none of them can drift into
+behaving differently depending on which surface it was pressed from.
+
+**Reset everything** asks once, in place: the button becomes *Really? this clears
+everything* over Yes and Cancel, and disarms itself after five seconds. It clears the saved
+snapshot, the transcript, your farm answers, the language and the theme, then reloads.
+
+Two defects turned up only when the real app was driven in a browser, both older than the
+panel. The floating button had been `display:none` at every width since it was added -- a
+media query adds no specificity, so the `display:flex` inside the mobile block and the
+unconditional `display:none` written after it were an even match settled by source order.
+And `Search` paints one result list into all three of its boxes and unhides all three, so a
+location typed into the header left a stale list open inside the panel, over the controls
+beneath it. The panel shuts the search when it opens, and the location section sits last.
+
+## The alert sounds
+
+Two tones, one family. A **critical** message sounds three notes rising -- D5, D5, then A5,
+the fifth above, over a low body -- for two thirds of a second. A **serious** one sounds two
+notes falling, D5 to A4: the same fifth in the other direction, shorter, a third as loud,
+and with no body under it. One interval read two ways, so the pair ranks itself to anyone
+who has heard it once. Warnings and all-clears stay silent, because an alarm that fires for
+advisories is one the reader learns to ignore.
+
+Both are synthesised at call time. This repository carries no audio binary, `sw.js`
+precaches by hand, and a tone built in the browser adds nothing to the cache and works on a
+first launch with no network -- which is the launch this app is written for.
+
+**Test the alert sound**, in the panel, plays the critical motif on demand. Until it existed
+the only way to find out whether the alarm worked was to wait for a frost. It doubles as the
+gesture that unlocks audio, so pressing it arms the alarm for the session, and it reports
+every outcome -- muted, vibration-only, or no way to alert you at all.
+
+The alarm has two off switches, the sound and the vibration. On a phone in a pocket the buzz
+is the half that lands; on a desk it is the half that startles, and one switch cannot serve
+both.
+
+Four things it used to get wrong, all now held by tests that execute the audio graph rather
+than reason about it:
+
+- `fire()` returned `true` for everything that was not muted. On a backgrounded iOS PWA the
+  system suspends the audio context, `resume()` is refused outside a user gesture, and not
+  one oscillator is built -- and the caller was told a grower had been alerted. It returns
+  what it managed now: muted, silent, buzzed, coalesced, waking or played.
+- Two critical messages close together summed to a peak gain of 1.37 and clipped, and the
+  second vibration cancelled the pattern the first was still playing. Both queue behind what
+  is sounding now, and a burst landing more than a second and a half out is dropped rather
+  than committed -- ten criticals in one tick was a minute of noise.
+- The audio unlock was bound `{once:true}` and spent on the first gesture, so a context the
+  system suspended afterwards had nothing left that could revive it. It stays bound now, and
+  costs one property read per gesture when there is nothing to do.
+- The suite defined no `AudioContext` at all, so `play()` had never once executed under
+  test. The harness records the graph now -- what connects to what, at what gain, at what
+  time -- which is how the first three were found.
+
 ## Simulation on top of real data
 
 The event triggers still work on a live location — an injected excursion overrides the
@@ -677,7 +747,7 @@ around a hosted URL could not manage.
 
 ```
 cd android
-./gradlew assembleDebug        # writes android/AURA-AgriNet-1.0-debug.apk
+./gradlew assembleDebug        # writes android/AURA-AgriNet-1.1-debug.apk
 ```
 
 **Gradle has to be told where JDK 17 is, and `java` is not necessarily on your `PATH`.**
@@ -713,10 +783,10 @@ rather than a package that looks fine and is not.
 Gradle's own output lands five directories down at
 `android/app/build/outputs/apk/debug/app-debug.apk`, under a name that says neither which
 app nor which version, so every assemble copies it up beside the build file as
-`android/AURA-AgriNet-1.0-debug.apk`. The copy is wired into the build rather than made by
+`android/AURA-AgriNet-1.1-debug.apk`. The copy is wired into the build rather than made by
 hand: a stale package that looks current is worse than a buried one that is honest.
 
-Install it with `adb install -r android/AURA-AgriNet-1.0-debug.apk`. It carries the debug
+Install it with `adb install -r android/AURA-AgriNet-1.1-debug.apk`. It carries the debug
 signing key, so it is for sideloading and testing, not for the Play Store. The APK is
 **gitignored build output** — this repository carries the project that produces the
 package, never the package itself.
@@ -732,7 +802,7 @@ Kotlin needs anyway because `androidx.core` pulls in coroutines 1.6.4, which sti
 The wrapper replaces what a browser supplied for free. Geolocation is bridged to a runtime
 permission, asked for on a tap as before. `ACCESS_NETWORK_STATE` is granted, without which
 WebView reports `navigator.onLine` as true forever and the *Offline · cached* chip would
-never appear. Back closes the manual or the simulation sheet before it closes the app,
+never appear. Back closes the manual or the control panel before it closes the app,
 because the shell registers no history entries and would otherwise quit under an open
 dialog. Rotation is handled without recreating the Activity, which would reload the app and
 destroy the driver's map.
