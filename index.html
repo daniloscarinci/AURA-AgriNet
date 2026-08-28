@@ -709,7 +709,6 @@ footer{ padding-bottom:calc(var(--safe-b) + 24px) !important; }
      working with no duplicated DOM. */
   #chatColumn{ position:static !important; }
   #chatColumn > div{ height:62vh !important; height:62dvh !important; min-height:380px !important; }
-  .fab{ display:flex; }
 }
 
 /* Mobile role-view cards */
@@ -751,6 +750,14 @@ footer{ padding-bottom:calc(var(--safe-b) + 24px) !important; }
   box-shadow:var(--shadow-md);
 }
 .fab:active{ transform:scale(.94); }
+/* AFTER the base rule, not in the mobile block above it.
+
+   A media query adds no specificity, so `.fab{display:flex}` up there and
+   `.fab{display:none}` down here were an even match decided by source order --
+   and the unconditional one is written second. The FAB was therefore display:none
+   at every width from the day it was added: the sheet it opened was reachable on
+   a phone only by the header, and nobody noticed because the header worked. */
+@media (max-width:1023px){ .fab{ display:flex; } }
 
 .sheet{
   position:fixed; inset:0; z-index:60;
@@ -2076,18 +2083,6 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
       </section>
 
       <section class="ctrl-sec">
-        <h3 class="ctrl-legend" data-i18n>Location</h3>
-        <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
-          <span class="search-icon" aria-hidden="true">⌕</span>
-          <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
-                 spellcheck="false" placeholder="Search any location…"
-                 aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
-          <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location" data-i18n-attr="aria-label">◎</button>
-          <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
-        </div>
-      </section>
-
-      <section class="ctrl-sec">
         <h3 class="ctrl-legend" data-i18n>View</h3>
         <div class="ctrl-row">
           <button id="btnThemeP" class="btn c-info"><span class="btn-glyph">◐</span><span data-i18n>Theme</span></button>
@@ -2117,6 +2112,18 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
             <button id="btnResetYes" class="btn c-crit" style="flex:1"><span data-i18n>Yes, reset</span></button>
             <button id="btnResetNo" class="btn c-info" style="flex:1"><span data-i18n>Cancel</span></button>
           </div>
+        </div>
+      </section>
+
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>Location</h3>
+        <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
+                 spellcheck="false" placeholder="Search any location…"
+                 aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
+          <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location" data-i18n-attr="aria-label">◎</button>
+          <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
         </div>
       </section>
     </div>
@@ -6419,8 +6426,13 @@ const Panel = (() => {
     const b = el('btnPanel');
     if(b) b.setAttribute('aria-expanded', String(!!on));
     /* Painted on the way in rather than on every state change: the panel is shut
-       almost always, and a switch nobody is looking at does not need repainting. */
-    if(on){ Views.renderTriggers(); render(); }
+       almost always, and a switch nobody is looking at does not need repainting.
+
+       Search.close() because Search paints one result list into all three of its
+       boxes and unhides all three -- so a location typed into the header or the
+       first-run panel leaves this one holding that list, open, over the controls
+       under it. Opening the panel is the moment to put it away. */
+    if(on){ Search.close(); Views.renderTriggers(); render(); }
     else armReset(false);
   }
   const toggle = () => open(!isOpen());

@@ -685,6 +685,25 @@ module.exports = ({ suite, test, assert }) => {
         assert.includes(markup, `id="${id}"`, `#${id} was lost in the move`));
     });
 
+    /* Search paints ONE result list into all three of its boxes and unhides all
+       three, so a location typed into the header or the first-run panel leaves
+       this box holding that list. The list is absolutely positioned, so it opens
+       over whatever follows it -- which is why Location is the last section, and
+       why opening the panel shuts the search. Both, because either alone leaves
+       a stale list showing on a surface nobody searched from. */
+    test('the search sits last and is shut when the panel opens', () => {
+      const { markup, script } = readSource();
+      const loc = markup.indexOf('>Location<');
+      assert.greater(loc, 0, 'the location section is gone');
+      ['>Feed<', '>Alerts<', '>Simulate<', '>View<', '>Data<'].forEach(sec =>
+        assert.less(markup.indexOf(sec), loc,
+          `${sec} follows the location search, so an open result list covers it`));
+
+      const open = script.slice(script.indexOf('function open(on){'));
+      assert.includes(open.slice(0, open.indexOf('function toggle') + 400), 'Search.close()',
+        'the panel opens without shutting a result list left over from another box');
+    });
+
     /* Tailwind here is prebuilt: a class invented today produces no rule at all,
        so a panel styled with new utility classes would render unstyled. */
     test('the panel is styled with real CSS, not classes that do nothing', () => {
@@ -693,6 +712,22 @@ module.exports = ({ suite, test, assert }) => {
       assert.match(html, /\.ctrl-grid\s*\{/, 'the panel grid has no stylesheet rule');
       assert.match(html, /@media\s*\(min-width:\s*1024px\)\s*\{[\s\S]{0,400}?\.ctrl-panel/,
         'the panel is still a bottom sheet on a 1440px screen');
+    });
+
+    /* The FAB is the phone's way in, and it spent its whole life display:none.
+       A media query adds no specificity, so the `.fab{display:flex}` inside the
+       mobile block and the unconditional `.fab{…display:none}` written after it
+       were an even match settled by source order -- which the hiding rule won at
+       every width. The override has to come after the rule it overrides. */
+    test('the FAB is actually shown on a phone', () => {
+      const { html } = readSource();
+      const base = html.search(/^\.fab\{/m);
+      assert.greater(base, 0, 'the base .fab rule is gone');
+      const override = html.search(/@media\s*\(max-width:\s*1023px\)\s*\{\s*\.fab\{\s*display:flex/);
+      assert.greater(override, 0, 'nothing ever sets the FAB to display:flex');
+      assert.greater(override, base,
+        'the display:flex override is written before the display:none it must beat, ' +
+        'so the FAB is hidden at every width and the panel is unreachable from a phone');
     });
 
     test('it opens from the header button and the FAB, and closes again', () => {
