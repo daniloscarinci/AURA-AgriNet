@@ -1018,6 +1018,50 @@ body[data-ios-hint] .ios-hint{ display:flex; }
 .alarm-toggle[data-muted="true"] .alarm-glyph{ text-decoration:line-through; }
 @media (max-width:1023px){ .alarm-toggle{ width:44px; height:44px; } }
 
+/* The control panel.
+
+   A bottom sheet on a phone, because that is what every other sheet in this app
+   is and the muscle memory is worth more than novelty. A centred panel above
+   1024px, because a bottom sheet on a 1440px screen is a sheet in the wrong
+   place -- which is half of why the surface this replaces was mobile-only. */
+.ctrl-panel{ max-height:86vh; overflow-y:auto; }
+.ctrl-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
+.ctrl-sec{ display:flex; flex-direction:column; gap:8px; min-width:0; }
+.ctrl-legend{
+  font-size:9px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--text-muted); font-weight:700; margin:0;
+}
+.ctrl-row{ display:flex; gap:8px; }
+.ctrl-row > .btn{ width:auto; flex:1; min-width:0; }
+.ctrl-note{ font-size:10.5px; line-height:1.5; color:var(--text-muted); margin:0; }
+/* Pushed to the end of its button, so the label reads as the control's NAME and
+   this reads as its state. Writing the state into the label instead makes a
+   button that reports something indistinguishable from one that sets it, and
+   translateStatic would revert it on the next language change regardless. */
+.ctrl-state{
+  margin-inline-start:auto; font-size:10px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted);
+}
+.btn[aria-pressed="false"] .ctrl-state{ opacity:.65; }
+.ctrl-confirm{
+  border:1px solid var(--hairline-2); border-radius:10px;
+  padding:10px; display:flex; flex-direction:column; gap:8px;
+  background:var(--surface-2);
+}
+
+@media (min-width:1024px){
+  #ctrlPanel{ align-items:center; justify-content:center; }
+  .ctrl-panel{
+    max-width:720px; width:calc(100% - 48px);
+    border-radius:14px; max-height:82vh;
+  }
+  .ctrl-grid{ grid-template-columns:1fr 1fr; gap:16px 20px; }
+  .ctrl-wide{ grid-column:1 / -1; }
+  /* The grab handle is an affordance for a sheet that is dragged. A centred
+     panel is not dragged, so leaving it there would be a lie about the gesture. */
+  .ctrl-panel .sheet-grab{ display:none; }
+}
+
 .chat-panel{
   height:calc(100vh - 88px);
   height:calc(100dvh - 88px - var(--safe-b));
@@ -1633,6 +1677,14 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
       <span class="ic-slot" data-icon="book"></span><span class="wide-only">&nbsp;Manual</span>
     </button>
 
+    <!-- The way in to everything else. Above 1024px this is the only way in:
+         the FAB that opens the same panel is a phone control. -->
+    <button id="btnPanel" class="toggle flex-none" aria-haspopup="dialog" aria-expanded="false"
+            aria-controls="ctrlPanel" title="Controls (Ctrl+K)" aria-label="Open the control panel"
+            data-i18n-attr="title,aria-label">
+      <span class="ic-slot" data-icon="panel"></span><span class="wide-only">&nbsp;Controls</span>
+    </button>
+
   </div>
 </header>
 
@@ -1967,42 +2019,110 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
   </section>
 </main>
 
-<!-- ══════════════════════ MOBILE SIMULATION SHEET ══════════════════════ -->
-<button id="fabSim" class="fab" aria-label="Open simulation controls" aria-haspopup="dialog" data-i18n-attr="aria-label">⚡</button>
+<!-- ══════════════════════ CONTROL PANEL ══════════════════════
+     One surface for the basic commands.
 
-<div id="simSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="simSheetTitle" hidden>
-  <div class="sheet-panel">
+     It replaces the mobile-only sheet that stood here rather than sitting beside
+     it. That sheet was titled "Event Simulation" and already held the feed
+     controls and the location search -- two things its name did not cover, and
+     five more it could not reach. It also existed only below 1024px, so half the
+     app's controls were unreachable from the other half of its screens.
+
+     The header and console controls are NOT moved here. A reader who has learnt
+     where the language button is should still find it there; this panel reaches
+     the same state, it does not relocate buttons people have already learnt. -->
+<button id="fabSim" class="fab" aria-label="Open the control panel" aria-haspopup="dialog" data-i18n-attr="aria-label">⚡</button>
+
+<div id="ctrlPanel" class="sheet" role="dialog" aria-modal="true" aria-labelledby="ctrlTitle" hidden>
+  <div class="sheet-panel ctrl-panel">
     <div class="sheet-grab" aria-hidden="true"></div>
     <div class="flex items-center gap-2 mb-3">
-      <span id="simSheetTitle" class="panel-title" data-i18n>Event Simulation</span>
+      <span id="ctrlTitle" class="panel-title" data-i18n>Controls</span>
       <div class="flex-1"></div>
-      <button id="simClose" class="toggle" aria-label="Close simulation controls" data-i18n-attr="aria-label" data-i18n>Close</button>
+      <button id="ctrlClose" class="toggle" aria-label="Close the control panel"
+              data-i18n-attr="aria-label" data-i18n>Close</button>
     </div>
 
-    <div id="triggerButtonsMobile" class="flex flex-col gap-2"></div>
+    <div class="ctrl-grid">
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>Feed</h3>
+        <div class="ctrl-row">
+          <button id="btnPauseP" class="btn c-info"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
+          <button id="btnSpeedP" class="btn c-info" style="flex:none" aria-label="Simulation speed" data-i18n-attr="aria-label"><span class="btn-glyph">»</span><span>×1</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnSyncP" class="btn c-info"><span class="btn-glyph">↻</span><span data-i18n>Sync now</span></button>
+        </div>
+      </section>
 
-    <div class="h-px my-3" style="background:var(--hairline)"></div>
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>Alerts</h3>
+        <div class="ctrl-row">
+          <button id="btnAlarmP" class="btn c-info" aria-pressed="true" aria-label="Alert sound" data-i18n-attr="aria-label"><span class="btn-glyph">♫</span><span data-i18n>Alert sound</span><span class="ctrl-state">On</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnHapticsP" class="btn c-info" aria-pressed="true" aria-label="Vibration" data-i18n-attr="aria-label"><span class="btn-glyph">≈</span><span data-i18n>Vibration</span><span class="ctrl-state">On</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnTestAlarm" class="btn c-info"><span class="btn-glyph">▸</span><span data-i18n>Test the alert sound</span></button>
+        </div>
+        <p class="ctrl-note" data-i18n>A critical message sounds three notes rising; a serious one, two notes falling, shorter and quieter. Nothing else makes a sound.</p>
+      </section>
 
-    <div class="flex gap-2 mb-3">
-      <button id="btnPauseM" class="btn c-info" style="flex:1"><span class="btn-glyph">❚❚</span><span data-i18n>Pause feed</span></button>
-      <button id="btnSpeedM" class="btn c-info" style="flex:none" aria-label="Simulation speed" data-i18n-attr="aria-label"><span class="btn-glyph">»</span><span>×1</span></button>
+      <section class="ctrl-sec ctrl-wide">
+        <h3 class="ctrl-legend" data-i18n>Simulate</h3>
+        <div id="triggerButtonsPanel" class="flex flex-col gap-2"></div>
+        <p class="ctrl-note" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run, so they land on the next downlink. Raise the speed to compress the wait.</p>
+      </section>
+
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>Location</h3>
+        <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
+                 spellcheck="false" placeholder="Search any location…"
+                 aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
+          <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location" data-i18n-attr="aria-label">◎</button>
+          <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
+        </div>
+      </section>
+
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>View</h3>
+        <div class="ctrl-row">
+          <button id="btnThemeP" class="btn c-info"><span class="btn-glyph">◐</span><span data-i18n>Theme</span></button>
+          <button id="btnLangP" class="btn c-info"><span class="btn-glyph">⌘</span><span data-i18n>Language</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnFarmP" class="btn c-info"><span class="btn-glyph">▤</span><span data-i18n>Your farm</span></button>
+          <button id="btnManualP" class="btn c-info"><span class="btn-glyph">?</span><span data-i18n>Manual</span></button>
+        </div>
+      </section>
+
+      <section class="ctrl-sec">
+        <h3 class="ctrl-legend" data-i18n>Data</h3>
+        <div id="ctrlStatus" class="ctrl-note">—</div>
+        <div class="ctrl-row">
+          <button id="btnRefreshP" class="btn c-info"><span class="btn-glyph">↻</span><span data-i18n>Refresh observations</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnClearChat" class="btn c-info"><span class="btn-glyph">⌫</span><span data-i18n>Clear the transcript</span></button>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnResetAll" class="btn c-crit"><span class="btn-glyph">!</span><span data-i18n>Reset everything</span></button>
+        </div>
+        <div id="ctrlResetConfirm" class="ctrl-confirm" hidden>
+          <p class="ctrl-note" data-i18n>This clears the saved snapshot, the transcript, your farm answers, the language and the theme.</p>
+          <div class="ctrl-row">
+            <button id="btnResetYes" class="btn c-crit" style="flex:1"><span data-i18n>Yes, reset</span></button>
+            <button id="btnResetNo" class="btn c-info" style="flex:1"><span data-i18n>Cancel</span></button>
+          </div>
+        </div>
+      </section>
     </div>
-
-    <div class="mb-3">
-      <div class="text-[9px] tracking-[.12em] uppercase mb-1.5" style="color:var(--text-muted)" data-i18n>Location</div>
-      <div class="search search-block" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="placeResultsM">
-        <span class="search-icon" aria-hidden="true">⌕</span>
-        <input id="placeSearchM" class="field search-input" type="search" autocomplete="off"
-               spellcheck="false" placeholder="Search any location…"
-               aria-label="Search for a location" aria-controls="placeResultsM" aria-autocomplete="list" data-i18n-attr="placeholder,aria-label">
-        <button id="placeGeoM" class="search-geo" type="button" aria-label="Use my current location" data-i18n-attr="aria-label">◎</button>
-        <div id="placeResultsM" class="search-results" role="listbox" aria-label="Location results" hidden data-i18n-attr="aria-label"></div>
-      </div>
-    </div>
-
-    <p class="text-[10px] leading-relaxed" style="color:var(--text-muted)" data-i18n>Triggers inject a telemetry excursion and let the normal rule path run, so they land on the next downlink. Raise the speed to compress the wait.</p>
   </div>
 </div>
+
 
 <!-- ══════════════════════ DETAIL SHEET ══════════════════════
      One call at full depth: the verdict, the chart that justifies it, the
@@ -5049,7 +5169,7 @@ const Views = (() => {
         <span class="flex-1">${esc(t(tr.label))}</span>
         <span class="mono" style="color:var(--text-muted);font-size:10px;font-weight:500">${esc(t(tr.note))}</span>
       </button>`).join('');
-    ['triggerButtons', 'triggerButtonsMobile'].forEach(id => {
+    ['triggerButtons', 'triggerButtonsPanel'].forEach(id => {
       const host = el(id);
       if(host) host.innerHTML = html;
     });
@@ -5058,13 +5178,13 @@ const Views = (() => {
   /** Keep the duplicated desktop/mobile controls showing the same state. */
   function syncControls(){
     const paused = State.data.paused;
-    ['btnPause', 'btnPauseM'].forEach(id => {
+    ['btnPause', 'btnPauseP'].forEach(id => {
       const b = el(id);
       if(b) b.innerHTML = paused
         ? '<span class="btn-glyph">▶</span><span>Resume feed</span>'
         : `<span class="btn-glyph">❚❚</span><span>${esc(t('Pause feed'))}</span>`;
     });
-    ['btnSpeed', 'btnSpeedM'].forEach(id => {
+    ['btnSpeed', 'btnSpeedP'].forEach(id => {
       const b = el(id);
       if(b) b.innerHTML = `<span class="btn-glyph">»</span><span>×${State.data.speed}</span>`;
     });
@@ -6263,21 +6383,94 @@ const Views = (() => {
     window.scrollTo({ top:0, behavior:'auto' });
   }
 
-  function openSheet(open){
-    const s = el('simSheet');
-    if(!s) return;
-    s.hidden = !open;
-    if(open) syncControls();
-  }
-
   return { renderClock, renderLinks, renderRegionPicker, renderLiveChip, renderChatLink, renderAgronomy, renderDeck, detailFor, openDetail, renderSatBar, renderLangMenu, renderThemeMenu, renderFarm, setFirstRun, firstRun, renderExamples, translationBadge, repaintAll, translateStatic, renderPosture, renderHero, renderTiles, renderTable,
            renderThermal, initThermalHover, renderMap, renderRouteStats, renderLog,
            renderChat, appendChat, msgText, segText, renderTyping, renderQuickReplies, renderTriggers,
            setChannel, setPersona, syncConsole, personaForChannel, channelVisible, renderMute,
            toggleTable, scrollToBottom, startDriver, stopDriver,
            setRole, renderRolePanes, renderRoleBadges, alertsFor,
-           syncControls, openSheet, placeMap,
+           syncControls, placeMap,
            QUICK, TRIGGERS, ROLE_RENDER };   // exposed for the regression harness
+})();
+
+
+/* ===================== MODULE 7d: THE CONTROL PANEL =====================
+
+   The basic commands in one place. Before this they sat in four: the header, the
+   ops panel, the console head, and a mobile-only sheet named after one of the
+   five things it held.
+
+   This module owns the panel's own switches and nothing else. Every command it
+   offers is delegated to whatever already implements it -- the feed handlers for
+   pause and speed, Alarm for the sound, Views for the triggers, Live for the
+   data -- so a command cannot come to behave differently depending on which
+   surface it was pressed from. The panel is a way in, not a second
+   implementation, and that is the whole reason it is safe to add one. */
+const Panel = (() => {
+  let resetTimer = null;
+
+  const node = () => el('ctrlPanel');
+  const isOpen = () => { const p = node(); return !!p && !p.hidden; };
+
+  function open(on){
+    const p = node();
+    if(!p) return;
+    p.hidden = !on;
+    const b = el('btnPanel');
+    if(b) b.setAttribute('aria-expanded', String(!!on));
+    /* Painted on the way in rather than on every state change: the panel is shut
+       almost always, and a switch nobody is looking at does not need repainting. */
+    if(on){ Views.renderTriggers(); render(); }
+    else armReset(false);
+  }
+  const toggle = () => open(!isOpen());
+
+  /** A switch that REPORTS its state keeps its name and moves aria-pressed. The
+      alternative -- rewriting the label to "Muted" -- makes a control that says
+      something indistinguishable from one that does something, and
+      translateStatic reverts a marked attribute from its stash on the next
+      language change anyway. */
+  function setSwitch(id, on){
+    const b = el(id);
+    if(!b) return;
+    b.setAttribute('aria-pressed', String(on));
+    const tag = b.querySelector('.ctrl-state');
+    if(tag) tag.textContent = t(on ? 'On' : 'Off');
+  }
+
+  function render(){
+    if(!node()) return;
+    setSwitch('btnAlarmP', !State.data.muted);
+    setSwitch('btnHapticsP', State.data.haptics !== false);
+    const st = el('ctrlStatus');
+    if(st) st.textContent = Live.statusLine().text;
+    Views.syncControls();
+  }
+
+  /* Two-step, in place, and self-reverting. A dialog would take focus off the
+     panel the reader is still working in, and a single button that clears five
+     stores is one nobody can press with any confidence. Armed and then forgotten
+     is the state worth guarding against: a reader who walked away must not come
+     back to a live Yes under their thumb. */
+  function armReset(on){
+    const box = el('ctrlResetConfirm');
+    if(box) box.hidden = !on;
+    clearTimeout(resetTimer);
+    if(on) resetTimer = setTimeout(() => armReset(false), 5000);
+  }
+
+  /** Every store the app writes, then a reload -- the running page holds state in
+      memory that it has just deleted from disk, and saving again would put it
+      straight back. */
+  function resetAll(){
+    State.clearStore();
+    [I18n.STORE_KEY, Theme.STORE_KEY, IosHint.STORE_KEY].forEach(k => {
+      try{ localStorage.removeItem(k); }catch(e){}
+    });
+    try{ location.reload(); }catch(e){}
+  }
+
+  return { open, toggle, isOpen, render, armReset, resetAll };
 })();
 
 
@@ -8018,6 +8211,14 @@ const ICONS = {
   /* Sliders: the one shape that says "these are set, and you can move them". */
   farm:   '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/>'
         + '<circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  /* Four keys in a two-by-two block: "a panel of things you can press". Sliders
+     were the obvious drawing and are already the farm icon, and a gear at 15px
+     with a 1.6 stroke fills its own teeth in and becomes a blob. Four rounded
+     squares survive the size because there is nothing in them to lose. */
+  panel:  '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/>'
+        + '<rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/>'
+        + '<rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/>'
+        + '<rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
   globe:  '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>'
         + '<path d="M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18Z"/>',
   /* Open, not closed. A closed book at this size is a rounded rectangle with a
@@ -8762,8 +8963,8 @@ const Search = (() => {
     State.commit({ speed: State.data.speed === 1 ? 4 : State.data.speed === 4 ? 8 : 1 });
     Views.syncControls();
   }
-  ['btnPause','btnPauseM'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', togglePause); });
-  ['btnSpeed','btnSpeedM'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', cycleSpeed); });
+  ['btnPause','btnPauseP'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', togglePause); });
+  ['btnSpeed','btnSpeedP'].forEach(id => { const b = el(id); if(b) b.addEventListener('click', cycleSpeed); });
 
   el('btnTable').addEventListener('click', Views.toggleTable);
 
@@ -8884,8 +9085,56 @@ const Search = (() => {
   }, true);
 
   /* --- mobile simulation sheet --- */
-  el('fabSim').addEventListener('click', () => Views.openSheet(true));
-  el('simClose').addEventListener('click', () => Views.openSheet(false));
+  /* --- the control panel --- */
+  el('btnPanel').addEventListener('click', Panel.toggle);
+  el('fabSim').addEventListener('click', () => Panel.open(true));
+  el('ctrlClose').addEventListener('click', () => Panel.open(false));
+
+  el('btnSyncP').addEventListener('click', () => refreshHome().catch(() => {}));
+  el('btnRefreshP').addEventListener('click', () => refreshHome().catch(() => {}));
+
+  el('btnAlarmP').addEventListener('click', () => {
+    State.commit({ muted: !State.data.muted });
+    Views.renderMute(); Panel.render(); State.save();
+  });
+  el('btnHapticsP').addEventListener('click', () => {
+    State.commit({ haptics: State.data.haptics === false });
+    Panel.render(); State.save();
+  });
+
+  /* The one control that answers "is this thing working" without waiting for a
+     frost. It unlocks audio on the way past, too: an engine that wants a gesture
+     has just had one, so pressing this arms the alarm for the session.
+
+     Every branch reports. A reader who presses test, hears nothing and is told
+     nothing has learnt only that the button does not work. */
+  el('btnTestAlarm').addEventListener('click', () => {
+    Alarm.unlock();
+    const out = Alarm.fire('critical');
+    if(out === 'muted')
+      Log.add('info', 'Alert sound is off', 'Turn it back on in the control panel to hear the alarm.');
+    else if(out === 'silent')
+      Log.add('warning', 'No way to alert you', 'This device offers the app neither sound nor vibration.');
+    else if(out === 'buzzed')
+      Log.add('info', 'Vibration only', 'This device gave the app no way to play a sound.');
+  });
+
+  /* These four hand off to the surface that already exists rather than growing a
+     second copy of it inside the panel. The panel closes first: both of the menus
+     open against the header button they belong to, which is behind the scrim. */
+  el('btnThemeP').addEventListener('click',  () => { Panel.open(false); el('btnTheme').click(); });
+  el('btnLangP').addEventListener('click',   () => { Panel.open(false); el('btnLang').click(); });
+  el('btnFarmP').addEventListener('click',   () => { Panel.open(false); el('btnFarm').click(); });
+  el('btnManualP').addEventListener('click', () => { Panel.open(false); Manual.toggle(); });
+
+  el('btnClearChat').addEventListener('click', () => {
+    State.data.chat.length = 0;
+    Views.renderChat();
+    State.save();
+  });
+  el('btnResetAll').addEventListener('click', () => Panel.armReset(true));
+  el('btnResetNo').addEventListener('click',  () => Panel.armReset(false));
+  el('btnResetYes').addEventListener('click', Panel.resetAll);
   /* Deck rows open the sheet. Delegated from the document, because the deck is
      repainted on every downlink and a listener bound to a row would die with
      the node that carried it. */
@@ -8898,8 +9147,8 @@ const Search = (() => {
     if(e.target.id === 'detailSheet') Views.openDetail(null);
   });
 
-  el('simSheet').addEventListener('click', e => {          // tap the scrim to dismiss
-    if(e.target.id === 'simSheet') Views.openSheet(false);
+  el('ctrlPanel').addEventListener('click', e => {         // tap the scrim to dismiss
+    if(e.target.id === 'ctrlPanel') Panel.open(false);
   });
 
   /* --- manual --- */
@@ -8913,14 +9162,20 @@ const Search = (() => {
 
   document.addEventListener('keydown', e => {
     if(e.key === 'Escape'){
-      // Innermost layer first: the manual sits above the simulation sheet.
-      if(Manual.isOpen()) Manual.close(); else Views.openSheet(false);
+      // Innermost layer first: the manual sits above the control panel.
+      if(Manual.isOpen()) Manual.close(); else Panel.open(false);
       return;
     }
     if(e.key === 'Tab'){ Manual.trapFocus(e); return; }
-    // "?" opens the manual, but never while the reader is typing into the chat.
+    // Neither shortcut fires while the reader is typing into the chat: one that
+    // eats a keystroke mid-sentence is worse than no shortcut at all.
     const typing = document.activeElement &&
                    /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey) && !e.altKey && !typing){
+      e.preventDefault();
+      Panel.toggle();
+      return;
+    }
     if(e.key === '?' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey){
       e.preventDefault();
       Manual.toggle();
@@ -9221,6 +9476,7 @@ const Search = (() => {
      the All tab's contents. */
   Views.renderMute();
   Views.syncConsole();
+  Panel.render();
 
   /* And then, after the screen is already useful, go and see whether the world
      has moved. The cached frame above is what the reader looks at while this

@@ -116,9 +116,11 @@ module.exports = ({ suite, test, assert }) => {
       });
     });
 
-    test('both the desktop panel and the mobile sheet host trigger buttons', () => {
-      assert.includes(markup, 'id="triggerButtons"', 'no desktop trigger container');
-      assert.includes(markup, 'id="triggerButtonsMobile"', 'no mobile trigger container');
+    /* Two mounts, painted from one list by renderTriggers, so a trigger added to
+       TRIGGERS cannot appear on one surface and not the other. */
+    test('both the ops panel and the control panel host trigger buttons', () => {
+      assert.includes(markup, 'id="triggerButtons"', 'no ops-panel trigger container');
+      assert.includes(markup, 'id="triggerButtonsPanel"', 'no control-panel trigger container');
     });
   });
 
@@ -647,6 +649,229 @@ module.exports = ({ suite, test, assert }) => {
       const back = boot({ storage: Object.fromEntries(h.storage) });
       assert.equal(back.app.State.data.haptics, false,
         'a reader who turned the buzz off finds it back on next launch');
+    });
+  });
+
+  /* ==================================================== control panel ====== */
+  /* The controls sat in four places: the header, the ops panel, the console head
+     and a mobile-only sheet titled "Event Simulation" -- a name that covered one
+     of the five things it held, on a surface that existed below 1024px only. The
+     panel replaces that sheet and reaches the rest without moving buttons a
+     reader has already learnt where to find. */
+  suite('controls · the control panel', () => {
+    const IDS = ['ctrlPanel', 'btnPanel', 'ctrlClose', 'ctrlTitle', 'triggerButtonsPanel',
+                 'btnPauseP', 'btnSpeedP', 'btnSyncP', 'btnAlarmP', 'btnHapticsP',
+                 'btnTestAlarm', 'btnThemeP', 'btnLangP', 'btnFarmP', 'btnManualP',
+                 'ctrlStatus', 'btnRefreshP', 'btnClearChat',
+                 'btnResetAll', 'ctrlResetConfirm', 'btnResetYes', 'btnResetNo'];
+
+    test('every element the panel drives exists in the markup', () => {
+      const { markup } = readSource();
+      IDS.forEach(id => assert.includes(markup, `id="${id}"`, `#${id} is missing`));
+    });
+
+    test('the simulation sheet is gone, and nothing still reaches for it', () => {
+      const { markup, script } = readSource();
+      assert.notIncludes(markup, 'id="simSheet"', 'the replaced sheet is still in the markup');
+      assert.notIncludes(script, "el('simSheet')", 'the script still reaches for the deleted sheet');
+      assert.notIncludes(script, 'simClose', 'a listener is bound to a button that no longer exists');
+      assert.notIncludes(script, 'openSheet', 'the function that drove the deleted sheet survives');
+      assert.notIncludes(script, 'triggerButtonsMobile', 'triggers still paint into a dead mount');
+    });
+
+    test('the location search kept its ids, so Search needed no change', () => {
+      const { markup } = readSource();
+      ['placeSearchM', 'placeResultsM', 'placeGeoM'].forEach(id =>
+        assert.includes(markup, `id="${id}"`, `#${id} was lost in the move`));
+    });
+
+    /* Tailwind here is prebuilt: a class invented today produces no rule at all,
+       so a panel styled with new utility classes would render unstyled. */
+    test('the panel is styled with real CSS, not classes that do nothing', () => {
+      const { html } = readSource();
+      assert.match(html, /\.ctrl-panel\s*\{/, 'the panel has no stylesheet rule');
+      assert.match(html, /\.ctrl-grid\s*\{/, 'the panel grid has no stylesheet rule');
+      assert.match(html, /@media\s*\(min-width:\s*1024px\)\s*\{[\s\S]{0,400}?\.ctrl-panel/,
+        'the panel is still a bottom sheet on a 1440px screen');
+    });
+
+    test('it opens from the header button and the FAB, and closes again', () => {
+      const h = boot();
+      const p = h.document.getElementById('ctrlPanel');
+      assert.equal(p.hidden, true, 'the panel starts open');
+
+      h.document.getElementById('btnPanel').dispatch('click');
+      assert.equal(p.hidden, false, 'the header button did not open it');
+      assert.equal(h.document.getElementById('btnPanel').getAttribute('aria-expanded'), 'true',
+        'the button does not report that it opened something');
+
+      h.document.getElementById('ctrlClose').dispatch('click');
+      assert.equal(p.hidden, true, 'Close did not close it');
+
+      h.document.getElementById('fabSim').dispatch('click');
+      assert.equal(p.hidden, false, 'the FAB did not open it');
+    });
+
+    test('Escape closes it, and the manual still closes first', () => {
+      const h = boot();
+      h.app.Panel.open(true);
+      h.document.dispatch('keydown', { key: 'Escape' });
+      assert.equal(h.document.getElementById('ctrlPanel').hidden, true, 'Escape did not close it');
+
+      h.app.Panel.open(true);
+      h.app.Manual.open();
+      h.document.dispatch('keydown', { key: 'Escape' });
+      assert.equal(h.app.Manual.isOpen(), false, 'the manual did not close first');
+      assert.equal(h.document.getElementById('ctrlPanel').hidden, false,
+        'one Escape closed two layers at once');
+    });
+
+    test('Ctrl+K opens it', () => {
+      const h = boot();
+      h.document.dispatch('keydown', { key: 'k', ctrlKey: true, preventDefault(){} });
+      assert.equal(h.document.getElementById('ctrlPanel').hidden, false, 'Ctrl+K did not open it');
+      h.document.dispatch('keydown', { key: 'k', metaKey: true, preventDefault(){} });
+      assert.equal(h.document.getElementById('ctrlPanel').hidden, true, 'Cmd+K did not toggle it shut');
+    });
+
+    /* A shortcut that eats a keystroke mid-sentence is worse than no shortcut.
+       The composer is where a farmer types, and "k" is a common letter. */
+    test('the shortcut stays out of the way while somebody is typing', () => {
+      const h = boot();
+      h.document.activeElement = { tagName: 'INPUT' };
+      h.document.dispatch('keydown', { key: 'k', ctrlKey: true, preventDefault(){} });
+      assert.equal(h.document.getElementById('ctrlPanel').hidden, true,
+        'Ctrl+K opened the panel out from under a reader mid-sentence');
+    });
+
+    /* The bug this shape keeps producing: markup defaults painted over restored
+       state, so a reader who silenced the alarm and closed the app finds it armed. */
+    test('its switches report restored state, not the markup defaults', () => {
+      const h = boot();
+      h.app.State.data.muted = true;
+      h.app.State.data.haptics = false;
+      h.app.State.save();
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      back.app.Panel.render();
+      assert.equal(back.document.getElementById('btnAlarmP').getAttribute('aria-pressed'), 'false',
+        'the panel shows an armed alarm that the reader had silenced');
+      assert.equal(back.document.getElementById('btnHapticsP').getAttribute('aria-pressed'), 'false',
+        'the panel shows a buzz the reader had turned off');
+    });
+
+    /* One switch, two surfaces. Two independent booleans over one fact is the
+       defect; reaching the same State field from both is the point of the panel. */
+    test('the panel switch and the console glyph are one switch', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.document.getElementById('btnAlarmP').dispatch('click');
+      assert.equal(h.app.State.data.muted, true, 'the panel switch did not mute');
+      assert.equal(h.document.getElementById('btnMute').getAttribute('data-muted'), 'true',
+        'the console glyph disagrees with the panel');
+      assert.equal(h.document.getElementById('btnAlarmP').getAttribute('aria-pressed'), 'false',
+        'the panel switch does not report its own new state');
+    });
+
+    test('the vibration switch flips and persists', () => {
+      const h = boot();
+      h.document.getElementById('btnHapticsP').dispatch('click');
+      assert.equal(h.app.State.data.haptics, false, 'the switch did not turn the buzz off');
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      assert.equal(back.app.State.data.haptics, false, 'it came back on after a restart');
+    });
+
+    /* The control that answers "is this thing working" without waiting for a
+       frost -- which is the only way a grower could check before this existed. */
+    test('the test button sounds the alarm when nothing has gone wrong', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.document.getElementById('btnTestAlarm').dispatch('click');
+      assert.greater(h.audio.oscs.length, 3, 'the test button made no sound');
+    });
+
+    test('testing it while muted says so rather than doing nothing', () => {
+      const h = boot();
+      h.app.State.data.muted = true;
+      h.document.getElementById('btnTestAlarm').dispatch('click');
+      assert.equal(h.audio ? h.audio.oscs.length : 0, 0, 'a muted alarm sounded');
+      assert.ok(h.app.State.data.log.some(e => /alert sound is off/i.test(e.title || '')),
+        'the reader pressed test, heard nothing, and was told nothing');
+    });
+
+    test('the triggers paint into the panel too', () => {
+      const h = boot();
+      h.app.Views.renderTriggers();
+      assert.includes(h.document.getElementById('triggerButtonsPanel').innerHTML,
+        'data-trigger="FROST_EVENT"',
+        'the panel offers no triggers, so it does less than the sheet it replaced');
+    });
+
+    test('pause and speed drive the same state as the ops panel', () => {
+      const h = boot();
+      h.document.getElementById('btnPauseP').dispatch('click');
+      assert.equal(h.app.State.data.paused, true, 'the panel did not pause the feed');
+      const before = h.app.State.data.speed;
+      h.document.getElementById('btnSpeedP').dispatch('click');
+      assert.notEqual(h.app.State.data.speed, before, 'the panel did not change the speed');
+    });
+
+    test('clearing the transcript empties it and keeps it emptied', () => {
+      const h = boot();
+      h.app.Telemetry.stop();
+      h.app.Console.post('BOT', 'a line worth forgetting', {});
+      assert.greater(h.app.State.data.chat.length, 0, 'nothing to clear, so this proves nothing');
+      h.document.getElementById('btnClearChat').dispatch('click');
+      assert.equal(h.app.State.data.chat.length, 0, 'the transcript survived being cleared');
+      // Written through, not just blanked on screen: the snapshot is what a
+      // reopened app reads, and a clear that lives only in memory comes back.
+      assert.equal(JSON.parse(h.storage.get(h.app.State.STORE_KEY)).chat.length, 0,
+        'the cleared transcript was still on disk');
+      /* A reopened app greets, so one line is expected and correct -- what must
+         not survive is the cleared traffic. */
+      const back = boot({ storage: Object.fromEntries(h.storage) });
+      assert.notOk(back.app.State.data.chat.some(m => m.text === 'a line worth forgetting'),
+        'the cleared transcript came back');
+    });
+
+    /* ---- reset asks once ---- */
+
+    test('one press does not reset anything', () => {
+      const h = boot();
+      h.app.State.save();
+      const before = h.storage.size;
+      h.document.getElementById('btnResetAll').dispatch('click');
+      assert.equal(h.document.getElementById('ctrlResetConfirm').hidden, false,
+        'the confirmation never appeared');
+      assert.equal(h.storage.size, before, 'one press wiped the store');
+    });
+
+    test('cancelling puts it away', () => {
+      const h = boot();
+      h.document.getElementById('btnResetAll').dispatch('click');
+      h.document.getElementById('btnResetNo').dispatch('click');
+      assert.equal(h.document.getElementById('ctrlResetConfirm').hidden, true,
+        'cancel left the reset armed');
+    });
+
+    /* Armed and then forgotten is the dangerous state: a reader who walked away
+       must not come back to a live Yes under their thumb. */
+    test('an armed reset disarms itself', async () => {
+      const h = boot();
+      h.document.getElementById('btnResetAll').dispatch('click');
+      await h.advance(6000);
+      assert.equal(h.document.getElementById('ctrlResetConfirm').hidden, true,
+        'the reset stayed armed after the reader left it');
+    });
+
+    test('confirming clears every store the app writes', () => {
+      const h = boot({ storage: { 'aura-agrinet:v1': '{}', 'aura-lang': 'pt', 'aura-theme': 'dark' } });
+      let reloaded = false;
+      h.window.location.reload = () => { reloaded = true; };
+      h.document.getElementById('btnResetAll').dispatch('click');
+      h.document.getElementById('btnResetYes').dispatch('click');
+      ['aura-agrinet:v1', 'aura-lang', 'aura-theme'].forEach(k =>
+        assert.notOk(h.storage.has(k), `${k} survived a reset that said it clears everything`));
+      assert.ok(reloaded, 'the page kept running on state it had just deleted from disk');
     });
   });
 

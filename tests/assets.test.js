@@ -556,8 +556,8 @@ module.exports = ({ suite, test, assert }) => {
     test('the manual is one of them', () =>
       assert.includes(ids, 'manualLayer', 'back would close the app with the manual open'));
 
-    test('the simulation sheet is one of them', () =>
-      assert.includes(ids, 'simSheet', 'back would close the app with the sheet open'));
+    test('the control panel is one of them', () =>
+      assert.includes(ids, 'ctrlPanel', 'back would close the app with the panel open'));
 
     test('the handler dispatches Escape rather than reaching into the page', () =>
       assert.includes(java, "key:'Escape'",

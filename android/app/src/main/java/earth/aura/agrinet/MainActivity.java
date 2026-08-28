@@ -56,7 +56,7 @@ public class MainActivity extends ComponentActivity {
        Dispatching rather than closing directly keeps that ordering in one place.
        tests/assets.test.js checks both ids still exist in index.html. */
     private static final String DISMISS_TOP_LAYER =
-            "(function(){var ids=['manualLayer','simSheet','detailSheet'];"
+            "(function(){var ids=['manualLayer','ctrlPanel','detailSheet'];"
             + "var open=ids.some(function(id){var n=document.getElementById(id);return n&&!n.hidden;});"
             + "if(!open)return false;"
             + "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));"
