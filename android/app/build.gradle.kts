@@ -10,8 +10,8 @@ android {
         applicationId = "earth.aura.agrinet"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     // BuildConfig.DEBUG gates remote debugging in MainActivity. Off by default in AGP 8.

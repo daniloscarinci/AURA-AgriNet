@@ -761,6 +761,11 @@ footer{ padding-bottom:calc(var(--safe-b) + 24px) !important; }
    at every width from the day it was added: the sheet it opened was reachable on
    a phone only by the header, and nobody noticed because the header worked. */
 @media (max-width:1023px){ .fab{ display:flex; } }
+/* And where the FAB is showing, the header's own way in is redundant. Six
+   controls do not fit one row at 390px -- the sixth wrapped onto a line of its
+   own, which reads as an overflow rather than a control. The two rules are a
+   pair: this one is only safe because the one above it runs at the same width. */
+@media (max-width:1023px){ #btnPanel{ display:none; } }
 
 .sheet{
   position:fixed; inset:0; z-index:60;

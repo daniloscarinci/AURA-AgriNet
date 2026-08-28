@@ -730,6 +730,26 @@ module.exports = ({ suite, test, assert }) => {
         'so the FAB is hidden at every width and the panel is unreachable from a phone');
     });
 
+    /* Six controls do not fit one 390px header row, and the sixth wrapped onto a
+       line of its own. Below 1024px the floating button opens the same panel, so
+       the header one is redundant there rather than merely cramped -- but the
+       panel must never end up unreachable, which is the pair of rules below. */
+    test('the header button steps aside on a phone', () => {
+      const { html } = readSource();
+      assert.match(html, /@media\s*\(max-width:\s*1023px\)\s*\{\s*#btnPanel\s*\{\s*display:\s*none/,
+        'the sixth header control still wraps the header onto two rows on a phone');
+    });
+
+    test('and the floating button is there when it does', () => {
+      const { html } = readSource();
+      const hideAt = html.search(/@media\s*\(max-width:\s*1023px\)\s*\{\s*#btnPanel/);
+      const showFab = html.search(/@media\s*\(max-width:\s*1023px\)\s*\{\s*\.fab\{\s*display:flex/);
+      assert.greater(hideAt, 0, 'nothing hides the header button on a phone');
+      assert.greater(showFab, 0,
+        'the header button is hidden on a phone and nothing shows the FAB, ' +
+        'so the panel is unreachable there');
+    });
+
     test('it opens from the header button and the FAB, and closes again', () => {
       const h = boot();
       const p = h.document.getElementById('ctrlPanel');
