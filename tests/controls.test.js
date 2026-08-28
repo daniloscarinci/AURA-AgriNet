@@ -492,6 +492,48 @@ module.exports = ({ suite, test, assert }) => {
       assert.equal(h.app.Alarm.lastOutcome(), 'blocked',
         'the alarm believes it sounded when the phone refused it');
     });
+
+    /* Two rules can arm in one interaction -- frost and road saturation both sit
+       in the panel -- and two motifs on one destination sum past 1.0, which is a
+       crack rather than an alarm. The second buzz also cancels the pattern the
+       first was still playing, and that rhythm is the whole reason this alert is
+       distinguishable from every other notification on the phone. */
+    test('a second alarm during the first neither clips nor cuts it', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire();
+      const alone = peakGain(h.audio);
+      h.audio.advanceTo(0.10);              // still inside the first motif
+      h.app.Alarm.fire();
+      assert.close(peakGain(h.audio), alone, 0.001,
+        'the two motifs overlap and sum past what one of them peaks at');
+      assert.less(peakGain(h.audio), 1.0, 'the summed voices clip');
+      assert.equal(h.vibes.length, 1,
+        'the second buzz restarted the pattern the first was still playing');
+    });
+
+    test('the second alarm is still heard, after the first rather than over it', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      h.app.Alarm.fire();
+      const firstEnds = Math.max(...h.audio.oscs.map(o => o.stoppedAt));
+      const before = h.audio.oscs.length;
+      h.audio.advanceTo(0.10);
+      h.app.Alarm.fire();
+      assert.greater(h.audio.oscs.length, before, 'the second alarm was thrown away');
+      const late = h.audio.oscs.slice(before);
+      assert.ok(late.every(o => o.startedAt >= firstEnds - 0.03),
+        'the second motif starts before the first has finished');
+    });
+
+    test('a burst does not commit a queue of alarms', () => {
+      const h = boot();
+      h.app.State.data.muted = false;
+      let coalesced = 0;
+      for(let i = 0; i < 10; i++) if(h.app.Alarm.fire() === 'coalesced') coalesced++;
+      assert.greater(coalesced, 5,
+        'ten criticals in one tick queued ten motifs, which is a minute of noise');
+    });
   });
 
   /* ========================================================== roles ======== */

@@ -3248,6 +3248,11 @@ const Alarm = (() => {
      phone actually is. */
   const VIBE = [90, 70, 90, 70, 170];
 
+  const GAP   = 0.12;       // seconds of air between two motifs that follow each other
+  const QUEUE = 1.5;        // beyond this a queued alarm is stale news; drop it
+  let busyUntil = 0;        // context time the motif currently sounding finishes at
+  let vibeUntil = 0;        // wall clock the pattern currently running finishes at
+
   let ctx = null;
   let master = null;
   let outcome = 'silent';   // what the last fire() actually managed to do
@@ -3313,12 +3318,22 @@ const Alarm = (() => {
     osc.stop(at + 0.66);
   }
 
+  /** Schedules the motif and returns the context time it finishes at, or 0 when
+      it was dropped for landing too far behind a queue of its own kind. */
   function play(c){
-    const t0 = c.currentTime + 0.02;
+    const now = c.currentTime;
+    /* Not on top of a motif still sounding. Two summed motifs peak at 1.37,
+       which clips -- a crack, not an alarm -- and the reader hears one damaged
+       sound where two events happened. After it, with air between, so both are
+       heard as themselves. */
+    const t0 = Math.max(now + 0.02, busyUntil + GAP);
+    if(t0 - now > QUEUE) return 0;    // a queue this deep is noise, not an alarm
     body(c, t0);
     pulse(c, t0,            ROOT, 0.22, 0.19);
     pulse(c, t0 + STEP,     ROOT, 0.22, 0.19);
     pulse(c, t0 + STEP * 2, LIFT, 0.26, 0.30);
+    busyUntil = t0 + 0.66;
+    return busyUntil;
   }
 
   /** Which messages are worth interrupting somebody for. Pure, so the rule can
@@ -3345,7 +3360,16 @@ const Alarm = (() => {
     if(State.data.muted) return (outcome = 'muted');
     let buzzed = false;
     try{
-      if(navigator.vibrate){ navigator.vibrate(VIBE); buzzed = true; }
+      /* The same rule as the tone. navigator.vibrate REPLACES the pattern already
+         running rather than queueing behind it, so a second call inside the first
+         truncates the rhythm -- and the rhythm is what tells this alert apart from
+         every other notification on the phone. */
+      const nowMs = Date.now();
+      if(navigator.vibrate && nowMs >= vibeUntil){
+        navigator.vibrate(VIBE);
+        vibeUntil = nowMs + VIBE.reduce((a, b) => a + b, 0);
+        buzzed = true;
+      }
     }catch(e){}
 
     const c = context();
@@ -3356,13 +3380,14 @@ const Alarm = (() => {
        they all arrive at once when it starts again. */
     if(c.state === 'suspended'){
       try{
-        c.resume().then(() => { play(c); outcome = 'played'; })
+        c.resume().then(() => { outcome = play(c) ? 'played' : 'coalesced'; })
                   .catch(() => { outcome = 'blocked'; });
       }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
       return (outcome = 'waking');
     }
-    try{ play(c); }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
-    return (outcome = 'played');
+    let ends = 0;
+    try{ ends = play(c); }catch(e){ return (outcome = buzzed ? 'buzzed' : 'silent'); }
+    return (outcome = ends ? 'played' : 'coalesced');
   }
 
   /** What the last fire() ended up doing, once any asynchronous resume has
