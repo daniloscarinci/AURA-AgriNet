@@ -289,12 +289,99 @@ function makeDocument(markup) {
     throw new Error(`stub DOM: unsupported selector ${JSON.stringify(sel)}`);
   };
   doc.querySelector = sel => doc.querySelectorAll(sel)[0] || null;
-  doc.addEventListener = function (t, fn) { (doc._listeners[t] ||= []).push(fn); };
-  doc.removeEventListener = function (t, fn) {
-    if (doc._listeners[t]) doc._listeners[t] = doc._listeners[t].filter(f => f !== fn);
+  /* The options argument is honoured rather than dropped. A listener bound with
+     {once:true} is a different thing from a permanent one -- the alarm's audio
+     unlock was bound once and could never re-arm a context the system suspended
+     again -- and a stub that ignores the difference makes that class of bug
+     invisible to every test that looks for it. */
+  doc.addEventListener = function (t, fn, opts) {
+    (doc._listeners[t] ||= []).push({ fn, once: !!(opts && opts.once) });
   };
-  doc.dispatch = (t, evt) => (doc._listeners[t] || []).forEach(fn => fn(evt || { type: t }));
+  doc.removeEventListener = function (t, fn) {
+    if (doc._listeners[t]) doc._listeners[t] = doc._listeners[t].filter(e => e.fn !== fn);
+  };
+  doc.dispatch = (t, evt) => {
+    const entries = (doc._listeners[t] || []).slice();
+    doc._listeners[t] = (doc._listeners[t] || []).filter(e => !e.once);
+    entries.forEach(e => e.fn(evt || { type: t }));
+  };
   return doc;
+}
+
+/* --------------------------------------------------------------- audio ----- */
+
+/* A Web Audio stub that records instead of sounding.
+
+   The app synthesises its alarm at call time, so without this the audio path was
+   simply never executed by the suite: window.AudioContext was undefined, so
+   Alarm.context() returned null and every test ran the branch where there is no
+   engine at all. Recording rather than stubbing to no-ops is the point -- what a
+   test needs to assert about a sound it cannot hear is the graph: what connects
+   to what, at what gain, at what time.
+
+   mode: 'running' (default), 'suspended', 'blocked' (a context that exists but
+   whose resume() is refused -- the backgrounded-iOS shape), or pass audio:false
+   to boot() for an engine with no Web Audio whatsoever. */
+function makeAudioContext(mode) {
+  class Param {
+    constructor() { this.ops = []; }
+    setValueAtTime(v, t) { this.ops.push(['set', v, t]); return this; }
+    exponentialRampToValueAtTime(v, t) {
+      // The real API throws on zero, and a linear ramp to zero clicks. Both are
+      // defects a test must see rather than absorb.
+      if (v === 0) throw new RangeError('exponentialRampToValueAtTime: value must not be 0');
+      this.ops.push(['exp', v, t]); return this;
+    }
+    linearRampToValueAtTime(v, t) { this.ops.push(['lin', v, t]); return this; }
+    cancelScheduledValues() { return this; }
+    get peak() { return this.ops.reduce((m, o) => Math.max(m, o[1]), 0); }
+  }
+  class Node {
+    constructor(ctx, kind) { this.ctx = ctx; this.kind = kind; this.outs = []; }
+    connect(dst) { this.outs.push(dst); return dst; }
+    disconnect() { this.outs = []; }
+    /** Whether this node's signal can reach the speaker at all. */
+    reaches(dst, seen = new Set()) {
+      if (this === dst) return true;
+      if (seen.has(this)) return false;
+      seen.add(this);
+      return this.outs.some(o => o.reaches && o.reaches(dst, seen));
+    }
+  }
+  class Osc extends Node {
+    constructor(ctx) {
+      super(ctx, 'osc');
+      this.type = 'sine'; this.frequency = new Param(); this.detune = new Param();
+    }
+    start(t) { this.startedAt = t; this.ctx.oscs.push(this); }
+    stop(t) { this.stoppedAt = t; }
+  }
+  class Gain extends Node {
+    constructor(ctx) { super(ctx, 'gain'); this.gain = new Param(); }
+  }
+  return class AudioContextStub {
+    constructor() {
+      this.state = mode === 'blocked' ? 'suspended' : mode;
+      this._t = 0;
+      this.destination = new Node(this, 'destination');
+      this.oscs = [];
+      this.resumeCalls = 0;
+      AudioContextStub.last = this;
+    }
+    get currentTime() { return this._t; }
+    /** Move the context clock, the way time passing between two alarms would. */
+    advanceTo(t) { this._t = t; }
+    createOscillator() { return new Osc(this); }
+    createGain() { return new Gain(this); }
+    resume() {
+      this.resumeCalls++;
+      if (mode === 'blocked') return Promise.reject(new Error('NotAllowedError'));
+      this.state = 'running';
+      return Promise.resolve();
+    }
+    suspend() { this.state = 'suspended'; return Promise.resolve(); }
+    close() { this.state = 'closed'; return Promise.resolve(); }
+  };
 }
 
 /* ----------------------------------------------------------------- boot ----- */
@@ -353,8 +440,17 @@ function boot(opts = {}) {
        offline path explicitly. */
     fetch: opts.fetch || (() => Promise.reject(new Error('network disabled in tests'))),
     AbortController: typeof AbortController === 'function' ? AbortController : undefined,
-    navigator: { onLine: opts.online !== false, userAgent: 'aura-tests', language: 'en' },
-    location: { search: opts.search || '', protocol: 'http:', hostname: 'localhost', href: 'http://localhost/' },
+    /* vibrate is recorded, not stubbed away. The buzz is half the alarm -- the
+       half that survives a phone on silent in a coat pocket, which is where the
+       phone actually is -- and a second vibrate() call REPLACES the pattern
+       already running rather than queueing behind it, which is a defect only a
+       recording stub can catch. */
+    navigator: {
+      onLine: opts.online !== false, userAgent: 'aura-tests', language: 'en',
+      vibrate(pattern) { sandbox.__vibes.push({ pattern, at: Date.now() }); return true; },
+    },
+    location: { search: opts.search || '', protocol: 'http:', hostname: 'localhost',
+                href: 'http://localhost/', reload: () => {} },
     performance: { now: () => timers.now() },
     requestAnimationFrame: fn => timers.setTimeout(() => fn(timers.now()), 16),
     cancelAnimationFrame: id => timers.clearTimeout(id),
@@ -371,12 +467,22 @@ function boot(opts = {}) {
   sandbox.window = sandbox;
   sandbox.self = sandbox;
   sandbox.globalThis = sandbox;
+  sandbox.__vibes = [];
+  // Present by default: the audio path is part of the app, and a suite that only
+  // ever ran the no-engine branch was testing the alarm's decision, not its sound.
+  if (opts.audio !== false) sandbox.AudioContext = makeAudioContext(opts.audio || 'running');
   sandbox.window._listeners = {};
-  sandbox.window.addEventListener = (t, fn) => { (sandbox.window._listeners[t] ||= []).push(fn); };
-  sandbox.window.removeEventListener = (t, fn) => {
-    if (sandbox.window._listeners[t]) sandbox.window._listeners[t] = sandbox.window._listeners[t].filter(f => f !== fn);
+  sandbox.window.addEventListener = (t, fn, opts) => {
+    (sandbox.window._listeners[t] ||= []).push({ fn, once: !!(opts && opts.once) });
   };
-  sandbox.window.dispatch = (t, evt) => (sandbox.window._listeners[t] || []).forEach(fn => fn(evt || { type: t }));
+  sandbox.window.removeEventListener = (t, fn) => {
+    if (sandbox.window._listeners[t]) sandbox.window._listeners[t] = sandbox.window._listeners[t].filter(e => e.fn !== fn);
+  };
+  sandbox.window.dispatch = (t, evt) => {
+    const entries = (sandbox.window._listeners[t] || []).slice();
+    sandbox.window._listeners[t] = (sandbox.window._listeners[t] || []).filter(e => !e.once);
+    entries.forEach(e => e.fn(evt || { type: t }));
+  };
   sandbox.window.matchMedia = q => ({
     media: q,
     matches: /max-width:\s*1023px/.test(q) ? !!opts.mobile : false,
@@ -406,6 +512,10 @@ function boot(opts = {}) {
     document,
     timers,
     storage: store,
+    /** The AudioContext the app actually built, once a first sound has built one. */
+    get audio() { return sandbox.AudioContext && sandbox.AudioContext.last; },
+    /** Every navigator.vibrate call, in order, with the time it was made. */
+    vibes: sandbox.__vibes,
     warnings,
     errors,
     markup,
