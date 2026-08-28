@@ -549,6 +549,9 @@ body{
   border-radius:9px; color:var(--text-primary); font-size:12.5px;
   padding:9px 11px; font-family:var(--font-sans); width:100%;
 }
+/* Lifted out of a style attribute, where no media query could reach it to stop
+   iOS zooming on it. */
+#personaSel{ font-size:11px; }
 .field::placeholder{ color:var(--text-muted); }
 .field:focus{ outline:none; border-color:var(--series-1); }
 
@@ -1580,6 +1583,28 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
 @media (min-width:1024px){
   .lg\:col-span-12{ grid-column:span 12 / span 12; }
 }
+
+/* ---------------------------------------------------------------- iOS ----
+   WebKit zooms the page when it focuses an input whose computed font-size is
+   under 16px. In Safari a reader can pinch back out; in an installed app there
+   is no pinch-out, so the page stays zoomed and shifted for the rest of the
+   session. Every field in this app was under the threshold -- 12.5px, or 11px
+   for the persona select.
+
+   Keyed on the pointer rather than the viewport width, because this is a
+   property of the input method and not of the screen: a touch laptop needs it at
+   1440px and a desktop does not need it at 390px. The desktop density is the
+   design and is left exactly as it was.
+
+   Last in the stylesheet on purpose. Two of these selectors out-specify a bare
+   .field and one is an id, so each is repeated by name; for the rest, being
+   written after the rule it overrides is what settles it. */
+@media (pointer: coarse){
+  .field,
+  .search-input,
+  .fr-search .search .field,
+  #personaSel{ font-size:16px; }
+}
 </style>
 </head>
 <body>
@@ -2006,7 +2031,7 @@ body:not([data-role="OPS"]) .persona-row{ display:none; }
       <div class="p-2.5 flex flex-col gap-2" style="border-top:1px solid var(--hairline)">
         <div class="persona-row flex items-center gap-2">
           <label for="personaSel" class="text-[9px] tracking-[.1em] uppercase flex-none" style="color:var(--text-muted)" data-i18n>Send as</label>
-          <select id="personaSel" class="field" style="width:auto;padding:5px 8px;font-size:11px">
+          <select id="personaSel" class="field" style="width:auto;padding:5px 8px">
             <option value="FARMER" data-i18n>Amara — Farmer, Plot F-2</option>
             <option value="BUYER" data-i18n>Kwesi — Terrace Kitchen</option>
             <option value="DRIVER" data-i18n>Tunde — Driver, Unit D-3</option>

@@ -739,6 +739,72 @@ module.exports = ({ suite, test, assert }) => {
     });
   });
   /* ================================================= safe areas =========== */
+  /* ------------------------------------------------------------- iPhone --- */
+  /* WebKit zooms the page when it focuses an input whose computed font-size is
+     under 16px. In Safari a reader can pinch back out; in an installed app there
+     is no pinch-out, so the layout stays shifted for the rest of the session.
+     Every field in this app was under the threshold. */
+  suite('assets · fields do not zoom iOS', () => {
+    const { html, markup } = readSource();
+    const FIELD = /(^|[\s,>])(\.field|\.search-input|#personaSel)\b/;
+
+    /* The CSS lives inside one <style>; rules are read as selector + body pairs
+       so a font-size can be attributed to the selector that sets it. */
+    /* A selector capture runs back to the previous brace, so it picks up any
+       comment written above the rule. Stripped here, or the selector under test
+       is a paragraph of prose with a selector on the end of it. */
+    const rules = [...html.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .map(m => ({ sel: m[1].replace(/\/\*[\s\S]*?\*\//g, '').trim(), body: m[2] }))
+      .filter(r => /font-size\s*:/.test(r.body));
+
+    const coarse = (() => {
+      const at = html.indexOf('@media (pointer: coarse)');
+      if (at < 0) return '';
+      // The block runs to its own closing brace; rules inside it are one level deep.
+      let depth = 0, i = html.indexOf('{', at);
+      for (let j = i; j < html.length; j++) {
+        if (html[j] === '{') depth++;
+        else if (html[j] === '}') { depth--; if (!depth) return html.slice(i, j); }
+      }
+      return '';
+    })();
+
+    test('there is a coarse-pointer block at all', () =>
+      assert.ok(coarse.length > 0,
+        'nothing raises the fields to 16px, so every one of them zooms the page on iOS'));
+
+    /* pointer:coarse rather than a width query: this is a property of the input
+       method, not the screen. A touch laptop needs it at 1440px, a desktop does
+       not need it at 390px. */
+    test('it is keyed on the pointer, not the viewport width', () => {
+      assert.includes(html, '@media (pointer: coarse)',
+        'the fix is keyed on screen width, so a touch laptop still zooms');
+    });
+
+    test('every selector that sizes a field is raised to at least 16px', () => {
+      const sized = rules.filter(r => FIELD.test(r.sel)).map(r => r.sel);
+      assert.greater(sized.length, 0, 'no rule sizes a field, so this proves nothing');
+      sized.forEach(sel => {
+        const escaped = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const hit = coarse.match(new RegExp(escaped + '[^{]*\\{([^}]*)\\}'));
+        assert.ok(hit, `"${sel}" sets a field's font-size but is not repeated under ` +
+          'pointer:coarse, and it out-specifies or follows the bare .field there');
+        const px = parseFloat((hit[1].match(/font-size\s*:\s*([\d.]+)px/) || [])[1]);
+        assert.ok(px >= 16, `"${sel}" is ${px}px on a touch screen, still under the 16px ` +
+          'threshold WebKit zooms at');
+      });
+    });
+
+    /* An inline style beats every rule, so a size written there can never be
+       raised. personaSel carried one. */
+    test('no field carries its size in a style attribute', () => {
+      const inline = [...markup.matchAll(/<(?:input|select|textarea)[^>]*style="([^"]*)"[^>]*>/g)]
+        .filter(m => /font-size/.test(m[1]));
+      assert.deepEqual(inline.map(m => m[1]), [],
+        'a field sizes itself inline, where no media query can reach it');
+    });
+  });
+
   suite('assets · safe areas', () => {
     const { html, markup } = readSource();
 
